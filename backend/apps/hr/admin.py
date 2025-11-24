@@ -12,3 +12,18 @@ class AccessControlAdmin(admin.ModelAdmin):
     list_display = ('user', 'root_org_unit', 'scope')
     list_filter = ('scope',)
     search_fields = ('user__username', 'root_org_unit__symbol')
+
+from apps.hr.models.temp_assignment import TempAssignment
+
+@admin.register(TempAssignment)
+class TempAssignmentAdmin(admin.ModelAdmin):
+    list_display = ("employee", "from_unit", "to_unit", "start_date", "end_date",
+                    "status", "reason_code", "apply_flag")
+    list_filter = ("status", "reason_code", "to_unit")
+    search_fields = ("employee__full_name", "employee__employee_code", "to_unit__symbol")
+    readonly_fields = ("created_at", "cancelled_at", "snapshot_employee_unit_at_create")
+    autocomplete_fields = ("employee", "from_unit", "to_unit")
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("employee", "from_unit", "to_unit")
