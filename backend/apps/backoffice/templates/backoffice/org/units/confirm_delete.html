@@ -1,0 +1,12 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Xóa đơn vị" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Xóa đơn vị" %}: {{ obj.symbol }} - {{ obj.name }}</h2>
+<div class="alert alert-warning">{% trans "Bạn có chắc chắn muốn xóa? Hành động không thể hoàn tác nếu có ràng buộc." %}</div>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <button class="btn btn-danger">{% trans "Xóa" %}</button>
+  <a href="{% url 'backoffice:orgunit_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+</form>
+{% endblock %}

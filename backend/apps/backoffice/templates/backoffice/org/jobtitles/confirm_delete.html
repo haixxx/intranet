@@ -1,0 +1,12 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Xóa chức vụ" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Xóa chức vụ" %}: {{ obj.name }}</h2>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <div class="mb-2 text-warning">{% trans "Bạn có chắc chắn muốn xóa? Nếu đang được dùng sẽ bị chặn." %}</div>
+  <button class="btn btn-danger">{% trans "Xóa" %}</button>
+  <a href="{% url 'backoffice:jobtitle_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+</form>
+{% endblock %}

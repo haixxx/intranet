@@ -1,0 +1,25 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Vai trò (Roles)" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Vai trò (Roles)" %}</h2>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead><tr><th>{% trans "Tên" %}</th><th>{% trans "Số quyền" %}</th><th></th></tr></thead>
+  <tbody>
+    {% for r in roles %}
+      <tr>
+        <td>{{ r.name }}</td>
+        <td>{{ r.permissions.count }}</td>
+        <td class="text-nowrap">
+          <a href="{% url 'backoffice:role_edit' r.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
+          <a href="{% url 'backoffice:role_delete' r.id %}" class="btn btn-sm btn-outline-danger">{% trans "Xóa" %}</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="text-muted">{% trans "Chưa có vai trò." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

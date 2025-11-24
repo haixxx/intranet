@@ -1,0 +1,12 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Vô hiệu hóa tài khoản" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Vô hiệu hóa tài khoản" %}: {{ target.username }}</h2>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <p class="text-muted">{% trans "Người dùng sẽ không đăng nhập được sau khi vô hiệu hóa." %}</p>
+  <button class="btn btn-danger">{% trans "Vô hiệu hóa" %}</button>
+  <a href="{% url 'backoffice:user_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+</form>
+{% endblock %}

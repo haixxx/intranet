@@ -1,0 +1,116 @@
+{% load i18n %}
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <title>{% block title %}Backoffice{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" rel="stylesheet">
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body class="layout-fluid">
+    <div class="page">
+      <header class="navbar navbar-expand-md navbar-light bg-white">
+        <div class="container-xl">
+          <a class="navbar-brand" href="{% url 'backoffice:dashboard' %}">
+            <span class="navbar-brand-text">{% trans "Intranet Backoffice" %}</span>
+          </a>
+          <div class="navbar-nav flex-row order-md-last align-items-center">
+            <form method="post" action="{% url 'set_language' %}" class="me-3">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <select name="language" class="form-select form-select-sm" onchange="this.form.submit()">
+                {% get_current_language as LANGUAGE_CODE %}
+                {% get_available_languages as LANGUAGES %}
+                {% for code, name in LANGUAGES %}
+                  <option value="{{ code }}"{% if code == LANGUAGE_CODE %} selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+              </select>
+            </form>
+            <a href="{% url 'backoffice:profile' %}" class="btn btn-outline-secondary btn-sm me-2">{% trans "Hồ sơ" %}</a>
+            {% if request.user.is_authenticated %}
+              <span class="nav-item px-2">{{ request.user.username }}</span>
+              <a class="btn btn-outline-secondary" href="{% url 'core:logout' %}">{% trans "Đăng xuất" %}</a>
+            {% endif %}
+          </div>
+        </div>
+      </header>
+      <div class="page-wrapper">
+        <div class="container-fluid">
+          <div class="row g-0">
+            <aside class="col-12 col-md-3 col-xl-2 border-end bg-white" style="min-height: calc(100vh - 60px);">
+              <div class="p-3">
+                <div class="list-group list-group-transparent">
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                     href="{% url 'backoffice:dashboard' %}">
+                    <i class="ti ti-home me-2"></i> {% trans "Bảng điều khiển" %}
+                  </a>
+
+                  {% if perms.organization.view_orgunit or perms.organization.view_jobtitle or perms.organization.view_shifttemplate %}
+                  <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Tổ chức" %}</div>
+                  {% if perms.organization.view_orgunit %}
+                  <a class="list-group-item list-group-item-action {% if 'orgunit_' in request.resolver_match.url_name %}active{% endif %}"
+                     href="{% url 'backoffice:orgunit_list' %}">
+                    <i class="ti ti-hierarchy-3 me-2"></i> {% trans "Cơ cấu tổ chức" %}
+                  </a>
+                  {% endif %}
+                  {% if perms.organization.view_jobtitle %}
+                  <a class="list-group-item list-group-item-action {% if 'jobtitle_' in request.resolver_match.url_name %}active{% endif %}"
+                     href="{% url 'backoffice:jobtitle_list' %}">
+                    <i class="ti ti-id-badge me-2"></i> {% trans "Chức vụ" %}
+                  </a>
+                  {% endif %}
+                  {% if perms.organization.view_shifttemplate %}
+                  <a class="list-group-item list-group-item-action {% if 'shift_' in request.resolver_match.url_name %}active{% endif %}"
+                     href="{% url 'backoffice:shift_list' %}">
+                    <i class="ti ti-clock me-2"></i> {% trans "Ca làm việc" %}
+                  </a>
+                  {% endif %}
+                  {% endif %}
+
+                  {% if perms.hr.view_employee %}
+                  <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Nhân sự" %}</div>
+                  <a class="list-group-item list-group-item-action {% if 'employee_' in request.resolver_match.url_name %}active{% endif %}"
+                     href="{% url 'backoffice:employee_list' %}">
+                    <i class="ti ti-address-book me-2"></i> {% trans "Nhân sự" %}
+                  </a>
+                  {% endif %}
+
+                  <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Quản trị hệ thống" %}</div>
+                  {% if perms.auth.view_user %}
+                  <a class="list-group-item list-group-item-action {% if 'user_' in request.resolver_match.url_name %}active{% endif %}"
+                     href="{% url 'backoffice:user_list' %}">
+                    <i class="ti ti-users me-2"></i> {% trans "Người dùng" %}
+                  </a>
+                  {% endif %}
+                  {% if perms.auth.view_group %}
+                  <a class="list-group-item list-group-item-action {% if 'role_' in request.resolver_match.url_name %}active{% endif %}"
+                     href="{% url 'backoffice:role_list' %}">
+                    <i class="ti ti-shield-lock me-2"></i> {% trans "Vai trò (Roles)" %}
+                  </a>
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'permission_matrix' %}active{% endif %}"
+                     href="{% url 'backoffice:permission_matrix' %}">
+                    <i class="ti ti-table me-2"></i> {% trans "Ma trận quyền" %}
+                  </a>
+                  {% endif %}
+                  {% if perms.audit.view_auditlog %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'audit_list' %}active{% endif %}"
+                     href="{% url 'backoffice:audit_list' %}">
+                    <i class="ti ti-history me-2"></i> {% trans "Nhật ký (Audit)" %}
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+            </aside>
+            <main class="col-12 col-md-9 col-xl-10 p-4">
+              {% block content %}{% endblock %}
+            </main>
+          </div>
+        </div>
+      </div>
+      <script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
+      {% block extra_js %}{% endblock %}
+    </div>
+  </body>
+</html>

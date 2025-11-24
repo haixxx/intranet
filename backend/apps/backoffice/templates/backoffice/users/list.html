@@ -1,0 +1,53 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Người dùng" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Người dùng" %}</h2>
+<form class="mb-3" method="get">
+  <div class="input-group">
+    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="{% trans 'Tìm username / tên / email' %}">
+    <button class="btn btn-primary">{% trans "Tìm" %}</button>
+    <a href="{% url 'backoffice:user_create' %}" class="btn btn-success ms-2">+ {% trans "Tạo mới" %}</a>
+  </div>
+</form>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead>
+    <tr>
+      <th>{% trans "Username" %}</th>
+      <th>{% trans "Họ tên" %}</th>
+      <th>{% trans "Email" %}</th>
+      <th>{% trans "Kích hoạt" %}</th>
+      <th>{% trans "Nhóm" %}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td>{{ u.full_name }}</td>
+        <td>{{ u.email }}</td>
+        <td>{{ u.is_active|yesno:"✓,✗" }}</td>
+        <td>
+          {% for g in u.groups.all %}
+            <span class="badge bg-blue">{{ g.name }}</span>
+          {% empty %}—{% endfor %}
+        </td>
+        <td class="text-nowrap">
+          <a href="{% url 'backoffice:user_edit' u.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
+          <a href="{% url 'backoffice:user_roles' u.id %}" class="btn btn-sm btn-outline-secondary">{% trans "Vai trò" %}</a>
+          {% if u.is_active %}
+            <a href="{% url 'backoffice:user_deactivate' u.id %}" class="btn btn-sm btn-outline-danger">{% trans "Vô hiệu hóa" %}</a>
+          {% else %}
+            <a href="{% url 'backoffice:user_activate' u.id %}" class="btn btn-sm btn-outline-success">{% trans "Kích hoạt" %}</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="text-muted">{% trans "Không có người dùng." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

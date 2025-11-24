@@ -1,0 +1,17 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+  <h2 class="mb-4">Tổng quan</h2>
+  <div class="row row-cards">
+    {% for c in cards %}
+      <div class="col-sm-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="subheader">{{ c.title }}</div>
+            <div class="h1">{{ c.value }}</div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

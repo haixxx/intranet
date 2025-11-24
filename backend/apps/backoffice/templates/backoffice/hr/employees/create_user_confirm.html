@@ -1,0 +1,26 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Tạo user" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Tạo tài khoản cho nhân sự" %}</h2>
+<div class="card card-body">
+  <p><strong>{% trans "Nhân sự" %}:</strong> {{ emp.full_name }} ({{ emp.employee_code }})</p>
+  <p><strong>{% trans "Đơn vị" %}:</strong> {{ emp.unit.symbol }} - {{ emp.unit.name }}</p>
+  <p class="mb-2">
+    <strong>{% trans "Username sẽ tạo" %}:</strong>
+    <code>{{ proposed_username }}</code>
+    <br>
+    <small class="text-muted">
+      {% trans "Cách tạo: (unit_symbol + '_' + họ_tên) đã bỏ dấu, chữ thường, bỏ khoảng trắng và ký tự đặc biệt." %}
+      {% trans "Nếu username đã tồn tại sẽ thêm số 2,3,... phía sau." %}
+    </small>
+  </p>
+  <p class="mb-2"><strong>{% trans "Mật khẩu mặc định" %}:</strong> <code>123456</code></p>
+  <p class="mb-2"><strong>{% trans "Quyền mặc định" %}:</strong> {% trans "Chỉ xem dữ liệu trong đơn vị (UNIT_SUBTREE) của nhân sự" %} – {% trans "nhóm" %} <code>EMPLOYEE_VIEWER</code>.</p>
+  <form method="post">
+    {% csrf_token %}
+    <button class="btn btn-success">{% trans "Xác nhận tạo user" %}</button>
+    <a href="{% url 'backoffice:employee_detail' emp.id %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+  </form>
+</div>
+{% endblock %}

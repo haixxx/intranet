@@ -1,0 +1,59 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nhập Excel - Nhân sự" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Nhập Excel - Nhân sự" %}</h2>
+
+<form method="post" enctype="multipart/form-data" class="card card-body">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">{% trans "File Excel" %}</label>
+      <input type="file" name="file" accept=".xlsx,.xls" class="form-control" required>
+      <div class="form-text">Header linh hoạt: full_name, workforce_type, job_title, unit_symbol, team_symbol, employee_code, card_id, ...</div>
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">{% trans "Khóa khớp (match_by)" %}</label>
+      <select name="match_by" class="form-select">
+        <option value="employee_code">employee_code</option>
+        <option value="card_id">card_id</option>
+      </select>
+      <div class="form-text">{% trans "Nên chọn card_id nếu đồng bộ với máy chấm công." %}</div>
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">{% trans "Chế độ (mode)" %}</label>
+      <select name="mode" class="form-select">
+        <option value="upsert" selected>upsert (tạo mới nếu chưa có, ngược lại cập nhật)</option>
+        <option value="update_only">update_only (chỉ cập nhật, không tạo mới)</option>
+        <option value="create_only">create_only (chỉ tạo mới, không đụng bản ghi cũ)</option>
+      </select>
+    </div>
+
+    <div class="col-md-3">
+      <div class="form-check mt-4">
+        <input class="form-check-input" type="checkbox" value="true" id="dry_run" name="dry_run" {% if default_dry_run %}checked{% endif %}>
+        <label class="form-check-label" for="dry_run">
+          {% trans "Chạy thử (dry-run) – chỉ tính toán, không ghi DB" %}
+        </label>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <button class="btn btn-primary">{% trans "Tải lên và xử lý" %}</button>
+      <a href="{% url 'backoffice:employee_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+    </div>
+  </div>
+</form>
+
+<div class="mt-4">
+  <h6>{% trans "Gợi ý" %}</h6>
+  <ul class="small">
+    <li>{% trans "update_only: chỉ sửa các nhân sự đã có theo khóa đã chọn." %}</li>
+    <li>{% trans "create_only: chỉ tạo mới; nếu đụng khóa đã tồn tại sẽ bỏ qua." %}</li>
+    <li>{% trans "upsert: kết hợp cả hai." %}</li>
+    <li>{% trans "Khi tạo mới, hệ thống chặn trùng card_id / citizen_id / email / phone." %}</li>
+  </ul>
+</div>
+{% endblock %}

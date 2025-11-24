@@ -1,0 +1,31 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Chức vụ" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Chức vụ" %}</h2>
+<div class="mb-3">
+  <a href="{% url 'backoffice:jobtitle_create' %}" class="btn btn-success">+ {% trans "Tạo chức vụ" %}</a>
+  <a href="{% url 'backoffice:export_jobtitles' %}" class="btn btn-outline-primary ms-2">{% trans "Xuất Excel" %}</a>
+  <a href="{% url 'backoffice:import_jobtitles' %}" class="btn btn-outline-secondary ms-2">{% trans "Nhập Excel" %}</a>
+</div>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead><tr><th>{% trans "Tên" %}</th><th>{% trans "Mã" %}</th><th>{% trans "Kích hoạt" %}</th><th></th></tr></thead>
+  <tbody>
+    {% for it in items %}
+      <tr>
+        <td>{{ it.name }}</td>
+        <td>{{ it.code }}</td>
+        <td>{{ it.is_active|yesno:"✓,✗" }}</td>
+        <td class="text-nowrap">
+          <a href="{% url 'backoffice:jobtitle_edit' it.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
+          <a href="{% url 'backoffice:jobtitle_delete' it.id %}" class="btn btn-sm btn-outline-danger">{% trans "Xóa" %}</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="text-muted">{% trans "Chưa có dữ liệu." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

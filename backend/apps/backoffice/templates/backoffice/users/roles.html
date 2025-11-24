@@ -1,0 +1,15 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Vai trò người dùng" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Vai trò người dùng" %}: {{ target.username }}</h2>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="mb-3">
+    {{ form.roles }}
+  </div>
+  <button class="btn btn-primary">{% trans "Lưu vai trò" %}</button>
+  <a href="{% url 'backoffice:user_edit' target.id %}" class="btn btn-secondary">{% trans "Quay lại" %}</a>
+</form>
+{% endblock %}

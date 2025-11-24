@@ -1,0 +1,12 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nghỉ việc" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Nghỉ việc" %}: {{ obj.full_name }} ({{ obj.employee_code }})</h2>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <p class="text-muted">{% trans "Nhân sự sẽ chuyển trạng thái sang Đã nghỉ. Nếu có tài khoản sẽ bị vô hiệu hóa." %}</p>
+  <button class="btn btn-danger">{% trans "Nghỉ việc" %}</button>
+  <a href="{% url 'backoffice:employee_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+</form>
+{% endblock %}

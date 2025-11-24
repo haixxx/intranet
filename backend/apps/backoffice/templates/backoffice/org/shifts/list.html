@@ -1,0 +1,34 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Ca làm việc" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Ca làm việc" %}</h2>
+<div class="mb-3">
+  <a href="{% url 'backoffice:shift_create' %}" class="btn btn-success">+ {% trans "Tạo ca" %}</a>
+  <a href="{% url 'backoffice:export_shifts' %}" class="btn btn-outline-primary ms-2">{% trans "Xuất Excel" %}</a>
+  <a href="{% url 'backoffice:import_shifts' %}" class="btn btn-outline-secondary ms-2">{% trans "Nhập Excel" %}</a>
+</div>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead><tr><th>{% trans "Mã" %}</th><th>{% trans "Tên" %}</th><th>{% trans "Loại" %}</th><th>{% trans "Bắt đầu" %}</th><th>{% trans "Kết thúc" %}</th><th>{% trans "Qua ngày" %}</th><th></th></tr></thead>
+  <tbody>
+    {% for it in items %}
+      <tr>
+        <td>{{ it.code }}</td>
+        <td>{{ it.name }}</td>
+        <td>{{ it.get_type_display }}</td>
+        <td>{{ it.start_time|time:"H:i" }}</td>
+        <td>{{ it.end_time|time:"H:i" }}</td>
+        <td>{{ it.crosses_midnight|yesno:"✓,—" }}</td>
+        <td class="text-nowrap">
+          <a href="{% url 'backoffice:shift_edit' it.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
+          <a href="{% url 'backoffice:shift_delete' it.id %}" class="btn btn-sm btn-outline-danger">{% trans "Xóa" %}</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="text-muted">{% trans "Chưa có dữ liệu." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

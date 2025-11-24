@@ -1,0 +1,17 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Xóa vai trò" %}{% endblock %}
+{% block content %}
+  <h2 class="mb-3">{% trans "Xóa vai trò" %}: {{ role.name }}</h2>
+  <div class="alert alert-warning">
+    {% trans "Hành động này sẽ xóa vai trò và gỡ vai trò khỏi tất cả người dùng liên quan." %}
+  </div>
+  <form method="post" class="card card-body">
+    {% csrf_token %}
+    <div class="mb-3">
+      <strong>{% trans "Bạn có chắc chắn muốn xóa?" %}</strong>
+    </div>
+    <button class="btn btn-danger">{% trans "Xóa" %}</button>
+    <a href="{% url 'backoffice:role_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+  </form>
+{% endblock %}

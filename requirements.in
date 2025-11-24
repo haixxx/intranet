@@ -1,0 +1,8 @@
+# Giữ để tham khảo gói gốc (dù hiện tại ta dùng requirements.txt thủ công)
+Django==5.*
+djangorestframework==3.*
+gunicorn==22.*
+psycopg2-binary==2.*
+whitenoise==6.*
+pytest
+pytest-django
