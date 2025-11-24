@@ -90,3 +90,6 @@ class AccessControl(models.Model):
 
     def __str__(self):
         return f"{self.user.username} -> {self.root_org_unit.symbol} ({self.scope})"
+    
+    # Import model điều động tạm thời
+from .temp_assignment import TempAssignment
