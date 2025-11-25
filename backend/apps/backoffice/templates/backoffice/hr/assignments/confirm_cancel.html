@@ -1,0 +1,24 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Huỷ điều động{% endblock %}
+{% block content %}
+<h2 class="mb-3">Huỷ điều động tạm thời</h2>
+<div class="card card-body mb-3">
+  <p><strong>Nhân sự:</strong> {{ obj.employee.employee_code }} - {{ obj.employee.full_name }}</p>
+  <p><strong>Từ:</strong> {{ obj.from_unit.symbol }} → <strong>Đến:</strong> {{ obj.to_unit.symbol }}</p>
+  <p><strong>Khoảng:</strong> {{ obj.start_date|date:'d/m/Y' }} {% if obj.end_date %} - {{ obj.end_date|date:'d/m/Y' }}{% endif %}</p>
+  <p><strong>Trạng thái hiện tại:</strong>
+    {% if obj.status == 'ACTIVE' %}
+      Đang bổ sung
+    {% elif obj.status == 'CANCELLED' %}
+      Đã hủy
+    {% else %}
+      Hết hạn bổ sung
+    {% endif %}
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <button class="btn btn-danger btn-sm">Xác nhận huỷ</button>
+    <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-secondary btn-sm">Quay lại</a>
+  </form>
+</div>
+{% endblock %}

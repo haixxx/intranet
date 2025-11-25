@@ -1,0 +1,89 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Điều động tạm thời{% endblock %}
+{% block content %}
+<h2 class="mb-3">Điều động tạm thời</h2>
+
+<form method="get" class="card card-body mb-3">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="Tìm mã / tên nhân sự">
+    </div>
+    <div class="col-md-3">
+      <select name="to_unit" class="form-select form-select-sm">
+        <option value="">-- Đơn vị nhận --</option>
+        {% for u in units %}
+          <option value="{{ u.id }}"{% if to_unit_selected == u.id|stringformat:"s" %} selected{% endif %}>{{ u.symbol }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select name="status" class="form-select form-select-sm">
+        <option value="">-- Trạng thái --</option>
+        <option value="ACTIVE"{% if status_selected == 'ACTIVE' %} selected{% endif %}>Đang bổ sung</option>
+        <option value="CANCELLED"{% if status_selected == 'CANCELLED' %} selected{% endif %}>Đã hủy</option>
+        <option value="EXPIRED"{% if status_selected == 'EXPIRED' %} selected{% endif %}>Hết hạn bổ sung</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <div class="form-check mt-1">
+        <input class="form-check-input" type="checkbox" value="1" id="over60" name="over60"{% if over60 == '1' %} checked{% endif %}>
+        <label class="form-check-label small" for="over60">&gt; 60 ngày (Đang bổ sung)</label>
+      </div>
+    </div>
+    <div class="col-md-2 d-flex align-items-center gap-2">
+      <button class="btn btn-primary btn-sm">Lọc</button>
+      <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-outline-secondary btn-sm">Xóa lọc</a>
+      {% if manage_allowed %}
+        <a href="{% url 'backoffice:temp_assignment_create' %}" class="btn btn-success btn-sm">+ Tạo</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-sm table-striped align-middle">
+  <thead>
+    <tr>
+      <th>Nhân sự</th>
+      <th>Đơn vị gốc</th>
+      <th>Đơn vị nhận</th>
+      <th>Bắt đầu</th>
+      <th>Kết thúc</th>
+      <th>Trạng thái</th>
+      <th>Lý do</th>
+      <th>Số ngày</th>
+      <th>Tính quân số?</th>
+      <th>Đơn vị tính quân số</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in items %}
+      <tr>
+        <td>{{ it.employee.employee_code }} - {{ it.employee.full_name }}</td>
+        <td>{{ it.from_unit.symbol }}</td>
+        <td>{{ it.to_unit.symbol }}</td>
+        <td>{{ it.start_date|date:'d/m/Y' }}</td>
+        <td>{% if it.end_date %}{{ it.end_date|date:'d/m/Y' }}{% else %}—{% endif %}</td>
+        <td>
+          {% if it.status == 'ACTIVE' %}Đang bổ sung
+          {% elif it.status == 'CANCELLED' %}Đã hủy
+          {% else %}Hết hạn bổ sung{% endif %}
+        </td>
+        <td>{{ it.get_reason_code_display }}</td>
+        <td>{{ it.duration_days }}</td>
+        <td>{% if it.apply_flag %}Có{% else %}Không{% endif %}</td>
+        <td>{% if it.apply_flag %}{{ it.to_unit.symbol }}{% else %}—{% endif %}</td>
+        <td class="text-nowrap">
+          {% if manage_allowed and it.status == 'ACTIVE' %}
+            <a href="{% url 'backoffice:temp_assignment_cancel' it.id %}" class="btn btn-sm btn-outline-danger">Huỷ</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="11" class="text-muted">Không có dữ liệu.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
