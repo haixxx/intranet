@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 from . import views_users, views_roles, views_permissions, views_audit
 from . import views_orgunits, views_jobtitles, views_shifts, views_employees, views_import_export, views_profile
+from apps.backoffice import views_temp_assignments
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
@@ -54,4 +55,8 @@ urlpatterns = [
     path('hr/employees/<int:pk>/leave/', views_employees.employee_leave, name='employee_leave'),
     path('hr/employees/export/', views_import_export.export_employees, name='export_employees'),
     path('hr/employees/import/', views_import_export.import_employees, name='import_employees'),
+
+    path('assignments/', views_temp_assignments.temp_assignment_list, name='temp_assignment_list'),
+    path('assignments/create/', views_temp_assignments.temp_assignment_create, name='temp_assignment_create'),
+    path('assignments/<int:pk>/cancel/', views_temp_assignments.temp_assignment_cancel, name='temp_assignment_cancel'),
 ]

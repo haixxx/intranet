@@ -3,20 +3,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.conf import settings
 
-from apps.hr.models import Employee
-from apps.organization.models import OrgUnit
-
-
 class TempAssignment(models.Model):
-    """
-    Điều động tạm thời nhân sự sang đơn vị khác theo ngày.
-    - ACTIVE: đang hiệu lực
-    - CANCELLED: huỷ trước hạn
-    - EXPIRED: hết hạn (cron có thể chuyển)
-    end_date = null => mở cho đến khi huỷ hoặc đặt kết thúc.
-    apply_flag: giai đoạn này gộp (dùng để tính effective unit).
-    snapshot_employee_unit_at_create: đơn vị gốc thời điểm tạo (phục vụ lịch sử).
-    """
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
         CANCELLED = "CANCELLED", "Cancelled"
@@ -30,16 +17,16 @@ class TempAssignment(models.Model):
         DU_AN = "DU_AN", "Dự án"
         KHAC = "KHAC", "Khác"
 
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="temp_assignments")
-    from_unit = models.ForeignKey(OrgUnit, on_delete=models.PROTECT, related_name="+")
-    to_unit = models.ForeignKey(OrgUnit, on_delete=models.PROTECT, related_name="+")
+    employee = models.ForeignKey('hr.Employee', on_delete=models.CASCADE, related_name="temp_assignments")
+    from_unit = models.ForeignKey('organization.OrgUnit', on_delete=models.PROTECT, related_name="+")
+    to_unit = models.ForeignKey('organization.OrgUnit', on_delete=models.PROTECT, related_name="+")
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     reason_code = models.CharField(max_length=32, choices=Reason.choices)
     note = models.TextField(blank=True, default="")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
     apply_flag = models.BooleanField(default=True)
-    snapshot_employee_unit_at_create = models.ForeignKey(OrgUnit, on_delete=models.PROTECT, related_name="+")
+    snapshot_employee_unit_at_create = models.ForeignKey('organization.OrgUnit', on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
@@ -77,6 +64,25 @@ class TempAssignment(models.Model):
         if overlapping.exists():
             raise ValidationError("Nhân sự đã có điều động ACTIVE chồng chéo.")
 
+        # Đảm bảo from_unit khớp với đơn vị hiện tại của employee
+        if self.employee and self.from_unit_id and self.employee.unit_id != self.from_unit_id:
+            raise ValidationError("from_unit phải trùng với đơn vị gốc hiện tại của nhân sự.")
+
+    def save(self, *args, **kwargs):
+        # Tự động set các snapshot khi tạo mới
+        if not self.pk:
+            if self.employee:
+                # Auto fill from_unit
+                if not self.from_unit_id:
+                    self.from_unit_id = self.employee.unit_id
+                # Snapshot original unit
+                if not self.snapshot_employee_unit_at_create_id:
+                    self.snapshot_employee_unit_at_create_id = self.employee.unit_id
+            # Trạng thái mặc định ACTIVE
+            if not self.status:
+                self.status = self.Status.ACTIVE
+        super().save(*args, **kwargs)
+
     @property
     def is_open_ended(self):
         return self.end_date is None
@@ -98,5 +104,5 @@ class TempAssignment(models.Model):
         return self.duration_days() > threshold_days
 
     def __str__(self):
-        segment = f"{self.start_date}" + ("" if self.end_date is None else f" - {self.end_date}")
-        return f"{self.employee.employee_code} -> {self.to_unit.symbol} ({segment})"
+        seg = f"{self.start_date}" + ("" if self.end_date is None else f" - {self.end_date}")
+        return f"{self.employee.employee_code} -> {self.to_unit.symbol} ({seg})"

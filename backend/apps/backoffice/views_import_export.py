@@ -1,5 +1,5 @@
 import io
-from datetime import datetime, date
+from datetime import datetime, date as date_cls
 from django.contrib.auth.decorators import login_required, permission_required
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
@@ -10,13 +10,12 @@ from openpyxl import Workbook, load_workbook
 from apps.organization.models import OrgUnit, JobTitle, ShiftTemplate
 from apps.hr.models import Employee
 from apps.audit.utils import audit_log
+from apps.hr.services import allowed_org_ids_for_user
+from apps.hr.services.assignments import employee_ids_effective_in_units, effective_unit_for
 
-# ------------------------- COMMON UTILS ------------------------- #
+# ==================== COMMON ====================
 
 def _xlsx_response(wb: Workbook, filename_prefix: str) -> HttpResponse:
-    """
-    Trả về HttpResponse file .xlsx để tải về.
-    """
     bio = io.BytesIO()
     wb.save(bio)
     bio.seek(0)
@@ -28,7 +27,7 @@ def _xlsx_response(wb: Workbook, filename_prefix: str) -> HttpResponse:
     resp['Content-Disposition'] = f'attachment; filename="{filename_prefix}_{ts}.xlsx"'
     return resp
 
-# ------------------------- ORGUNIT EXPORT / IMPORT ------------------------- #
+# ==================== ORGUNIT EXPORT/IMPORT ====================
 
 @login_required
 @permission_required('organization.view_orgunit', raise_exception=True)
@@ -47,6 +46,7 @@ def export_orgunits(request):
             "true" if u.is_active else "false"
         ])
     return _xlsx_response(wb, "OrgUnits")
+
 
 @login_required
 @permission_required('organization.add_orgunit', raise_exception=True)
@@ -104,16 +104,9 @@ def import_orgunits(request):
             except Exception as e:
                 errors.append(f"Dòng {i}: {e}")
 
-        audit_log(
-            action_verb="UPDATE",
-            object_type="orgunit",
-            object_id="bulk",
-            object_repr="IMPORT",
-            actor=request.user,
-            extra={"created": created, "updated": updated, "errors": len(errors)},
-            request=request,
-            action_code="ORGUNIT_IMPORT",
-        )
+        audit_log(action_verb="UPDATE", object_type="orgunit", object_id="bulk", object_repr="IMPORT",
+                  actor=request.user, extra={"created": created, "updated": updated, "errors": len(errors)},
+                  request=request, action_code="ORGUNIT_IMPORT")
         if errors:
             messages.warning(request, f"Tạo mới: {created}, Cập nhật: {updated}, Lỗi: {len(errors)}. {errors[:5]}")
         else:
@@ -126,7 +119,7 @@ def import_orgunits(request):
         'post_url': 'backoffice:import_orgunits',
     })
 
-# ------------------------- JOBTITLE EXPORT / IMPORT ------------------------- #
+# ==================== JOBTITLE EXPORT/IMPORT ====================
 
 @login_required
 @permission_required('organization.view_jobtitle', raise_exception=True)
@@ -138,6 +131,7 @@ def export_jobtitles(request):
     for jt in JobTitle.objects.order_by('name'):
         ws.append([jt.name, jt.code or "", "true" if jt.is_active else "false"])
     return _xlsx_response(wb, "JobTitles")
+
 
 @login_required
 @permission_required('organization.add_jobtitle', raise_exception=True)
@@ -173,16 +167,9 @@ def import_jobtitles(request):
             except Exception as e:
                 errors.append(f"Dòng {i}: {e}")
 
-        audit_log(
-            action_verb="UPDATE",
-            object_type="jobtitle",
-            object_id="bulk",
-            object_repr="IMPORT",
-            actor=request.user,
-            extra={"created": created, "updated": updated, "errors": len(errors)},
-            request=request,
-            action_code="JOBTITLE_IMPORT",
-        )
+        audit_log(action_verb="UPDATE", object_type="jobtitle", object_id="bulk", object_repr="IMPORT",
+                  actor=request.user, extra={"created": created, "updated": updated, "errors": len(errors)},
+                  request=request, action_code="JOBTITLE_IMPORT")
         if errors:
             messages.warning(request, f"Tạo mới: {created}, Cập nhật: {updated}, Lỗi: {len(errors)}. {errors[:5]}")
         else:
@@ -195,7 +182,7 @@ def import_jobtitles(request):
         'post_url': 'backoffice:import_jobtitles',
     })
 
-# ------------------------- SHIFTTEMPLATE EXPORT / IMPORT ------------------------- #
+# ==================== SHIFT EXPORT/IMPORT ====================
 
 @login_required
 @permission_required('organization.view_shifttemplate', raise_exception=True)
@@ -214,6 +201,7 @@ def export_shifts(request):
             "true" if s.is_active else "false",
         ])
     return _xlsx_response(wb, "ShiftTemplates")
+
 
 @login_required
 @permission_required('organization.add_shifttemplate', raise_exception=True)
@@ -267,16 +255,9 @@ def import_shifts(request):
             except Exception as e:
                 errors.append(f"Dòng {i}: {e}")
 
-        audit_log(
-            action_verb="UPDATE",
-            object_type="shift",
-            object_id="bulk",
-            object_repr="IMPORT",
-            actor=request.user,
-            extra={"created": created, "updated": updated, "errors": len(errors)},
-            request=request,
-            action_code="SHIFT_IMPORT",
-        )
+        audit_log(action_verb="UPDATE", object_type="shift", object_id="bulk", object_repr="IMPORT",
+                  actor=request.user, extra={"created": created, "updated": updated, "errors": len(errors)},
+                  request=request, action_code="SHIFT_IMPORT")
         if errors:
             messages.warning(request, f"Tạo mới: {created}, Cập nhật: {updated}, Lỗi: {len(errors)}. {errors[:5]}")
         else:
@@ -289,31 +270,47 @@ def import_shifts(request):
         'post_url': 'backoffice:import_shifts',
     })
 
-# ------------------------- EMPLOYEES EXPORT (theo bộ lọc) ------------------------- #
+# ==================== EMPLOYEE EXPORT (thêm chế độ hiệu lực) ====================
 
 @login_required
 @permission_required('hr.view_employee', raise_exception=True)
 def export_employees(request):
-    from apps.hr.services import allowed_org_ids_for_user
-    unit_ids_scope = set(allowed_org_ids_for_user(request.user))
-
     q = request.GET.get('q', '').strip()
     units_param = request.GET.get('units', '').strip()
     jt_filter = request.GET.get('job_title', '').strip()
     team_filter = request.GET.get('team', '').strip()
+    effective_mode = request.GET.get('effective_mode', '').strip() == '1'
+    effective_date_param = request.GET.get('effective_date', '').strip()
 
+    if effective_date_param:
+        try:
+            effective_date = date_cls.fromisoformat(effective_date_param)
+        except ValueError:
+            effective_date = date_cls.today()
+    else:
+        effective_date = date_cls.today()
+
+    # Units parse
     units_selected = []
     if units_param:
         for p in units_param.split(','):
             p = p.strip()
             if p.isdigit():
-                pid = int(p)
-                if pid in unit_ids_scope:
-                    units_selected.append(pid)
+                units_selected.append(int(p))
 
-    qs = Employee.objects.select_related('job_title', 'unit', 'team').filter(unit_id__in=unit_ids_scope)
-    if units_selected:
-        qs = qs.filter(unit_id__in=units_selected)
+    unit_ids_scope = set(allowed_org_ids_for_user(request.user))
+    qs_base = Employee.objects.select_related('job_title', 'unit', 'team').filter(unit_id__in=unit_ids_scope)
+
+    if effective_mode and units_selected:
+        effective_ids = employee_ids_effective_in_units(units_selected, effective_date)
+        qs = qs_base.filter(id__in=effective_ids)
+    else:
+        if units_selected:
+            valid_units = [u for u in units_selected if u in unit_ids_scope]
+            qs = qs_base.filter(unit_id__in=valid_units) if valid_units else qs_base.none()
+        else:
+            qs = qs_base
+
     if jt_filter:
         qs = qs.filter(job_title_id=jt_filter)
     if team_filter:
@@ -328,20 +325,32 @@ def export_employees(request):
     wb = Workbook()
     ws = wb.active
     ws.title = "Employees"
-    headers = [
+
+    base_headers = [
         "full_name", "workforce_type", "job_title", "unit_symbol", "team_symbol",
         "employee_code", "citizen_id", "tax_code", "card_id", "bank_account", "bank_name",
         "email", "phone", "joined_date", "status", "note"
     ]
-    ws.append(headers)
+    if effective_mode:
+        # Thêm cột effective_unit ngay sau team_symbol
+        base_headers.insert(5, "effective_unit_symbol")
+
+    ws.append(base_headers)
 
     for e in qs.order_by('employee_code'):
-        ws.append([
+        row = [
             e.full_name,
             e.workforce_type,
             e.job_title.name if e.job_title_id else "",
             e.unit.symbol if e.unit_id else "",
             e.team.symbol if e.team_id else "",
+        ]
+        if effective_mode:
+            eff_unit_id, source = effective_unit_for(e.id, effective_date)
+            from apps.organization.models import OrgUnit
+            eff_symbol = OrgUnit.objects.filter(pk=eff_unit_id).values_list('symbol', flat=True).first() or ""
+            row.append(eff_symbol)
+        row.extend([
             e.employee_code,
             e.citizen_id or "",
             e.tax_code or "",
@@ -354,19 +363,20 @@ def export_employees(request):
             e.status,
             e.note or ""
         ])
+        ws.append(row)
+
     return _xlsx_response(wb, "EmployeesFiltered")
 
-# ------------------------- EMPLOYEES IMPORT (match_by/mode/dry-run) ------------------------- #
+# ==================== EMPLOYEE IMPORT (nâng cao – giữ nguyên logic upsert) ====================
 
 @login_required
 @permission_required('hr.add_employee', raise_exception=True)
 def import_employees(request):
     """
-    Import nhân sự với tùy chọn:
-      - match_by: employee_code | card_id
-      - mode: update_only | create_only | upsert
-      - dry_run: true/false (mặc định true)
-    Duplicate guard khi create: chặn trùng card_id / citizen_id / email / phone.
+    Import nhân sự nâng cao:
+      match_by: employee_code | card_id
+      mode: update_only | create_only | upsert
+      dry_run: xem trước
     """
     if request.method == 'POST' and request.FILES.get('file'):
         match_by = request.POST.get('match_by', 'employee_code').strip() or 'employee_code'
@@ -377,7 +387,6 @@ def import_employees(request):
         ws = wb.active
         headers = [str(c.value or "").strip() for c in ws[1]]
 
-        # Chuẩn hóa header
         def norm(h): return "".join(str(h).strip().lower().split())
         header_norm = [norm(h) for h in headers]
         ALIAS_MAP = {
@@ -404,17 +413,16 @@ def import_employees(request):
                 if hn in aliases and std not in col_index:
                     col_index[std] = idx
 
-        # Tối thiểu cho import
         mandatory = ['full_name', 'workforce_type', 'job_title', 'unit_symbol', 'status']
         missing = [m for m in mandatory if m not in col_index]
         if missing:
             messages.error(request, f"Thiếu cột bắt buộc: {missing}.")
             return redirect('backoffice:employee_list')
 
-        # Helpers
-        from datetime import datetime as dt, date as ddate
+        from datetime import datetime as dt
         jt_cache = {j.name: j.id for j in JobTitle.objects.all()}
         unit_cache = {u.symbol: u for u in OrgUnit.objects.all()}
+
         def cell(row, key):
             c = col_index.get(key)
             return row[c - 1].value if c else None
@@ -434,17 +442,15 @@ def import_employees(request):
                 return str(v).strip()
         def to_date(v):
             if v in (None, ""): return None
-            if isinstance(v, date): return v
+            if isinstance(v, date_cls): return v
             if isinstance(v, datetime): return v.date()
             for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
                 try: return dt.strptime(str(v).strip(), fmt).date()
                 except Exception: pass
             return None
 
-        # Key
         key_field = 'employee_code' if match_by == 'employee_code' else 'card_id'
 
-        # Duplicate guard caches
         existing_codes = set(Employee.objects.exclude(employee_code__isnull=True).values_list('employee_code', flat=True))
         existing_cards = set(Employee.objects.exclude(card_id__isnull=True).values_list('card_id', flat=True))
         existing_citizens = set(Employee.objects.exclude(citizen_id__isnull=True).values_list('citizen_id', flat=True))
@@ -452,16 +458,13 @@ def import_employees(request):
         existing_phones = set(Employee.objects.exclude(phone__isnull=True).values_list('phone', flat=True))
 
         seen_keys_in_file = set()
-
         created = updated = skipped = 0
         errors = []
 
-        # Tạo mã tự sinh
         from django.db.models import Max
         max_code = Employee.objects.aggregate(m=Max('employee_code'))['m']
         next_emp_num = (int(max_code[1:]) + 1) if (max_code and isinstance(max_code, str) and max_code.startswith('E')) else 1
 
-        # Commit?
         commit = not dry_run
         ctx = transaction.atomic() if commit else None
         if commit: ctx.__enter__()
@@ -489,12 +492,10 @@ def import_employees(request):
 
                     if not full_name:
                         continue
-
                     if not workforce_type or not jt_name or not unit_symbol:
                         raise ValueError("Thiếu workforce_type / job_title / unit_symbol.")
 
                     match_val = emp_code if key_field == 'employee_code' else card_id
-
                     if match_val:
                         if match_val in seen_keys_in_file:
                             errors.append(f"Dòng {r}: Trùng khóa {key_field}='{match_val}' trong file.")
@@ -509,7 +510,6 @@ def import_employees(request):
                         raise ValueError(f"Đơn vị '{unit_symbol}' không tồn tại.")
                     team = unit_cache.get(team_symbol) if team_symbol else None
 
-                    # Tìm employee theo match_by
                     emp = None
                     if key_field == 'employee_code':
                         if emp_code:
@@ -544,7 +544,6 @@ def import_employees(request):
                             skipped += 1
                     else:
                         if mode in ('create_only', 'upsert'):
-                            # Duplicate guard khi CREATE
                             if card_id and card_id in existing_cards:
                                 raise ValueError(f"card_id '{card_id}' đã tồn tại.")
                             if citizen_id and citizen_id in existing_citizens:
@@ -600,19 +599,17 @@ def import_employees(request):
                 object_id="bulk",
                 object_repr="IMPORT",
                 actor=request.user,
-                extra={
-                    "mode": mode, "match_by": key_field, "dry_run": dry_run,
-                    "created": created, "updated": updated, "skipped": skipped, "errors": len(errors)
-                },
+                extra={"mode": mode, "match_by": key_field, "dry_run": dry_run,
+                       "created": created, "updated": updated, "skipped": skipped, "errors": len(errors)},
                 request=request,
                 action_code="EMPLOYEE_IMPORT_ADV",
             )
 
             if errors:
                 sample = "; ".join(errors[:10])
-                messages.warning(request, f"[{ 'DRY-RUN' if dry_run else 'COMMIT' }] Tạo: {created}, Cập nhật: {updated}, Bỏ qua: {skipped}, Lỗi: {len(errors)}. {sample}")
+                messages.warning(request, f"[{'DRY-RUN' if dry_run else 'COMMIT'}] Tạo: {created}, Cập nhật: {updated}, Bỏ qua: {skipped}, Lỗi: {len(errors)}. {sample}")
             else:
-                messages.success(request, f"[{ 'DRY-RUN' if dry_run else 'COMMIT' }] Tạo: {created}, Cập nhật: {updated}, Bỏ qua: {skipped}.")
+                messages.success(request, f"[{'DRY-RUN' if dry_run else 'COMMIT'}] Tạo: {created}, Cập nhật: {updated}, Bỏ qua: {skipped}.")
 
         finally:
             if commit:
@@ -620,10 +617,9 @@ def import_employees(request):
 
         return redirect('backoffice:employee_list')
 
-    # GET: render form nâng cao
     return render(request, 'backoffice/hr/employees/import.html', {
         'title': "Nhập Excel - Nhân sự (nâng cao)",
-        'note': "Chọn khóa khớp, chế độ nhập và có/bỏ dry-run trước khi tải file.",
+        'note': "Chọn khóa khớp, chế độ nhập và dry-run trước khi tải file.",
         'post_url': 'backoffice:import_employees',
         'default_dry_run': True,
     })

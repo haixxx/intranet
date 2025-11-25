@@ -1,8 +1,8 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from apps.organization.models import OrgUnit, JobTitle
 
+# Employee
 class Employee(models.Model):
     class WorkforceType(models.TextChoices):
         INDIRECT = 'INDIRECT', 'Gián tiếp'
@@ -13,12 +13,12 @@ class Employee(models.Model):
         INACTIVE = 'INACTIVE', 'Tạm ngưng'
         LEFT = 'LEFT', 'Đã nghỉ'
 
-    employee_code = models.CharField(max_length=10, unique=True)  # E000001
+    employee_code = models.CharField(max_length=10, unique=True)
     full_name = models.CharField(max_length=150)
     workforce_type = models.CharField(max_length=16, choices=WorkforceType.choices, db_index=True)
-    job_title = models.ForeignKey(JobTitle, on_delete=models.PROTECT, related_name='employees', db_index=True)
-    unit = models.ForeignKey(OrgUnit, on_delete=models.PROTECT, related_name='unit_employees', db_index=True)
-    team = models.ForeignKey(OrgUnit, on_delete=models.PROTECT, related_name='team_employees', null=True, blank=True, db_index=True)
+    job_title = models.ForeignKey('organization.JobTitle', on_delete=models.PROTECT, related_name='employees', db_index=True)
+    unit = models.ForeignKey('organization.OrgUnit', on_delete=models.PROTECT, related_name='unit_employees', db_index=True)
+    team = models.ForeignKey('organization.OrgUnit', on_delete=models.PROTECT, related_name='team_employees', null=True, blank=True, db_index=True)
     card_id = models.CharField(max_length=32, unique=True)
     citizen_id = models.CharField(max_length=20, unique=True, null=True, blank=True)
     tax_code = models.CharField(max_length=20, unique=True, null=True, blank=True)
@@ -53,14 +53,13 @@ class Employee(models.Model):
         return f"{self.employee_code} - {self.full_name}"
 
     def clean(self):
-        # unit.type must be in allowed set
+        from django.apps import apps
+        OrgUnit = apps.get_model('organization', 'OrgUnit')
         if self.unit and self.unit.type not in [OrgUnit.Type.DEPARTMENT, OrgUnit.Type.DIVISION, OrgUnit.Type.WORKSHOP]:
             raise ValidationError("Đơn vị (unit) phải là Phòng/Ban/Phân xưởng.")
-        # team must be TEAM and under unit subtree
         if self.team:
             if self.team.type != OrgUnit.Type.TEAM:
                 raise ValidationError("Tổ (team) phải có loại TEAM.")
-            # basic subtree validation (app-level)
             parent = self.team.parent
             ok = False
             while parent:
@@ -71,6 +70,7 @@ class Employee(models.Model):
             if not ok:
                 raise ValidationError("Tổ phải thuộc cùng cây con của đơn vị.")
 
+# AccessControl
 class AccessControl(models.Model):
     class Scope(models.TextChoices):
         UNIT_SUBTREE = 'UNIT_SUBTREE', 'Đơn vị và tất cả tổ trực thuộc'
@@ -78,7 +78,7 @@ class AccessControl(models.Model):
         ALL_ORG = 'ALL_ORG', 'Toàn hệ thống'
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='access_control')
-    root_org_unit = models.ForeignKey(OrgUnit, on_delete=models.PROTECT, related_name='access_controls')
+    root_org_unit = models.ForeignKey('organization.OrgUnit', on_delete=models.PROTECT, related_name='access_controls')
     scope = models.CharField(max_length=16, choices=Scope.choices, default=Scope.UNIT_SUBTREE, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -90,6 +90,6 @@ class AccessControl(models.Model):
 
     def __str__(self):
         return f"{self.user.username} -> {self.root_org_unit.symbol} ({self.scope})"
-    
-# Import model điều động tạm thời
+
+# Import TempAssignment (sau khi Employee định nghĩa)
 from .temp_assignment import TempAssignment

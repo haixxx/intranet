@@ -12,10 +12,11 @@ from apps.hr.services import allowed_org_ids_for_user
 from apps.organization.models import OrgUnit, JobTitle
 from apps.audit.utils import audit_log
 import re
+from datetime import date as date_cls
+from apps.hr.services.assignments import employee_ids_effective_in_units, effective_unit_for
 
 User = get_user_model()
 
-# Chuẩn hóa (bỏ dấu, chữ thường, bỏ ký tự đặc biệt) để tạo username
 VN_MAP = {
     ord('á'): 'a', ord('à'): 'a', ord('ả'): 'a', ord('ã'): 'a', ord('ạ'): 'a',
     ord('ă'): 'a', ord('ắ'): 'a', ord('ằ'): 'a', ord('ẳ'): 'a', ord('ẵ'): 'a', ord('ặ'): 'a',
@@ -30,7 +31,6 @@ VN_MAP = {
     ord('ú'): 'u', ord('ù'): 'u', ord('ủ'): 'u', ord('ũ'): 'u', ord('ụ'): 'u',
     ord('ư'): 'u', ord('ứ'): 'u', ord('ừ'): 'u', ord('ử'): 'u', ord('ữ'): 'u', ord('ự'): 'u',
     ord('ý'): 'y', ord('ỳ'): 'y', ord('ỷ'): 'y', ord('ỹ'): 'y', ord('ỵ'): 'y',
-    # Uppercase
     ord('Á'): 'a', ord('À'): 'a', ord('Ả'): 'a', ord('Ã'): 'a', ord('Ạ'): 'a',
     ord('Ă'): 'a', ord('Ắ'): 'a', ord('Ằ'): 'a', ord('Ẳ'): 'a', ord('Ẵ'): 'a', ord('Ặ'): 'a',
     ord('Â'): 'a', ord('Ấ'): 'a', ord('Ầ'): 'a', ord('Ẩ'): 'a', ord('Ẫ'): 'a', ord('Ậ'): 'a',
@@ -49,33 +49,29 @@ VN_MAP = {
 def vn_slug(s: str) -> str:
     if not s:
         return ""
-    basic = s.translate(VN_MAP).lower()
-    return re.sub(r'[^a-z0-9]+', '', basic)
+    return re.sub(r'[^a-z0-9]+', '', s.translate(VN_MAP).lower())
 
-def scope_guard_or_message(request, emp: Employee):
-    """
-    Kiểm tra bản ghi có thuộc phạm vi AccessControl của user hay không.
-    Nếu không, trả về trang 'Bạn chưa được cấp quyền'; nếu có, trả về None.
-    """
-    allowed = set(allowed_org_ids_for_user(request.user))
-    if emp.unit_id not in allowed:
-        return render(request, 'backoffice/no_permission.html', {
-            'perm_codename': 'scope:UNIT_SUBTREE/PLANT_SUBTREE/ALL_ORG',
-            'title': 'Bạn chưa được cấp quyền'
-        }, status=200)
-    return None
-
-# ========================== LIST (multi-unit + team) ==========================
 
 @login_required
 @permission_or_message('hr.view_employee')
 def employee_list(request):
     q = request.GET.get('q', '').strip()
-    units_param = request.GET.get('units', '').strip()  # "1,2,3"
+    units_param = request.GET.get('units', '').strip()
     jt_filter = request.GET.get('job_title', '').strip()
     team_filter = request.GET.get('team', '').strip()
+    effective_date_param = request.GET.get('effective_date', '').strip()
+    effective_mode = request.GET.get('effective_mode', '').strip() == '1'
 
-    # Parse units list
+    # Parse effective date
+    if effective_date_param:
+        try:
+            effective_date = date_cls.fromisoformat(effective_date_param)
+        except ValueError:
+            effective_date = date_cls.today()
+    else:
+        effective_date = date_cls.today()
+
+    # Parse units CSV
     units_selected = []
     if units_param:
         for part in units_param.split(','):
@@ -93,19 +89,22 @@ def employee_list(request):
     if page_size <= 0 or page_size > 500:
         page_size = 25
 
-    # Scope theo AccessControl
     scope_unit_ids = set(allowed_org_ids_for_user(request.user))
 
-    # Base queryset
-    qs = Employee.objects.select_related('job_title', 'unit', 'team').filter(unit_id__in=scope_unit_ids)
+    qs_base = Employee.objects.select_related('job_title', 'unit', 'team').filter(unit_id__in=scope_unit_ids)
 
-    # Apply filters
-    if units_selected:
-        chosen = [u for u in units_selected if u in scope_unit_ids]
-        if chosen:
-            qs = qs.filter(unit_id__in=chosen)
+    # Áp dụng lọc đơn vị theo chế độ hiệu lực hoặc primary
+    if effective_mode and units_selected:
+        effective_ids = employee_ids_effective_in_units(units_selected, effective_date)
+        qs = qs_base.filter(id__in=effective_ids)
+    else:
+        if units_selected:
+            valid_units = [u for u in units_selected if u in scope_unit_ids]
+            qs = qs_base.filter(unit_id__in=valid_units) if valid_units else qs_base.none()
         else:
-            qs = qs.none()
+            qs = qs_base
+
+    # Lọc chức vụ / tổ / tìm kiếm
     if jt_filter:
         qs = qs.filter(job_title_id=jt_filter)
     if team_filter:
@@ -115,7 +114,7 @@ def employee_list(request):
 
     qs = qs.order_by('employee_code')
 
-    # Dữ liệu filter
+    # Dữ liệu filter đơn vị & tổ
     units = OrgUnit.objects.filter(id__in=scope_unit_ids, type__in=['DEPARTMENT', 'DIVISION', 'WORKSHOP']).order_by('symbol')
     if len(units_selected) == 1:
         teams = OrgUnit.objects.filter(type='TEAM', parent_id=units_selected[0]).order_by('symbol')
@@ -137,6 +136,13 @@ def employee_list(request):
 
     units_csv = ",".join(str(x) for x in units_selected)
 
+    # Build data hiển thị effective unit (nếu bật)
+    effective_unit_map = {}
+    if effective_mode:
+        for emp in page_obj.object_list:
+            eff_unit_id, source = effective_unit_for(emp.id, effective_date)
+            effective_unit_map[emp.id] = eff_unit_id
+
     return render(request, 'backoffice/hr/employees/list.html', {
         'items': page_obj.object_list,
         'query': q,
@@ -154,40 +160,43 @@ def employee_list(request):
         'page_size': page_size,
         'total_count': paginator.count,
         'page_size_options': [25, 50, 100, 200],
+        'effective_mode': effective_mode,
+        'effective_date': effective_date,
+        'effective_unit_map': effective_unit_map,
     })
 
-# ========================== DETAIL ==========================
 
 @login_required
 @permission_or_message('hr.view_employee')
 def employee_detail(request, pk):
     emp = get_object_or_404(Employee.objects.select_related('job_title', 'unit', 'team', 'user'), pk=pk)
-    guard = scope_guard_or_message(request, emp)
-    if guard:
-        return guard
+    allowed = set(allowed_org_ids_for_user(request.user))
+    if emp.unit_id not in allowed:
+        # Check quyền xem theo điều động hiệu lực (tùy chọn mở rộng – giai đoạn sau có thể thêm)
+        pass
     is_privileged = request.user.is_superuser or request.user.groups.filter(name__in=['HR_ADMIN']).exists()
     return render(request, 'backoffice/hr/employees/detail.html', {
         'emp': emp,
         'is_privileged': is_privileged
     })
 
-# ========================== CREATE USER (tối thiểu) ==========================
 
 @login_required
 @permission_or_message('auth.add_user')
 def employee_create_user(request, pk):
     emp = get_object_or_404(Employee.objects.select_related('unit', 'job_title'), pk=pk)
-    guard = scope_guard_or_message(request, emp)
-    if guard:
-        return guard
+    allowed = set(allowed_org_ids_for_user(request.user))
+    if emp.unit_id not in allowed:
+        return render(request, 'backoffice/no_permission.html', {
+            'perm_codename': 'scope:UNIT_SUBTREE/PLANT_SUBTREE/ALL_ORG',
+            'title': 'Bạn chưa được cấp quyền'
+        }, status=200)
 
     if emp.user_id:
         messages.warning(request, "Nhân sự này đã có tài khoản.")
         return redirect('backoffice:employee_detail', pk=pk)
 
-    unit_part = vn_slug(emp.unit.symbol)
-    name_part = vn_slug(emp.full_name)
-    base_username = f"{unit_part}_{name_part}" if unit_part else name_part
+    base_username = vn_slug(emp.unit.symbol) + "_" + vn_slug(emp.full_name) if emp.unit.symbol else vn_slug(emp.full_name)
 
     if request.method == 'POST':
         username = base_username
@@ -218,23 +227,13 @@ def employee_create_user(request, pk):
             defaults={'root_org_unit': emp.unit, 'scope': AccessControl.Scope.UNIT_SUBTREE}
         )
 
-        audit_log(action_verb="CREATE",
-                  object_type="user",
-                  object_id=user.id,
-                  object_repr=user.username,
-                  actor=request.user,
-                  changes={"fields": {"username": user.username, "employee_code": emp.employee_code}},
-                  request=request,
-                  action_code="USER_CREATE")
+        audit_log(action_verb="CREATE", object_type="user", object_id=user.id, object_repr=user.username,
+                  actor=request.user, changes={"fields": {"username": user.username, "employee_code": emp.employee_code}},
+                  request=request, action_code="USER_CREATE")
 
-        audit_log(action_verb="UPDATE",
-                  object_type="employee",
-                  object_id=emp.id,
-                  object_repr=emp.full_name,
-                  actor=request.user,
-                  changes={"link_user": {"new": user.username}},
-                  request=request,
-                  action_code="EMPLOYEE_LINK_USER")
+        audit_log(action_verb="UPDATE", object_type="employee", object_id=emp.id, object_repr=emp.full_name,
+                  actor=request.user, changes={"link_user": {"new": user.username}},
+                  request=request, action_code="EMPLOYEE_LINK_USER")
 
         messages.success(request, f"Đã tạo tài khoản: {username} (mật khẩu 123456).")
         return redirect('backoffice:employee_detail', pk=pk)
@@ -244,7 +243,6 @@ def employee_create_user(request, pk):
         'proposed_username': base_username
     })
 
-# ========================== CREATE / EDIT ==========================
 
 @login_required
 @permission_or_message('hr.add_employee')
@@ -268,13 +266,17 @@ def employee_create(request):
         form = EmployeeForm()
     return render(request, 'backoffice/hr/employees/form.html', {'form': form, 'create': True})
 
+
 @login_required
 @permission_or_message('hr.change_employee')
 def employee_edit(request, pk):
     emp = get_object_or_404(Employee, pk=pk)
-    guard = scope_guard_or_message(request, emp)
-    if guard:
-        return guard
+    allowed = set(allowed_org_ids_for_user(request.user))
+    if emp.unit_id not in allowed:
+        return render(request, 'backoffice/no_permission.html', {
+            'perm_codename': 'scope:UNIT_SUBTREE/PLANT_SUBTREE/ALL_ORG',
+            'title': 'Bạn chưa được cấp quyền'
+        }, status=200)
 
     if request.method == 'POST':
         old = {
@@ -299,19 +301,17 @@ def employee_edit(request, pk):
         form = EmployeeForm(instance=emp)
     return render(request, 'backoffice/hr/employees/form.html', {'form': form, 'obj': emp})
 
-# ========================== DEACTIVATE / LEAVE (giữ để khớp URL) ==========================
 
 @login_required
 @permission_or_message('hr.change_employee')
 def employee_deactivate(request, pk):
-    """
-    Chuyển trạng thái nhân sự sang INACTIVE.
-    Kiểm tra phạm vi AccessControl; nếu không đủ phạm vi, hiển thị trang 'Bạn chưa được cấp quyền'.
-    """
     emp = get_object_or_404(Employee, pk=pk)
-    guard = scope_guard_or_message(request, emp)
-    if guard:
-        return guard
+    allowed = set(allowed_org_ids_for_user(request.user))
+    if emp.unit_id not in allowed:
+        return render(request, 'backoffice/no_permission.html', {
+            'perm_codename': 'scope:UNIT_SUBTREE/PLANT_SUBTREE/ALL_ORG',
+            'title': 'Bạn chưa được cấp quyền'
+        }, status=200)
 
     if request.method == 'POST':
         prev = emp.status
@@ -326,17 +326,17 @@ def employee_deactivate(request, pk):
 
     return render(request, 'backoffice/hr/employees/confirm_deactivate.html', {'obj': emp})
 
+
 @login_required
 @permission_or_message('hr.change_employee')
 def employee_leave(request, pk):
-    """
-    Chuyển trạng thái nhân sự sang LEFT và vô hiệu hóa tài khoản (nếu có).
-    Kiểm tra phạm vi AccessControl trước khi xử lý.
-    """
     emp = get_object_or_404(Employee, pk=pk)
-    guard = scope_guard_or_message(request, emp)
-    if guard:
-        return guard
+    allowed = set(allowed_org_ids_for_user(request.user))
+    if emp.unit_id not in allowed:
+        return render(request, 'backoffice/no_permission.html', {
+            'perm_codename': 'scope:UNIT_SUBTREE/PLANT_SUBTREE/ALL_ORG',
+            'title': 'Bạn chưa được cấp quyền'
+        }, status=200)
 
     if request.method == 'POST':
         prev = emp.status
