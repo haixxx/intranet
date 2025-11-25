@@ -6,14 +6,13 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from apps.backoffice.utils.permissions import permission_or_message
-from apps.hr.models import Employee, AccessControl
+from apps.hr.models import Employee, AccessControl, TempAssignment
 from apps.hr.forms import EmployeeForm
 from apps.hr.services import allowed_org_ids_for_user
 from apps.organization.models import OrgUnit, JobTitle
 from apps.audit.utils import audit_log
-import re
 from datetime import date as date_cls
-from apps.hr.services.assignments import employee_ids_effective_in_units, effective_unit_for
+import re
 
 User = get_user_model()
 
@@ -51,7 +50,6 @@ def vn_slug(s: str) -> str:
         return ""
     return re.sub(r'[^a-z0-9]+', '', s.translate(VN_MAP).lower())
 
-
 @login_required
 @permission_or_message('hr.view_employee')
 def employee_list(request):
@@ -59,27 +57,13 @@ def employee_list(request):
     units_param = request.GET.get('units', '').strip()
     jt_filter = request.GET.get('job_title', '').strip()
     team_filter = request.GET.get('team', '').strip()
-    effective_date_param = request.GET.get('effective_date', '').strip()
-    effective_mode = request.GET.get('effective_mode', '').strip() == '1'
 
-    # Parse effective date
-    if effective_date_param:
-        try:
-            effective_date = date_cls.fromisoformat(effective_date_param)
-        except ValueError:
-            effective_date = date_cls.today()
-    else:
-        effective_date = date_cls.today()
-
-    # Parse units CSV
     units_selected = []
     if units_param:
         for part in units_param.split(','):
-            part = part.strip()
-            if part.isdigit():
-                units_selected.append(int(part))
+            if part.strip().isdigit():
+                units_selected.append(int(part.strip()))
 
-    # Pagination
     page = request.GET.get('page', '1')
     page_size_raw = request.GET.get('page_size', '').strip()
     try:
@@ -90,32 +74,31 @@ def employee_list(request):
         page_size = 25
 
     scope_unit_ids = set(allowed_org_ids_for_user(request.user))
-
     qs_base = Employee.objects.select_related('job_title', 'unit', 'team').filter(unit_id__in=scope_unit_ids)
 
-    # Áp dụng lọc đơn vị theo chế độ hiệu lực hoặc primary
-    if effective_mode and units_selected:
-        effective_ids = employee_ids_effective_in_units(units_selected, effective_date)
-        qs = qs_base.filter(id__in=effective_ids)
+    if units_selected:
+        valid_units = [u for u in units_selected if u in scope_unit_ids]
+        qs = qs_base.filter(unit_id__in=valid_units) if valid_units else qs_base.none()
     else:
-        if units_selected:
-            valid_units = [u for u in units_selected if u in scope_unit_ids]
-            qs = qs_base.filter(unit_id__in=valid_units) if valid_units else qs_base.none()
-        else:
-            qs = qs_base
+        qs = qs_base
 
-    # Lọc chức vụ / tổ / tìm kiếm
     if jt_filter:
         qs = qs.filter(job_title_id=jt_filter)
     if team_filter:
         qs = qs.filter(team_id=team_filter)
     if q:
-        qs = qs.filter(Q(full_name__icontains=q) | Q(employee_code__icontains=q) | Q(card_id__icontains=q))
+        qs = qs.filter(
+            Q(full_name__icontains=q) |
+            Q(employee_code__icontains=q) |
+            Q(card_id__icontains=q)
+        )
 
     qs = qs.order_by('employee_code')
 
-    # Dữ liệu filter đơn vị & tổ
-    units = OrgUnit.objects.filter(id__in=scope_unit_ids, type__in=['DEPARTMENT', 'DIVISION', 'WORKSHOP']).order_by('symbol')
+    units = OrgUnit.objects.filter(
+        id__in=scope_unit_ids,
+        type__in=['DEPARTMENT', 'DIVISION', 'WORKSHOP']
+    ).order_by('symbol')
     if len(units_selected) == 1:
         teams = OrgUnit.objects.filter(type='TEAM', parent_id=units_selected[0]).order_by('symbol')
     elif len(units_selected) > 1:
@@ -129,19 +112,22 @@ def employee_list(request):
     paginator = Paginator(qs, page_size)
     try:
         page_obj = paginator.page(page)
-    except PageNotAnInteger:
+    except (EmptyPage, PageNotAnInteger):
         page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
 
     units_csv = ",".join(str(x) for x in units_selected)
 
-    # Build data hiển thị effective unit (nếu bật)
-    effective_unit_map = {}
-    if effective_mode:
-        for emp in page_obj.object_list:
-            eff_unit_id, source = effective_unit_for(emp.id, effective_date)
-            effective_unit_map[emp.id] = eff_unit_id
+    today = date_cls.today()
+    employee_ids_page = [e.id for e in page_obj.object_list]
+    active_assignments = TempAssignment.objects.filter(
+        employee_id__in=employee_ids_page,
+        status=TempAssignment.Status.ACTIVE,
+        apply_flag=True,
+        start_date__lte=today
+    ).filter(
+        Q(end_date__gte=today) | Q(end_date__isnull=True)
+    ).select_related('to_unit')
+    supplement_map = {a.employee_id: a.to_unit.symbol for a in active_assignments}
 
     return render(request, 'backoffice/hr/employees/list.html', {
         'items': page_obj.object_list,
@@ -160,26 +146,34 @@ def employee_list(request):
         'page_size': page_size,
         'total_count': paginator.count,
         'page_size_options': [25, 50, 100, 200],
-        'effective_mode': effective_mode,
-        'effective_date': effective_date,
-        'effective_unit_map': effective_unit_map,
+        'supplement_map': supplement_map,
     })
-
 
 @login_required
 @permission_or_message('hr.view_employee')
 def employee_detail(request, pk):
-    emp = get_object_or_404(Employee.objects.select_related('job_title', 'unit', 'team', 'user'), pk=pk)
+    emp = get_object_or_404(
+        Employee.objects.select_related('job_title', 'unit', 'team', 'user'),
+        pk=pk
+    )
     allowed = set(allowed_org_ids_for_user(request.user))
     if emp.unit_id not in allowed:
-        # Check quyền xem theo điều động hiệu lực (tùy chọn mở rộng – giai đoạn sau có thể thêm)
         pass
+
     is_privileged = request.user.is_superuser or request.user.groups.filter(name__in=['HR_ADMIN']).exists()
+
+    assignments = TempAssignment.objects.filter(
+        employee=emp
+    ).select_related('from_unit', 'to_unit').order_by('-start_date', '-id')
+
+    today = date_cls.today()
+
     return render(request, 'backoffice/hr/employees/detail.html', {
         'emp': emp,
-        'is_privileged': is_privileged
+        'is_privileged': is_privileged,
+        'assignments': assignments,
+        'today': today,
     })
-
 
 @login_required
 @permission_or_message('auth.add_user')
@@ -243,7 +237,6 @@ def employee_create_user(request, pk):
         'proposed_username': base_username
     })
 
-
 @login_required
 @permission_or_message('hr.add_employee')
 def employee_create(request):
@@ -265,7 +258,6 @@ def employee_create(request):
     else:
         form = EmployeeForm()
     return render(request, 'backoffice/hr/employees/form.html', {'form': form, 'create': True})
-
 
 @login_required
 @permission_or_message('hr.change_employee')
@@ -301,7 +293,6 @@ def employee_edit(request, pk):
         form = EmployeeForm(instance=emp)
     return render(request, 'backoffice/hr/employees/form.html', {'form': form, 'obj': emp})
 
-
 @login_required
 @permission_or_message('hr.change_employee')
 def employee_deactivate(request, pk):
@@ -325,7 +316,6 @@ def employee_deactivate(request, pk):
         return redirect('backoffice:employee_detail', pk=pk)
 
     return render(request, 'backoffice/hr/employees/confirm_deactivate.html', {'obj': emp})
-
 
 @login_required
 @permission_or_message('hr.change_employee')

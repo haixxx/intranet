@@ -1,5 +1,4 @@
 {% extends "backoffice/base.html" %}
-{% load i18n %}
 {% block title %}Điều động tạm thời{% endblock %}
 {% block content %}
 <h2 class="mb-3">Điều động tạm thời</h2>
@@ -20,15 +19,15 @@
     <div class="col-md-2">
       <select name="status" class="form-select form-select-sm">
         <option value="">-- Trạng thái --</option>
-        {% for st in 'ACTIVE,CANCELLED,EXPIRED'.split(',') %}
-          <option value="{{ st }}"{% if status_selected == st %} selected{% endif %}>{{ st }}</option>
-        {% endfor %}
+        <option value="ACTIVE"{% if status_selected == 'ACTIVE' %} selected{% endif %}>Đang bổ sung</option>
+        <option value="CANCELLED"{% if status_selected == 'CANCELLED' %} selected{% endif %}>Đã hủy</option>
+        <option value="EXPIRED"{% if status_selected == 'EXPIRED' %} selected{% endif %}>Hết hạn bổ sung</option>
       </select>
     </div>
     <div class="col-md-2">
       <div class="form-check mt-1">
         <input class="form-check-input" type="checkbox" value="1" id="over60" name="over60"{% if over60 == '1' %} checked{% endif %}>
-        <label class="form-check-label small" for="over60">>&nbsp;60 ngày</label>
+        <label class="form-check-label small" for="over60">&gt; 60 ngày (Đang bổ sung)</label>
       </div>
     </div>
     <div class="col-md-2 d-flex align-items-center gap-2">
@@ -52,29 +51,29 @@
       <th>Kết thúc</th>
       <th>Trạng thái</th>
       <th>Lý do</th>
-      <th>Ngày</th>
+      <th>Số ngày</th>
+      <th>Tính quân số?</th>
+      <th>Đơn vị tính quân số</th>
       <th></th>
     </tr>
   </thead>
   <tbody>
     {% for it in items %}
-      <tr class="{% if it.duration_days > 60 and it.status == 'ACTIVE' %}table-warning{% endif %}">
+      <tr>
         <td>{{ it.employee.employee_code }} - {{ it.employee.full_name }}</td>
         <td>{{ it.from_unit.symbol }}</td>
         <td>{{ it.to_unit.symbol }}</td>
-        <td>{{ it.start_date }}</td>
-        <td>{% if it.end_date %}{{ it.end_date }}{% else %}—{% endif %}</td>
+        <td>{{ it.start_date|date:'d/m/Y' }}</td>
+        <td>{% if it.end_date %}{{ it.end_date|date:'d/m/Y' }}{% else %}—{% endif %}</td>
         <td>
-          {% if it.status == 'ACTIVE' %}
-            <span class="badge bg-success">ACTIVE</span>
-          {% elif it.status == 'CANCELLED' %}
-            <span class="badge bg-secondary">CANCELLED</span>
-          {% else %}
-            <span class="badge bg-dark">EXPIRED</span>
-          {% endif %}
+          {% if it.status == 'ACTIVE' %}Đang bổ sung
+          {% elif it.status == 'CANCELLED' %}Đã hủy
+          {% else %}Hết hạn bổ sung{% endif %}
         </td>
-        <td>{{ it.reason_code }}</td>
+        <td>{{ it.get_reason_code_display }}</td>
         <td>{{ it.duration_days }}</td>
+        <td>{% if it.apply_flag %}Có{% else %}Không{% endif %}</td>
+        <td>{% if it.apply_flag %}{{ it.to_unit.symbol }}{% else %}—{% endif %}</td>
         <td class="text-nowrap">
           {% if manage_allowed and it.status == 'ACTIVE' %}
             <a href="{% url 'backoffice:temp_assignment_cancel' it.id %}" class="btn btn-sm btn-outline-danger">Huỷ</a>
@@ -82,10 +81,9 @@
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="9" class="text-muted">Không có dữ liệu.</td></tr>
+      <tr><td colspan="11" class="text-muted">Không có dữ liệu.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
-
 {% endblock %}

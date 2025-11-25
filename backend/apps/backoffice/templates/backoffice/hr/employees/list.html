@@ -1,5 +1,5 @@
 {% extends "backoffice/base.html" %}
-{% load i18n %}
+{% load i18n dict_extras %}
 {% block title %}{% trans "Nhân sự" %}{% endblock %}
 {% block content %}
 <h2 class="mb-3">{% trans "Nhân sự" %}</h2>
@@ -14,7 +14,6 @@
              placeholder="{% trans 'Tên / Mã / Mã chấm công' %}">
     </div>
 
-    <!-- Danh sách đơn vị dạng checkbox -->
     <div style="flex:1 1 300px; max-width:340px;">
       <label class="form-label mb-1 d-flex justify-content-between align-items-center">
         <span>{% trans "Đơn vị" %}</span>
@@ -40,38 +39,28 @@
           <div class="text-muted small">{% trans "Không có đơn vị trong phạm vi của bạn." %}</div>
         {% endif %}
       </div>
-      <div class="form-text small">
-        {% trans "Chọn nhiều đơn vị để lọc đồng thời. Kết quả = giao cắt phạm vi quyền của bạn." %}
-      </div>
     </div>
 
-    <!-- Tổ -->
     <div style="flex:1 1 180px; max-width:220px;">
       <label class="form-label mb-1">{% trans "Tổ" %}</label>
       <select name="team" class="form-select form-select-sm">
         <option value="">{% trans "— Tất cả —" %}</option>
         {% for t in teams %}
-          <option value="{{ t.id }}"{% if team_selected|default:'' == t.id|stringformat:"s" %} selected{% endif %}>
-            {{ t.symbol }}
-          </option>
+          <option value="{{ t.id }}"{% if team_selected|default:'' == t.id|stringformat:"s" %} selected{% endif %}>{{ t.symbol }}</option>
         {% endfor %}
       </select>
     </div>
 
-    <!-- Chức vụ -->
     <div style="flex:1 1 180px; max-width:220px;">
       <label class="form-label mb-1">{% trans "Chức vụ" %}</label>
       <select name="job_title" class="form-select form-select-sm">
         <option value="">{% trans "— Tất cả —" %}</option>
         {% for jt in job_titles %}
-          <option value="{{ jt.id }}"{% if jt_selected|default:'' == jt.id|stringformat:"s" %} selected{% endif %}>
-            {{ jt.name }}
-          </option>
+          <option value="{{ jt.id }}"{% if jt_selected|default:'' == jt.id|stringformat:"s" %} selected{% endif %}>{{ jt.name }}</option>
         {% endfor %}
       </select>
     </div>
 
-    <!-- Page size -->
     <div style="flex:0 0 120px;">
       <label class="form-label mb-1">{% trans "Số dòng" %}</label>
       <select name="page_size" class="form-select form-select-sm">
@@ -81,8 +70,7 @@
       </select>
     </div>
 
-    <!-- Actions -->
-    <div class="d-flex flex-column gap-2" style="flex:0 0 160px;">
+    <div class="d-flex flex-column gap-2" style="flex:0 0 170px;">
       <label class="form-label mb-1">&nbsp;</label>
       <div class="btn-group">
         <button class="btn btn-primary btn-sm" type="submit">{% trans "Lọc" %}</button>
@@ -115,16 +103,14 @@
         <th>{% trans "Chức vụ" %}</th>
         <th>{% trans "Đơn vị" %}</th>
         <th>{% trans "Tổ" %}</th>
+        <th>{% trans "Trạng thái bổ sung" %}</th>
         <th>{% trans "Loại" %}</th>
         <th>{% trans "TT" %}</th>
-        <th>{% trans "Mã chấm công" %}</th>
         {% if is_privileged %}
           <th>{% trans "CCCD" %}</th>
           <th>{% trans "MST" %}</th>
           <th>{% trans "STK" %}</th>
           <th>{% trans "Ngân hàng" %}</th>
-          <th>{% trans "Email" %}</th>
-          <th>{% trans "SĐT" %}</th>
           <th>{% trans "Ngày vào" %}</th>
           <th>{% trans "Ngày nghỉ" %}</th>
           <th>{% trans "Ghi chú" %}</th>
@@ -140,26 +126,30 @@
           <td>{{ it.job_title.name }}</td>
           <td>{{ it.unit.symbol }}</td>
           <td>{% if it.team_id %}{{ it.team.symbol }}{% else %}—{% endif %}</td>
+          <td>
+            {% with sup=supplement_map|dict_get:it.id %}
+              {% if sup %}Bổ sung ({{ sup }}){% else %}---{% endif %}
+            {% endwith %}
+          </td>
           <td>{{ it.get_workforce_type_display }}</td>
           <td>
             {% if it.status == 'ACTIVE' %}
-              <span class="badge bg-green">{% trans "Đang làm" %}</span>
+              <span class="badge bg-success">{% trans "Đang làm" %}</span>
             {% elif it.status == 'INACTIVE' %}
-              <span class="badge bg-yellow">{% trans "Tạm ngưng" %}</span>
+              <span class="badge bg-warning">{% trans "Tạm ngưng" %}</span>
+            {% elif it.status == 'LEFT' %}
+              <span class="badge bg-danger">{% trans "Đã nghỉ" %}</span>
             {% else %}
-              <span class="badge bg-red">{% trans "Đã nghỉ" %}</span>
+              {{ it.status }}
             {% endif %}
           </td>
-          <td>{{ it.card_id }}</td>
           {% if is_privileged %}
             <td>{{ it.citizen_id }}</td>
             <td>{{ it.tax_code }}</td>
             <td>{{ it.bank_account }}</td>
             <td>{{ it.bank_name }}</td>
-            <td>{{ it.email }}</td>
-            <td>{{ it.phone }}</td>
-            <td>{% if it.joined_date %}{{ it.joined_date|date:"Y-m-d" }}{% endif %}</td>
-            <td>{% if it.left_date %}{{ it.left_date|date:"Y-m-d" }}{% endif %}</td>
+            <td>{% if it.joined_date %}{{ it.joined_date|date:"d/m/Y" }}{% endif %}</td>
+            <td>{% if it.left_date %}{{ it.left_date|date:"d/m/Y" }}{% endif %}</td>
             <td>{{ it.note }}</td>
           {% endif %}
           <td class="text-nowrap">
@@ -174,7 +164,7 @@
         </tr>
       {% empty %}
         <tr>
-          <td colspan="{% if is_privileged %}18{% else %}9{% endif %}" class="text-muted">
+          <td colspan="{% if is_privileged %}16{% else %}9{% endif %}" class="text-muted">
             {% trans "Chưa có dữ liệu." %}
           </td>
         </tr>
@@ -229,34 +219,17 @@
 
 <script>
 (function() {
-  const form = document.getElementById('employee-filter-form');
   const hidden = document.getElementById('units-hidden');
   const checkboxes = Array.from(document.querySelectorAll('.unit-checkbox'));
   const btnAll = document.getElementById('btn-select-all');
   const btnNone = document.getElementById('btn-unselect-all');
-
   function syncHidden() {
     const selected = checkboxes.filter(cb => cb.checked).map(cb => cb.value);
     hidden.value = selected.join(',');
   }
-
-  btnAll.addEventListener('click', function(e) {
-    e.preventDefault();
-    checkboxes.forEach(cb => cb.checked = true);
-    syncHidden();
-  });
-
-  btnNone.addEventListener('click', function(e) {
-    e.preventDefault();
-    checkboxes.forEach(cb => cb.checked = false);
-    syncHidden();
-  });
-
-  checkboxes.forEach(cb => {
-    cb.addEventListener('change', syncHidden);
-  });
-
-  // Đồng bộ initial (trường hợp URL không có units thì hidden rỗng)
+  btnAll.addEventListener('click', function(e) { e.preventDefault(); checkboxes.forEach(cb => cb.checked = true); syncHidden(); });
+  btnNone.addEventListener('click', function(e) { e.preventDefault(); checkboxes.forEach(cb => cb.checked = false); syncHidden(); });
+  checkboxes.forEach(cb => cb.addEventListener('change', syncHidden));
   syncHidden();
 })();
 </script>
