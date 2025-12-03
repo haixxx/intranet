@@ -1,0 +1,13 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Xóa đăng ký{% endblock %}
+{% block content %}
+<h2 class="mb-3">Xóa đăng ký</h2>
+<div class="card card-body">
+  <p>Bạn có chắc muốn xóa đăng ký của: <strong>{{ obj.employee.employee_code }} - {{ obj.employee.full_name }}</strong> ngày {{ obj.work_date }}?</p>
+  <form method="post">
+    {% csrf_token %}
+    <button class="btn btn-danger btn-sm">Xác nhận xóa</button>
+    <a href="{% url 'backoffice:attendance_reg_list' %}" class="btn btn-secondary btn-sm">Quay lại</a>
+  </form>
+</div>
+{% endblock %}

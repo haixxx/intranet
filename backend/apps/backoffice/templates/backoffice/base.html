@@ -63,20 +63,17 @@
                   {% if perms.organization.view_orgunit %}
                   <a class="list-group-item list-group-item-action {% if 'orgunit_' in request.resolver_match.url_name %}active{% endif %}"
                      href="{% url 'backoffice:orgunit_list' %}">
-                    <i class="ti ti-hierarchy-3 me-2"></i> {% trans "Cơ cấu tổ chức" %}
-                  </a>
+                    <i class="ti ti-hierarchy-3 me-2"></i> {% trans "Cơ cấu tổ chức" %}</a>
                   {% endif %}
                   {% if perms.organization.view_jobtitle %}
                   <a class="list-group-item list-group-item-action {% if 'jobtitle_' in request.resolver_match.url_name %}active{% endif %}"
                      href="{% url 'backoffice:jobtitle_list' %}">
-                    <i class="ti ti-id-badge me-2"></i> {% trans "Chức vụ" %}
-                  </a>
+                    <i class="ti ti-id-badge me-2"></i> {% trans "Chức vụ" %}</a>
                   {% endif %}
                   {% if perms.organization.view_shifttemplate %}
                   <a class="list-group-item list-group-item-action {% if 'shift_' in request.resolver_match.url_name %}active{% endif %}"
                      href="{% url 'backoffice:shift_list' %}">
-                    <i class="ti ti-clock me-2"></i> {% trans "Ca làm việc" %}
-                  </a>
+                    <i class="ti ti-clock me-2"></i> {% trans "Ca làm việc" %}</a>
                   {% endif %}
                   {% endif %}
 
@@ -84,37 +81,49 @@
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Nhân sự" %}</div>
                   <a class="list-group-item list-group-item-action {% if 'employee_' in request.resolver_match.url_name %}active{% endif %}"
                      href="{% url 'backoffice:employee_list' %}">
-                    <i class="ti ti-address-book me-2"></i> {% trans "Nhân sự" %}
-                  </a>
-                  <a class="list-group-item list-group-item-action
-                     {% if request.resolver_match.url_name == 'temp_assignment_list' or request.resolver_match.url_name == 'temp_assignment_create' %}active{% endif %}"
+                    <i class="ti ti-address-book me-2"></i> {% trans "Nhân sự" %}</a>
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'temp_assignment_list' or request.resolver_match.url_name == 'temp_assignment_create' %}active{% endif %}"
                      href="{% url 'backoffice:temp_assignment_list' %}">
-                    <i class="ti ti-arrows-left-right me-2"></i> Điều động tạm thời
-                  </a>
+                    <i class="ti ti-arrows-left-right me-2"></i> {% trans "Điều động tạm thời" %}</a>
+                  {% endif %}
+
+                  {% if perms.attendance.view_attendancecode or perms.attendance.view_attendanceregistration or perms.attendance.change_attendancesettings %}
+                  <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Chấm công" %}</div>
+                  {% if perms.attendance.view_attendancecode %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_code_list' or request.resolver_match.url_name == 'attendance_code_create' or request.resolver_match.url_name == 'attendance_code_edit' or request.resolver_match.url_name == 'attendance_code_delete' %}active{% endif %}"
+                     href="{% url 'backoffice:attendance_code_list' %}">
+                    <i class="ti ti-badge me-2"></i> {% trans "Mã chế độ" %}</a>
+                  {% endif %}
+                  {% if perms.attendance.view_attendanceregistration %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_reg_list' or request.resolver_match.url_name == 'attendance_reg_create' or request.resolver_match.url_name == 'attendance_reg_edit' %}active{% endif %}"
+                     href="{% url 'backoffice:attendance_reg_list' %}">
+                    <i class="ti ti-clipboard-list me-2"></i> {% trans "Đăng ký công" %}</a>
+                  {% endif %}
+                  {% if perms.attendance.change_attendancesettings %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_settings' %}active{% endif %}"
+                     href="{% url 'backoffice:attendance_settings' %}">
+                    <i class="ti ti-settings me-2"></i> {% trans "Cấu hình đối chiếu" %}</a>
+                  {% endif %}
                   {% endif %}
 
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Quản trị hệ thống" %}</div>
                   {% if perms.auth.view_user %}
                   <a class="list-group-item list-group-item-action {% if 'user_' in request.resolver_match.url_name %}active{% endif %}"
                      href="{% url 'backoffice:user_list' %}">
-                    <i class="ti ti-users me-2"></i> {% trans "Người dùng" %}
-                  </a>
+                    <i class="ti ti-users me-2"></i> {% trans "Người dùng" %}</a>
                   {% endif %}
                   {% if perms.auth.view_group %}
                   <a class="list-group-item list-group-item-action {% if 'role_' in request.resolver_match.url_name %}active{% endif %}"
                      href="{% url 'backoffice:role_list' %}">
-                    <i class="ti ti-shield-lock me-2"></i> {% trans "Vai trò (Roles)" %}
-                  </a>
+                    <i class="ti ti-shield-lock me-2"></i> {% trans "Vai trò (Roles)" %}</a>
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'permission_matrix' %}active{% endif %}"
                      href="{% url 'backoffice:permission_matrix' %}">
-                    <i class="ti ti-table me-2"></i> {% trans "Ma trận quyền" %}
-                  </a>
+                    <i class="ti ti-table me-2"></i> {% trans "Ma trận quyền" %}</a>
                   {% endif %}
                   {% if perms.audit.view_auditlog %}
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'audit_list' %}active{% endif %}"
                      href="{% url 'backoffice:audit_list' %}">
-                    <i class="ti ti-history me-2"></i> {% trans "Nhật ký (Audit)" %}
-                  </a>
+                    <i class="ti ti-history me-2"></i> {% trans "Nhật ký (Audit)" %}</a>
                   {% endif %}
 
                 </div>

@@ -1,0 +1,51 @@
+{% extends "backoffice/base.html" %}
+{% block title %}{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}</h2>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Mã</label>
+      {{ form.code }}
+    </div>
+    <div class="col-md-5">
+      <label class="form-label">Nhãn</label>
+      {{ form.label_vi }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Kích hoạt</label>
+      {{ form.is_active }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Ưu tiên</label>
+      {{ form.priority }}
+      <div class="form-text">Số lớn hiển thị trước trong danh sách chọn.</div>
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Ghi chú</label>
+      {{ form.notes }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">AM (buổi sáng)</label>
+      {{ form.segments_am_type }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">PM (buổi chiều)</label>
+      {{ form.segments_pm_type }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Yêu cầu AM (IN1/OUT1)</label>
+      {{ form.requires_am_work }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Yêu cầu PM (IN2/OUT2)</label>
+      {{ form.requires_pm_work }}
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary btn-sm">Lưu</button>
+      <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Huỷ</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

@@ -3,6 +3,8 @@ from . import views
 from . import views_users, views_roles, views_permissions, views_audit
 from . import views_orgunits, views_jobtitles, views_shifts, views_employees, views_import_export, views_profile
 from apps.backoffice import views_temp_assignments
+from apps.backoffice import views_attendance_codes
+from apps.backoffice import views_attendance_registration
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
@@ -56,7 +58,23 @@ urlpatterns = [
     path('hr/employees/export/', views_import_export.export_employees, name='export_employees'),
     path('hr/employees/import/', views_import_export.import_employees, name='import_employees'),
 
+    # Temp assignments
     path('assignments/', views_temp_assignments.temp_assignment_list, name='temp_assignment_list'),
     path('assignments/create/', views_temp_assignments.temp_assignment_create, name='temp_assignment_create'),
     path('assignments/<int:pk>/cancel/', views_temp_assignments.temp_assignment_cancel, name='temp_assignment_cancel'),
+
+    # Attendance Codes Catalog
+    path('attendance/codes/', views_attendance_codes.attendance_code_list, name='attendance_code_list'),
+    path('attendance/codes/new/', views_attendance_codes.attendance_code_create, name='attendance_code_create'),
+    path('attendance/codes/<int:pk>/edit/', views_attendance_codes.attendance_code_edit, name='attendance_code_edit'),
+    path('attendance/codes/<int:pk>/delete/', views_attendance_codes.attendance_code_delete, name='attendance_code_delete'),
+
+    # Global settings for attendance reconciliation
+    path('attendance/settings/', views_attendance_codes.attendance_settings_view, name='attendance_settings'),
+
+    # Attendance Registration (NTSK)
+    path('attendance/registrations/', views_attendance_registration.attendance_reg_list, name='attendance_reg_list'),
+    path('attendance/registrations/new/', views_attendance_registration.attendance_reg_create, name='attendance_reg_create'),
+    path('attendance/registrations/<int:pk>/edit/', views_attendance_registration.attendance_reg_edit, name='attendance_reg_edit'),
+    path('attendance/registrations/<int:pk>/delete/', views_attendance_registration.attendance_reg_delete, name='attendance_reg_delete'),
 ]

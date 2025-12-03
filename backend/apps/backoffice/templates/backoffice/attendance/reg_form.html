@@ -1,0 +1,56 @@
+{% extends "backoffice/base.html" %}
+{% block title %}{% if create %}Tạo đăng ký{% else %}Sửa đăng ký{% endif %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% if create %}Tạo đăng ký{% else %}Sửa đăng ký{% endif %}</h2>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Nhân sự</label>
+      {{ form.employee }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Ngày</label>
+      {{ form.work_date }}
+    </div>
+    <div class="col-md-5">
+      <label class="form-label">Mã chế độ</label>
+      {{ form.code }}
+      <div class="form-text">Mã có ưu tiên cao sẽ hiển thị đầu danh sách.</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Ca</label>
+      {{ form.shift_code }}
+      <div class="form-text">Chọn ca để auto điền mốc mặc định (sau sẽ bổ sung).</div>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">IN1</label>
+      {{ form.in1 }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">OUT1</label>
+      {{ form.out1 }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">IN2</label>
+      {{ form.in2 }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">OUT2</label>
+      {{ form.out2 }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Trạng thái</label>
+      {{ form.status }}
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Ghi chú</label>
+      {{ form.notes }}
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary btn-sm">Lưu</button>
+      <a href="{% url 'backoffice:attendance_reg_list' %}" class="btn btn-secondary btn-sm">Huỷ</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

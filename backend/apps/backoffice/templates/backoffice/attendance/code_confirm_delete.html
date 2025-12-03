@@ -1,0 +1,13 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Xoá mã chế độ{% endblock %}
+{% block content %}
+<h2 class="mb-3">Xoá mã chế độ</h2>
+<div class="card card-body">
+  <p>Bạn có chắc muốn xoá mã: <strong>{{ obj.code }}</strong> - {{ obj.label_vi }}?</p>
+  <form method="post">
+    {% csrf_token %}
+    <button class="btn btn-danger btn-sm">Xác nhận xoá</button>
+    <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Quay lại</a>
+  </form>
+</div>
+{% endblock %}

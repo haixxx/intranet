@@ -1,0 +1,29 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Cấu hình đối chiếu{% endblock %}
+{% block content %}
+<h2 class="mb-3">Cấu hình đối chiếu chấm công</h2>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Cửa sổ (phút)</label>
+      {{ form.window_minutes }}
+      <div class="form-text">Cửa sổ tìm log quanh mốc. Mặc định 60.</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Cluster (phút)</label>
+      {{ form.cluster_minutes }}
+      <div class="form-text">Ngưỡng gom cụm log để lọc spam. Mặc định 2.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Làm tròn giờ nhập</label>
+      {{ form.round_registration_to_hour }}
+      <div class="form-text">Nếu bật, thời gian IN/OUT NTSK sẽ được làm tròn về phút 00 (ví dụ 06:12 → 06:00) để nhập nhanh.</div>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary btn-sm">Lưu</button>
+      <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Quay lại</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
