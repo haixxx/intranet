@@ -13,6 +13,7 @@ def orgunit_list(request):
     q = request.GET.get('q', '').strip()
     type_filter = request.GET.get('type', '').strip()
     parent_filter = request.GET.get('parent', '').strip()
+    attendance_filter = request.GET.get('attendance', '').strip()  # thêm lọc theo cờ chấm công
 
     # Pagination params
     page = request.GET.get('page', '1')
@@ -30,6 +31,10 @@ def orgunit_list(request):
         qs = qs.filter(type=type_filter)
     if parent_filter:
         qs = qs.filter(parent_id=parent_filter)
+    if attendance_filter == '1':
+        qs = qs.filter(is_attendance_unit=True)
+    elif attendance_filter == '0':
+        qs = qs.filter(is_attendance_unit=False)
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(symbol__icontains=q))
 
@@ -43,15 +48,15 @@ def orgunit_list(request):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    # Lựa chọn type và parent cho filter
     type_choices = list(OrgUnit.Type.choices)
-    parents = OrgUnit.objects.exclude(type='TEAM').order_by('symbol')  # đơn vị không phải Tổ
+    parents = OrgUnit.objects.exclude(type='TEAM').order_by('symbol')
 
     return render(request, 'backoffice/org/units/list.html', {
         'units': page_obj.object_list,
         'query': q,
         'type_selected': type_filter,
         'parent_selected': parent_filter,
+        'attendance_selected': attendance_filter,
         'type_choices': type_choices,
         'parents': parents,
         'paginator': paginator,
@@ -77,7 +82,7 @@ def orgunit_create(request):
             obj.full_clean()
             obj.save()
             audit_log(action_verb="CREATE", object_type="orgunit", object_id=obj.id, object_repr=obj.symbol,
-                      actor=request.user, changes={'fields': {'symbol': obj.symbol, 'name': obj.name, 'type': obj.type}},
+                      actor=request.user, changes={'fields': {'symbol': obj.symbol, 'name': obj.name, 'type': obj.type, 'is_attendance_unit': obj.is_attendance_unit}},
                       request=request, action_code="ORGUNIT_CREATE")
             messages.success(request, "Đã tạo đơn vị.")
             return redirect('backoffice:orgunit_list')
@@ -90,7 +95,7 @@ def orgunit_create(request):
 def orgunit_edit(request, pk):
     obj = get_object_or_404(OrgUnit, pk=pk)
     if request.method == 'POST':
-        old = {'symbol': obj.symbol, 'name': obj.name, 'type': obj.type, 'parent': obj.parent_id}
+        old = {'symbol': obj.symbol, 'name': obj.name, 'type': obj.type, 'parent': obj.parent_id, 'is_attendance_unit': obj.is_attendance_unit}
         form = OrgUnitForm(request.POST, instance=obj)
         if form.is_valid():
             updated = form.save()

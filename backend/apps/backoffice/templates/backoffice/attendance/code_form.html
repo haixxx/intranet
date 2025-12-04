@@ -22,10 +22,7 @@
       {{ form.priority }}
       <div class="form-text">Số lớn hiển thị trước trong danh sách chọn.</div>
     </div>
-    <div class="col-md-12">
-      <label class="form-label">Ghi chú</label>
-      {{ form.notes }}
-    </div>
+
     <div class="col-md-3">
       <label class="form-label">AM (buổi sáng)</label>
       {{ form.segments_am_type }}
@@ -42,6 +39,18 @@
       <label class="form-label">Yêu cầu PM (IN2/OUT2)</label>
       {{ form.requires_pm_work }}
     </div>
+
+    <div class="col-md-3">
+      <label class="form-label">Yêu cầu ca</label>
+      {{ form.requires_shift }}
+      <div class="form-text">Đi làm thì cần ca; các mã nghỉ không yêu cầu ca.</div>
+    </div>
+
+    <div class="col-md-12">
+      <label class="form-label">Ghi chú</label>
+      {{ form.notes }}
+    </div>
+
     <div class="col-12">
       <button class="btn btn-primary btn-sm">Lưu</button>
       <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Huỷ</a>

@@ -15,6 +15,10 @@ class OrgUnit(models.Model):
     type = models.CharField(max_length=16, choices=Type.choices, db_index=True)
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='children', db_index=True)
     is_active = models.BooleanField(default=True)
+
+    # Đơn vị được phép chấm công (Phòng/Ban/Phân xưởng). Dùng để lọc dropdown trong Batch chấm công
+    is_attendance_unit = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -25,6 +29,7 @@ class OrgUnit(models.Model):
             models.Index(fields=['parent']),
             models.Index(fields=['code']),
             models.Index(fields=['symbol']),
+            models.Index(fields=['is_attendance_unit']),
         ]
 
     def __str__(self):

@@ -3,8 +3,8 @@ from .models import OrgUnit, JobTitle, ShiftTemplate
 
 @admin.register(OrgUnit)
 class OrgUnitAdmin(admin.ModelAdmin):
-    list_display = ('symbol', 'name', 'type', 'parent', 'is_active')
-    list_filter = ('type', 'is_active')
+    list_display = ('symbol', 'name', 'type', 'parent', 'is_active', 'is_attendance_unit')
+    list_filter = ('type', 'is_active', 'is_attendance_unit')
     search_fields = ('symbol', 'name', 'code')
     ordering = ('type', 'symbol')
 

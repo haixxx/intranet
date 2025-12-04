@@ -4,17 +4,7 @@
 {% block content %}
 <h2 class="mb-3">Tạo/Xem chấm công</h2>
 
-{# Hiển thị messages trong backoffice (không phải trang admin) #}
-{% if messages %}
-  <div class="mb-3">
-    {% for message in messages %}
-      <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags %}{{ message.tags }}{% else %}secondary{% endif %} alert-dismissible" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
-      </div>
-    {% endfor %}
-  </div>
-{% endif %}
+{# KHÔNG lặp lại messages tại đây nữa; đã hiển thị ở base.html #}
 
 <form method="get" class="card card-body mb-3">
   <div class="row g-2">
@@ -26,7 +16,7 @@
       <label class="form-label">Đơn vị (chỉ Phòng/Ban/Phân xưởng)</label>
       <select name="unit" class="form-select form-select-sm">
         {% for u in units_qs %}
-          <option value="{{ u.id }}"{% if unit_id|stringformat:"s" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.code }} - {{ u.name }}</option>
+          <option value="{{ u.id }}"{% if unit_id|stringformat:"s" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.name }}</option>
         {% empty %}
           <option value="">-- Chưa có đơn vị chấm công --</option>
         {% endfor %}
@@ -49,8 +39,8 @@
       <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm mã / tên NV">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Tổ (thuộc đơn vị đã chọn)</label>
-      <input type="text" name="team" value="{{ team }}" class="form-control form-control-sm" placeholder="Tổ">
+      <label class="form-label">Tổ (theo tên)</label>
+      <input type="text" name="team" value="{{ team }}" class="form-control form-control-sm" placeholder="Tên tổ">
     </div>
     <div class="col-md-3 d-flex align-items-end gap-2">
       <button class="btn btn-outline-secondary btn-sm">Lọc</button>
@@ -60,7 +50,7 @@
 </form>
 
 <div class="card card-body mb-3">
-  <div class="row g-2">
+  <div class="row g-2 align-items-end">
     <div class="col-md-3">
       <label class="form-label mb-1">Áp dụng mã chế độ</label>
       <select class="form-select form-select-sm" id="bulkCode">
@@ -81,8 +71,31 @@
       </select>
       <div class="form-text">Chọn ca sẽ tự điền IN/OUT mặc định.</div>
     </div>
-    <div class="col-md-3 d-flex align-items-end">
-      <button type="button" class="btn btn-warning btn-sm" id="btnBulkApply">Áp dụng hàng loạt vào danh sách bên dưới</button>
+
+    {# Khôi phục input IN/OUT trên thanh bulk, thu gọn để không bị xuống dòng #}
+    <div class="col-md-4">
+      <div class="row g-2">
+        <div class="col-3">
+          <label class="form-label mb-1">IN1</label>
+          <input type="time" class="form-control form-control-sm" id="bulkIn1" step="60">
+        </div>
+        <div class="col-3">
+          <label class="form-label mb-1">OUT1</label>
+          <input type="time" class="form-control form-control-sm" id="bulkOut1" step="60">
+        </div>
+        <div class="col-3">
+          <label class="form-label mb-1">IN2</label>
+          <input type="time" class="form-control form-control-sm" id="bulkIn2" step="60">
+        </div>
+        <div class="col-3">
+          <label class="form-label mb-1">OUT2</label>
+          <input type="time" class="form-control form-control-sm" id="bulkOut2" step="60">
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-2 d-flex">
+      <button type="button" class="btn btn-warning btn-sm ms-auto" id="btnBulkApply">Áp dụng hàng loạt vào danh sách bên dưới</button>
     </div>
   </div>
 </div>
@@ -110,7 +123,7 @@
           <tr>
             <td>{{ it.employee.employee_code }}</td>
             <td>{{ it.employee.full_name }}</td>
-            <td>{{ it.employee.team }}</td>
+            <td>{% if it.employee.team %}{{ it.employee.team.name }}{% else %}—{% endif %}</td>
             <td>
               {% if it.bs_direction == 'IN' %}BS đến{% elif it.bs_direction == 'OUT' %}BS đi{% else %}—{% endif %}
               {% if it.bs_peer_unit %} ({{ it.bs_peer_unit.code }}){% endif %}
@@ -183,7 +196,6 @@
 
 {% block extra_js %}
 <script>
-  // Default times mapping (24h)
   const SHIFT_DEFAULTS = {
     DAY:     {in1: "07:00", out1: "11:00", in2: "13:00", out2: "17:00"},
     MORNING: {in1: "06:00", out1: "14:00", in2: "",      out2: ""},
@@ -191,30 +203,49 @@
     NIGHT:   {in1: "22:00", out1: "06:00", in2: "",      out2: ""}
   };
 
-  // Bulk Apply (no submit): apply selected Code and Shift to visible rows
+  // Default fill bulk IN/OUT based on shift
+  const bulkShift = document.getElementById('bulkShift');
+  const bulkIn1 = document.getElementById('bulkIn1');
+  const bulkOut1 = document.getElementById('bulkOut1');
+  const bulkIn2 = document.getElementById('bulkIn2');
+  const bulkOut2 = document.getElementById('bulkOut2');
+  if (bulkShift) {
+    bulkShift.addEventListener('change', function() {
+      const d = SHIFT_DEFAULTS[this.value] || {};
+      bulkIn1.value = d.in1 || '';
+      bulkOut1.value = d.out1 || '';
+      bulkIn2.value = d.in2 || '';
+      bulkOut2.value = d.out2 || '';
+    });
+  }
+
+  // Bulk apply: code + shift + optional IN/OUT to visible rows
   const btnBulkApply = document.getElementById('btnBulkApply');
   if (btnBulkApply) {
     btnBulkApply.addEventListener('click', function() {
       const bulkCode = document.getElementById('bulkCode').value;
       const bulkShiftVal = document.getElementById('bulkShift').value;
+      const in1 = bulkIn1.value;
+      const out1 = bulkOut1.value;
+      const in2 = bulkIn2.value;
+      const out2 = bulkOut2.value;
 
       document.querySelectorAll('.row-code').forEach(function(sel) {
         if (bulkCode) sel.value = bulkCode;
       });
       document.querySelectorAll('.row-shift').forEach(function(sel) {
+        const rowId = sel.dataset.row;
         if (bulkShiftVal) {
           sel.value = bulkShiftVal;
-          const rowId = sel.dataset.row;
-          const in1 = document.querySelector('.row-in1[data-row="' + rowId + '"]');
-          const out1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
-          const in2 = document.querySelector('.row-in2[data-row="' + rowId + '"]');
-          const out2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
-          const d = SHIFT_DEFAULTS[bulkShiftVal] || {};
-          if (in1)  in1.value  = d.in1 || '';
-          if (out1) out1.value = d.out1 || '';
-          if (in2)  in2.value  = d.in2 || '';
-          if (out2) out2.value = d.out2 || '';
         }
+        const rin1 = document.querySelector('.row-in1[data-row="' + rowId + '"]');
+        const rout1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
+        const rin2 = document.querySelector('.row-in2[data-row="' + rowId + '"]');
+        const rout2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
+        if (in1)  rin1 && (rin1.value = in1);
+        if (out1) rout1 && (rout1.value = out1);
+        if (in2)  rin2 && (rin2.value = in2);
+        if (out2) rout2 && (rout2.value = out2);
       });
     });
   }
@@ -224,30 +255,16 @@
     sel.addEventListener('change', function() {
       const v = this.value;
       const rowId = this.dataset.row;
-      const in1 = document.querySelector('.row-in1[data-row="' + rowId + '"]');
-      const out1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
-      const in2 = document.querySelector('.row-in2[data-row="' + rowId + '"]');
-      const out2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
       const d = SHIFT_DEFAULTS[v] || {};
-      if (in1)  in1.value  = d.in1 || '';
-      if (out1) out1.value = d.out1 || '';
-      if (in2)  in2.value  = d.in2 || '';
-      if (out2) out2.value = d.out2 || '';
+      const rin1 = document.querySelector('.row-in1[data-row="' + rowId + '"]');
+      const rout1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
+      const rin2 = document.querySelector('.row-in2[data-row="' + rowId + '"]');
+      const rout2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
+      if (rin1)  rin1.value  = d.in1 || '';
+      if (rout1) rout1.value = d.out1 || '';
+      if (rin2)  rin2.value  = d.in2 || '';
+      if (rout2) rout2.value = d.out2 || '';
     });
   });
 </script>
 {% endblock %}
-```
-
-Ngoài ra, để “chỉ lấy phòng/ban/phân xưởng” cho dropdown đơn vị, mình đã chuẩn bị helper _units_for_attendance trong views_attendance_batch.py để:
-- Ưu tiên lấy OrgUnit có field is_attendance_unit=True nếu bạn thêm cột này.
-- Nếu chưa có, fallback lọc theo type in ["PHONG","BAN","PX"] nếu có field type.
-- Nếu vẫn không có, fallback lấy tất cả OrgUnit để không chặn thao tác.
-
-Bạn có thể thêm cột is_attendance_unit vào OrgUnit trong cơ cấu tổ chức để chủ động đánh dấu đơn vị được phép chấm công, khi đó dropdown sẽ chuẩn xác.
-
-Sau khi cập nhật:
-- Khởi động lại server để URL lỗi biến mất.
-- Lập danh sách sẽ hiển thị nhân sự theo đơn vị (Active, chưa rời), có phân trang.
-- Áp dụng hàng loạt bằng nút JS, sau đó bấm “Lưu nháp” để ghi DB.
-- Thông báo hiển thị ngay trong trang backoffice.

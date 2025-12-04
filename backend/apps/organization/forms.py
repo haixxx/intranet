@@ -4,7 +4,7 @@ from .models import OrgUnit, JobTitle, ShiftTemplate
 class OrgUnitForm(forms.ModelForm):
     class Meta:
         model = OrgUnit
-        fields = ['symbol', 'name', 'type', 'parent', 'is_active']
+        fields = ['symbol', 'name', 'type', 'parent', 'is_active', 'is_attendance_unit']
 
 class JobTitleForm(forms.ModelForm):
     class Meta:

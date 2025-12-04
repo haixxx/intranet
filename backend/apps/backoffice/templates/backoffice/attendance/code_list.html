@@ -29,8 +29,9 @@
       <th>PM</th>
       <th>Yêu cầu AM</th>
       <th>Yêu cầu PM</th>
+      <th>Yêu cầu ca</th>
       <th>Ưu tiên</th>
-      <th>Active</th>
+      <th>Kích hoạt</th>
       <th></th>
     </tr>
   </thead>
@@ -43,6 +44,7 @@
         <td>{{ it.segments_pm_type }}</td>
         <td>{{ it.requires_am_work|yesno:"Có,Không" }}</td>
         <td>{{ it.requires_pm_work|yesno:"Có,Không" }}</td>
+        <td>{{ it.requires_shift|yesno:"Có,Không" }}</td>
         <td>{{ it.priority }}</td>
         <td>{{ it.is_active|yesno:"Có,Không" }}</td>
         <td class="text-nowrap">
@@ -55,7 +57,7 @@
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="9" class="text-muted">Chưa có mã.</td></tr>
+      <tr><td colspan="10" class="text-muted">Chưa có mã.</td></tr>
     {% endfor %}
   </tbody>
 </table>

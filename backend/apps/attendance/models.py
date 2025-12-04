@@ -23,6 +23,9 @@ class AttendanceCode(models.Model):
     requires_am_work = models.BooleanField(default=True, help_text="AM yêu cầu mốc IN1/OUT1 nếu là WORK")
     requires_pm_work = models.BooleanField(default=True, help_text="PM yêu cầu mốc IN2/OUT2 nếu là WORK")
 
+    # Thuộc tính yêu cầu ca: Đi làm thì có ca, nghỉ thì không có ca
+    requires_shift = models.BooleanField(default=True, help_text="Yêu cầu chọn ca khi dùng mã này. Mã nghỉ không yêu cầu ca.")
+
     # Ưu tiên hiển thị trong các select (số càng lớn càng ưu tiên)
     priority = models.PositiveIntegerField(default=0, help_text="Ưu tiên hiển thị (số lớn hiển thị trước)")
 

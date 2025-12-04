@@ -42,6 +42,19 @@
       </header>
       <div class="page-wrapper">
         <div class="container-fluid">
+
+          {# Messages: hiển thị MỘT lần tại đây #}
+          {% if messages %}
+            <div class="p-3">
+              {% for message in messages %}
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags %}{{ message.tags }}{% else %}secondary{% endif %} alert-dismissible" role="alert">
+                  {{ message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
           <div class="row g-0">
             <aside class="col-12 col-md-3 col-xl-2 border-end bg-white" style="min-height: calc(100vh - 60px);">
               <div class="p-3">
@@ -103,7 +116,6 @@
                      href="{% url 'backoffice:attendance_committed_view' %}">
                     <i class="ti ti-eye me-2"></i> {% trans "Xem công chốt" %}</a>
                   {% endif %}
-                  {# Menu 'Duyệt chấm công' sẽ thêm sau khi có views phiếu sửa #}
                   {% endif %}
 
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Quản trị hệ thống" %}</div>

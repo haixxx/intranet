@@ -8,7 +8,8 @@ class AttendanceCodeForm(forms.ModelForm):
         fields = [
             "code", "label_vi", "is_active", "priority", "notes",
             "segments_am_type", "segments_pm_type",
-            "requires_am_work", "requires_pm_work"
+            "requires_am_work", "requires_pm_work",
+            "requires_shift",
         ]
 
 
