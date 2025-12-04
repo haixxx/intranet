@@ -5,6 +5,7 @@ from . import views_orgunits, views_jobtitles, views_shifts, views_employees, vi
 from apps.backoffice import views_temp_assignments
 from apps.backoffice import views_attendance_codes
 from apps.backoffice import views_attendance_registration
+from apps.backoffice import views_attendance_batch
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
@@ -51,7 +52,7 @@ urlpatterns = [
     path('hr/employees/', views_employees.employee_list, name='employee_list'),
     path('hr/employees/new/', views_employees.employee_create, name='employee_create'),
     path('hr/employees/<int:pk>/', views_employees.employee_edit, name='employee_edit'),
-    path('hr/employees/<int:pk>/detail/', views_employees.employee_detail, name='employee_detail'),
+    path('hr/employees/<int:pk>/', views_employees.employee_detail, name='employee_detail'),
     path('hr/employees/<int:pk>/create-user/', views_employees.employee_create_user, name='employee_create_user'),
     path('hr/employees/<int:pk>/deactivate/', views_employees.employee_deactivate, name='employee_deactivate'),
     path('hr/employees/<int:pk>/leave/', views_employees.employee_leave, name='employee_leave'),
@@ -72,9 +73,19 @@ urlpatterns = [
     # Global settings for attendance reconciliation
     path('attendance/settings/', views_attendance_codes.attendance_settings_view, name='attendance_settings'),
 
-    # Attendance Registration (NTSK)
+    # Attendance Registration (NTSK - cá nhân)
     path('attendance/registrations/', views_attendance_registration.attendance_reg_list, name='attendance_reg_list'),
     path('attendance/registrations/new/', views_attendance_registration.attendance_reg_create, name='attendance_reg_create'),
     path('attendance/registrations/<int:pk>/edit/', views_attendance_registration.attendance_reg_edit, name='attendance_reg_edit'),
     path('attendance/registrations/<int:pk>/delete/', views_attendance_registration.attendance_reg_delete, name='attendance_reg_delete'),
+
+    # Batch chấm công (3 menu)
+    path('attendance/batch/', views_attendance_batch.batch_create_or_load, name='attendance_batch_create_or_load'),
+    path('attendance/batch/<int:batch_id>/apply-bulk/', views_attendance_batch.batch_apply_bulk, name='attendance_batch_apply_bulk'),
+    path('attendance/batch/<int:batch_id>/save/', views_attendance_batch.batch_save, name='attendance_batch_save'),
+    path('attendance/batch/<int:batch_id>/commit/', views_attendance_batch.batch_commit, name='attendance_batch_commit'),
+
+    path('attendance/committed/', views_attendance_batch.committed_view, name='attendance_committed_view'),
+
+    # Duyệt chấm công: sẽ bổ sung views riêng cho Correction Request trong bước kế tiếp
 ]

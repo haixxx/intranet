@@ -1,0 +1,79 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}Xem công chốt{% endblock %}
+{% block content %}
+<h2 class="mb-3">Xem công chốt</h2>
+
+<form method="get" class="card card-body mb-3">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <label class="form-label">Ngày</label>
+      <input type="date" name="date" value="{{ work_date }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Đơn vị</label>
+      <select name="unit" class="form-select form-select-sm">
+        {% for u in request.user.orgunits_all %}
+          <option value="{{ u.id }}"{% if unit_id|stringformat:"s" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.code }} - {{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Lọc nhanh (Tên/Mã)</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm mã / tên NV">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Tổ</label>
+      <input type="text" name="team" value="{{ team }}" class="form-control form-control-sm" placeholder="Tổ">
+    </div>
+    <div class="col-md-3 d-flex align-items-end gap-2">
+      <button class="btn btn-outline-secondary btn-sm">Lọc</button>
+      <a href="{% url 'backoffice:attendance_committed_view' %}" class="btn btn-outline-secondary btn-sm">Xóa lọc</a>
+    </div>
+  </div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-sm table-striped align-middle">
+  <thead>
+    <tr>
+      <th>Mã NV</th>
+      <th>Họ tên</th>
+      <th>Tổ</th>
+      <th>BS</th>
+      <th>Mã chế độ</th>
+      <th>Ca</th>
+      <th>IN1</th>
+      <th>OUT1</th>
+      <th>IN2</th>
+      <th>OUT2</th>
+      <th>Ghi chú</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in items %}
+      <tr class="{% if not it.include_in_unit %}table-secondary{% endif %}">
+        <td>{{ it.employee.employee_code }}</td>
+        <td>{{ it.employee.full_name }}</td>
+        <td>{{ it.employee.team }}</td>
+        <td>
+          {% if it.bs_direction == 'IN' %}BS đến{% elif it.bs_direction == 'OUT' %}BS đi{% else %}—{% endif %}
+          {% if it.bs_peer_unit %} ({{ it.bs_peer_unit.code }}){% endif %}
+        </td>
+        <td><code>{{ it.code.code }}</code> - {{ it.code.label_vi }}</td>
+        <td>
+          {% if it.shift == 'DAY' %}Ca ngày{% elif it.shift == 'MORNING' %}Ca sáng{% elif it.shift == 'AFTERNOON' %}Ca chiều{% else %}Ca tối{% endif %}
+        </td>
+        <td>{% if it.in1 %}{{ it.in1|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if it.out1 %}{{ it.out1|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if it.in2 %}{{ it.in2|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if it.out2 %}{{ it.out2|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ it.notes }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="11" class="text-muted">Chưa có dữ liệu.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
