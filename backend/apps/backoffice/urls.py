@@ -52,7 +52,7 @@ urlpatterns = [
     path('hr/employees/', views_employees.employee_list, name='employee_list'),
     path('hr/employees/new/', views_employees.employee_create, name='employee_create'),
     path('hr/employees/<int:pk>/', views_employees.employee_edit, name='employee_edit'),
-    path('hr/employees/<int:pk>/', views_employees.employee_detail, name='employee_detail'),
+    path('hr/employees/<int:pk>/detail/', views_employees.employee_detail, name='employee_detail'),
     path('hr/employees/<int:pk>/create-user/', views_employees.employee_create_user, name='employee_create_user'),
     path('hr/employees/<int:pk>/deactivate/', views_employees.employee_deactivate, name='employee_deactivate'),
     path('hr/employees/<int:pk>/leave/', views_employees.employee_leave, name='employee_leave'),
@@ -81,11 +81,9 @@ urlpatterns = [
 
     # Batch chấm công (3 menu)
     path('attendance/batch/', views_attendance_batch.batch_create_or_load, name='attendance_batch_create_or_load'),
-    path('attendance/batch/<int:batch_id>/apply-bulk/', views_attendance_batch.batch_apply_bulk, name='attendance_batch_apply_bulk'),
+    # Removed apply-bulk route because bulk apply is client-side only
     path('attendance/batch/<int:batch_id>/save/', views_attendance_batch.batch_save, name='attendance_batch_save'),
     path('attendance/batch/<int:batch_id>/commit/', views_attendance_batch.batch_commit, name='attendance_batch_commit'),
 
     path('attendance/committed/', views_attendance_batch.committed_view, name='attendance_committed_view'),
-
-    # Duyệt chấm công: sẽ bổ sung views riêng cho Correction Request trong bước kế tiếp
 ]
