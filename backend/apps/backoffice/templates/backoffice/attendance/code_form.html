@@ -2,7 +2,7 @@
 {% block title %}{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}{% endblock %}
 {% block content %}
 <h2 class="mb-3">{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}</h2>
-<form method="post" class="card card-body">
+<form method="post" class="card card-body" id="attendance-code-form">
   {% csrf_token %}
   <div class="row g-3">
     <div class="col-md-3">
@@ -31,6 +31,13 @@
       <label class="form-label">PM (buổi chiều)</label>
       {{ form.segments_pm_type }}
     </div>
+
+    <div class="col-md-3">
+      <label class="form-label">Đi làm</label>
+      {{ form.is_work }}
+      <div class="form-text">Nếu không đi làm, sẽ disable toàn bộ IN/OUT.</div>
+    </div>
+
     <div class="col-md-3">
       <label class="form-label">Yêu cầu AM (IN1/OUT1)</label>
       {{ form.requires_am_work }}
@@ -41,9 +48,24 @@
     </div>
 
     <div class="col-md-3">
-      <label class="form-label">Yêu cầu ca</label>
-      {{ form.requires_shift }}
-      <div class="form-text">Đi làm thì cần ca; các mã nghỉ không yêu cầu ca.</div>
+      <label class="form-label">Mặc định IN1</label>
+      {{ form.default_in1 }}
+      <div class="form-text">Định dạng HH:MM, nhập theo giờ (phút tự về 00).</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Mặc định OUT1</label>
+      {{ form.default_out1 }}
+      <div class="form-text">Định dạng HH:MM, nhập theo giờ (phút tự về 00).</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Mặc định IN2</label>
+      {{ form.default_in2 }}
+      <div class="form-text">Định dạng HH:MM, nhập theo giờ (phút tự về 00).</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Mặc định OUT2</label>
+      {{ form.default_out2 }}
+      <div class="form-text">Định dạng HH:MM, nhập theo giờ (phút tự về 00).</div>
     </div>
 
     <div class="col-md-12">
@@ -57,4 +79,68 @@
     </div>
   </div>
 </form>
+
+<script>
+  // Đảm bảo script chạy sau khi DOM sẵn sàng
+  document.addEventListener('DOMContentLoaded', function() {
+    // Lấy phần tử an toàn bằng id hoặc name (tuỳ cách render của Django)
+    const isWork = document.getElementById('id_is_work') || document.querySelector('[name="is_work"]');
+    const reqAM  = document.getElementById('id_requires_am_work') || document.querySelector('[name="requires_am_work"]');
+    const reqPM  = document.getElementById('id_requires_pm_work') || document.querySelector('[name="requires_pm_work"]');
+
+    const in1   = document.getElementById('id_default_in1')   || document.querySelector('[name="default_in1"]');
+    const out1  = document.getElementById('id_default_out1')  || document.querySelector('[name="default_out1"]');
+    const in2   = document.getElementById('id_default_in2')   || document.querySelector('[name="default_in2"]');
+    const out2  = document.getElementById('id_default_out2')  || document.querySelector('[name="default_out2"]');
+
+    function asBool(el) {
+      if (!el) return false;
+      // checkbox -> .checked; select -> value in ("True","true","1")
+      if (el.type === 'checkbox') return el.checked;
+      const v = (el.value || '').toString().toLowerCase();
+      return v === 'true' || v === '1' || v === 'yes' || v === 'on';
+    }
+
+    function disable(el, flag) {
+      if (!el) return;
+      el.disabled = !!flag;
+      if (flag) el.value = '';
+    }
+
+    function sync() {
+      const work   = asBool(isWork);
+      const needAM = asBool(reqAM);
+      const needPM = asBool(reqPM);
+
+      // Không đi làm: disable toàn bộ
+      disable(in1,  !work);
+      disable(out1, !work);
+      disable(in2,  !work);
+      disable(out2, !work);
+
+      if (work) {
+        // AM
+        disable(in1,  !needAM);
+        disable(out1, !needAM);
+        if (!needAM) { if (in1) in1.value=''; if (out1) out1.value=''; }
+
+        // PM
+        disable(in2,  !needPM);
+        disable(out2, !needPM);
+        if (!needPM) { if (in2) in2.value=''; if (out2) out2.value=''; }
+      }
+    }
+
+    // Gắn sự kiện thay đổi cho cả checkbox và select
+    [isWork, reqAM, reqPM].forEach(function(el) {
+      if (!el) return;
+      el.addEventListener('change', sync);
+      // Một số trình duyệt cần 'input' cho checkbox
+      el.addEventListener('input', sync);
+    });
+
+    // Khởi tạo lần đầu
+    sync();
+  });
+</script>
 {% endblock %}

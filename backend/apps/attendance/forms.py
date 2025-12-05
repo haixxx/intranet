@@ -8,9 +8,17 @@ class AttendanceCodeForm(forms.ModelForm):
         fields = [
             "code", "label_vi", "is_active", "priority", "notes",
             "segments_am_type", "segments_pm_type",
+            "is_work",
             "requires_am_work", "requires_pm_work",
-            "requires_shift",
+            "default_in1", "default_out1", "default_in2", "default_out2",
         ]
+        widgets = {
+            # Nhập time giống bên chấm công: định dạng HH:MM và step=3600 (nhập theo giờ, phút sẽ tự về 00)
+            "default_in1": forms.TimeInput(format="%H:%M", attrs={"step": 3600}),
+            "default_out1": forms.TimeInput(format="%H:%M", attrs={"step": 3600}),
+            "default_in2": forms.TimeInput(format="%H:%M", attrs={"step": 3600}),
+            "default_out2": forms.TimeInput(format="%H:%M", attrs={"step": 3600}),
+        }
 
 
 class AttendanceSettingsForm(forms.ModelForm):

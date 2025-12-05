@@ -4,8 +4,6 @@
 {% block content %}
 <h2 class="mb-3">Tạo/Xem chấm công</h2>
 
-{# KHÔNG lặp lại messages tại đây nữa; đã hiển thị ở base.html #}
-
 <form method="get" class="card card-body mb-3">
   <div class="row g-2">
     <div class="col-md-3">
@@ -39,8 +37,21 @@
       <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm mã / tên NV">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Tổ (theo tên)</label>
-      <input type="text" name="team" value="{{ team }}" class="form-control form-control-sm" placeholder="Tên tổ">
+      <label class="form-label">Tổ</label>
+      <select name="team" class="form-select form-select-sm">
+        <option value="">— Tất cả —</option>
+        {% for t in teams %}
+          <option value="{{ t.id }}"{% if team_id|default:'' == t.id|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Số dòng</label>
+      <select name="page_size" class="form-select form-select-sm">
+        {% for size in page_size_options %}
+          <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}/trang</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="col-md-3 d-flex align-items-end gap-2">
       <button class="btn btn-outline-secondary btn-sm">Lọc</button>
@@ -49,9 +60,15 @@
   </div>
 </form>
 
+{% if bs_in_list %}
+  <div class="alert alert-info">
+    Người bổ sung đến (BS IN): {{ bs_in_list|join:", " }}
+  </div>
+{% endif %}
+
 <div class="card card-body mb-3">
   <div class="row g-2 align-items-end">
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label mb-1">Áp dụng mã chế độ</label>
       <select class="form-select form-select-sm" id="bulkCode">
         <option value="">-- giữ nguyên --</option>
@@ -60,20 +77,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3">
-      <label class="form-label mb-1">Áp dụng ca</label>
-      <select class="form-select form-select-sm" id="bulkShift">
-        <option value="">-- giữ nguyên --</option>
-        <option value="DAY">Ca ngày (07:00–11:00 | 13:00–17:00)</option>
-        <option value="MORNING">Ca sáng (06:00–14:00)</option>
-        <option value="AFTERNOON">Ca chiều (14:00–22:00)</option>
-        <option value="NIGHT">Ca tối (22:00–06:00)</option>
-      </select>
-      <div class="form-text">Chọn ca sẽ tự điền IN/OUT mặc định.</div>
-    </div>
-
-    {# Khôi phục input IN/OUT trên thanh bulk, thu gọn để không bị xuống dòng #}
-    <div class="col-md-4">
+    <div class="col-md-8">
       <div class="row g-2">
         <div class="col-3">
           <label class="form-label mb-1">IN1</label>
@@ -92,10 +96,10 @@
           <input type="time" class="form-control form-control-sm" id="bulkOut2" step="60">
         </div>
       </div>
+      <div class="form-text">Áp dụng nhanh: hệ thống sẽ tự điền và disable theo thuộc tính mã (đi làm/AM/PM yêu cầu).</div>
     </div>
-
     <div class="col-md-2 d-flex">
-      <button type="button" class="btn btn-warning btn-sm ms-auto" id="btnBulkApply">Áp dụng hàng loạt vào danh sách bên dưới</button>
+      <button type="button" class="btn btn-warning btn-sm ms-auto" id="btnBulkApply">Áp dụng hàng loạt</button>
     </div>
   </div>
 </div>
@@ -105,82 +109,121 @@
 <div class="table-responsive">
   <form method="post" action="{% url 'backoffice:attendance_batch_save' batch.id %}" id="listForm">
     {% csrf_token %}
+    <input type="hidden" name="date" value="{{ work_date }}">
+    <input type="hidden" name="unit" value="{{ unit_id }}">
+    <input type="hidden" name="q" value="{{ q }}">
+    <input type="hidden" name="team" value="{{ team_id }}">
+    <input type="hidden" name="page" value="{{ current_page }}">
+    <input type="hidden" name="page_size" value="{{ page_size }}">
+
     <table class="table table-sm table-striped align-middle">
       <thead>
         <tr>
           <th style="width:8%">Mã NV</th>
-          <th style="width:16%">Họ tên</th>
-          <th style="width:10%">Tổ</th>
-          <th style="width:10%">BS</th>
-          <th style="width:16%">Mã chế độ</th>
-          <th style="width:12%">Ca</th>
-          <th style="width:24%">Mốc thời gian</th>
-          <th style="width:14%">Ghi chú</th>
+          <th style="width:12%">Họ tên</th>
+          <th style="width:8%">Tổ</th>
+          <th style="width:8%">BS</th>
+          <th style="width:14%">Mã chế độ</th>
+          <th style="width:42%">Mốc thời gian</th>
+          <th style="width:8%">Ghi chú</th>
         </tr>
       </thead>
       <tbody>
         {% for it in items %}
+          {% with work=it.code.is_work am_req=it.code.requires_am_work pm_req=it.code.requires_pm_work %}
           <tr>
             <td>{{ it.employee.employee_code }}</td>
-            <td>{{ it.employee.full_name }}</td>
+            <td class="text-truncate" style="max-width:160px">{{ it.employee.full_name }}</td>
             <td>{% if it.employee.team %}{{ it.employee.team.name }}{% else %}—{% endif %}</td>
             <td>
               {% if it.bs_direction == 'IN' %}BS đến{% elif it.bs_direction == 'OUT' %}BS đi{% else %}—{% endif %}
               {% if it.bs_peer_unit %} ({{ it.bs_peer_unit.code }}){% endif %}
             </td>
             <td>
-              <select name="code_{{ it.id }}" class="form-select form-select-sm row-code" data-row="{{ it.id }}">
+              <select name="code_{{ it.id }}"
+                      class="form-select form-select-sm row-code"
+                      data-row="{{ it.id }}">
                 {% for c in codes_qs %}
-                  <option value="{{ c.id }}"{% if c.id == it.code.id %} selected{% endif %}>{{ c.code }} - {{ c.label_vi }}</option>
+                  <option value="{{ c.id }}"
+                          {% if c.id == it.code.id %} selected{% endif %}>
+                    {{ c.code }} - {{ c.label_vi }}
+                  </option>
                 {% endfor %}
-              </select>
-            </td>
-            <td>
-              <select name="shift_{{ it.id }}" class="form-select form-select-sm row-shift" data-row="{{ it.id }}">
-                <option value="DAY"{% if it.shift == 'DAY' %} selected{% endif %}>Ca ngày</option>
-                <option value="MORNING"{% if it.shift == 'MORNING' %} selected{% endif %}>Ca sáng</option>
-                <option value="AFTERNOON"{% if it.shift == 'AFTERNOON' %} selected{% endif %}>Ca chiều</option>
-                <option value="NIGHT"{% if it.shift == 'NIGHT' %} selected{% endif %}>Ca tối</option>
               </select>
             </td>
             <td>
               <div class="row g-1">
                 <div class="col-3">
-                  <input type="time" name="in1_{{ it.id }}" value="{% if it.in1 %}{{ it.in1|time:'H:i' }}{% endif %}" class="form-control form-control-sm row-in1" data-row="{{ it.id }}" step="60" placeholder="IN1">
+                  <input type="time" name="in1_{{ it.id }}" value="{% if it.in1 %}{{ it.in1|time:'H:i' }}{% endif %}"
+                         class="form-control form-control-sm row-in1"
+                         data-row="{{ it.id }}" step="60" placeholder="IN1"
+                         {% if not work or not am_req %}disabled{% endif %}>
                 </div>
                 <div class="col-3">
-                  <input type="time" name="out1_{{ it.id }}" value="{% if it.out1 %}{{ it.out1|time:'H:i' }}{% endif %}" class="form-control form-control-sm row-out1" data-row="{{ it.id }}" step="60" placeholder="OUT1">
+                  <input type="time" name="out1_{{ it.id }}" value="{% if it.out1 %}{{ it.out1|time:'H:i' }}{% endif %}"
+                         class="form-control form-control-sm row-out1"
+                         data-row="{{ it.id }}" step="60" placeholder="OUT1"
+                         {% if not work or not am_req %}disabled{% endif %}>
                 </div>
                 <div class="col-3">
-                  <input type="time" name="in2_{{ it.id }}" value="{% if it.in2 %}{{ it.in2|time:'H:i' }}{% endif %}" class="form-control form-control-sm row-in2" data-row="{{ it.id }}" step="60" placeholder="IN2">
+                  <input type="time" name="in2_{{ it.id }}" value="{% if it.in2 %}{{ it.in2|time:'H:i' }}{% endif %}"
+                         class="form-control form-control-sm row-in2"
+                         data-row="{{ it.id }}" step="60" placeholder="IN2"
+                         {% if not work or not pm_req %}disabled{% endif %}>
                 </div>
                 <div class="col-3">
-                  <input type="time" name="out2_{{ it.id }}" value="{% if it.out2 %}{{ it.out2|time:'H:i' }}{% endif %}" class="form-control form-control-sm row-out2" data-row="{{ it.id }}" step="60" placeholder="OUT2">
+                  <input type="time" name="out2_{{ it.id }}" value="{% if it.out2 %}{{ it.out2|time:'H:i' }}{% endif %}"
+                         class="form-control form-control-sm row-out2"
+                         data-row="{{ it.id }}" step="60" placeholder="OUT2"
+                         {% if not work or not pm_req %}disabled{% endif %}>
                 </div>
               </div>
             </td>
             <td><input type="text" name="notes_{{ it.id }}" value="{{ it.notes }}" class="form-control form-control-sm"></td>
           </tr>
+          {% endwith %}
         {% empty %}
-          <tr><td colspan="8" class="text-muted">Chưa có dữ liệu.</td></tr>
+          <tr><td colspan="7" class="text-muted">Chưa có dữ liệu.</td></tr>
         {% endfor %}
       </tbody>
     </table>
 
     <div class="d-flex justify-content-between align-items-center">
       <div class="text-muted">
-        Trang {{ page }} / {{ total_pages }} • Tổng {{ total_count }} dòng
+        Tổng {{ total_count }} dòng | Trang {{ current_page }} / {{ paginator.num_pages }}
       </div>
       <div class="d-flex gap-2">
-        {% if page > 1 %}
-          <a class="btn btn-outline-secondary btn-sm" href="?date={{ work_date }}&unit={{ unit_id }}&q={{ q }}&team={{ team }}&page={{ page|add:-1 }}">« Trước</a>
-        {% endif %}
-        {% if page < total_pages %}
-          <a class="btn btn-outline-secondary btn-sm" href="?date={{ work_date }}&unit={{ unit_id }}&q={{ q }}&team={{ team }}&page={{ page|add:1 }}">Sau »</a>
-        {% endif %}
-        {% if can_save %}
-          <button class="btn btn-primary btn-sm">Lưu nháp</button>
-        {% endif %}
+        {% with q=q u=unit_id d=work_date t=team_id ps=page_size %}
+          {% if page_obj and page_obj.has_previous %}
+            <a class="btn btn-outline-secondary btn-sm nav-link" href="?page=1&date={{ d }}&unit={{ u }}&q={{ q }}&team={{ t }}&page_size={{ ps }}">&laquo; Đầu</a>
+            <a class="btn btn-outline-secondary btn-sm nav-link" href="?page={{ page_obj.previous_page_number }}&date={{ d }}&unit={{ u }}&q={{ q }}&team={{ t }}&page_size={{ ps }}">Trước</a>
+          {% else %}
+            <span class="btn btn-outline-secondary btn-sm disabled">&laquo; Đầu</span>
+            <span class="btn btn-outline-secondary btn-sm disabled">Trước</span>
+          {% endif %}
+
+          {% if paginator %}
+            {% for p in paginator.page_range %}
+              {% if p >= current_page|add:-2 and p <= current_page|add:2 %}
+                {% if p == current_page %}
+                  <span class="btn btn-primary btn-sm">{{ p }}</span>
+                {% else %}
+                  <a class="btn btn-outline-secondary btn-sm nav-link" href="?page={{ p }}&date={{ d }}&unit={{ u }}&q={{ q }}&team={{ t }}&page_size={{ ps }}">{{ p }}</a>
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+
+          {% if page_obj and page_obj.has_next %}
+            <a class="btn btn-outline-secondary btn-sm nav-link" href="?page={{ page_obj.next_page_number }}&date={{ d }}&unit={{ u }}&q={{ q }}&team={{ t }}&page_size={{ ps }}">Sau</a>
+            <a class="btn btn-outline-secondary btn-sm nav-link" href="?page={{ paginator.num_pages }}&date={{ d }}&unit={{ u }}&q={{ q }}&team={{ t }}&page_size={{ ps }}">Cuối &raquo;</a>
+          {% else %}
+            <span class="btn btn-outline-secondary btn-sm disabled">Sau</span>
+            <span class="btn btn-outline-secondary btn-sm disabled">Cuối &raquo;</span>
+          {% endif %}
+        {% endwith %}
+
+        <button class="btn btn-primary btn-sm" id="btnSave">Lưu nháp</button>
         {% if not has_committed and can_commit %}
           <a class="btn btn-success btn-sm" href="{% url 'backoffice:attendance_batch_commit' batch.id %}">Chốt danh sách</a>
         {% endif %}
@@ -196,75 +239,117 @@
 
 {% block extra_js %}
 <script>
-  const SHIFT_DEFAULTS = {
-    DAY:     {in1: "07:00", out1: "11:00", in2: "13:00", out2: "17:00"},
-    MORNING: {in1: "06:00", out1: "14:00", in2: "",      out2: ""},
-    AFTERNOON:{in1:"14:00", out1: "22:00", in2: "",      out2: ""},
-    NIGHT:   {in1: "22:00", out1: "06:00", in2: "",      out2: ""}
+  // Map thuộc tính mã từ server
+  const CODE_MAP = {
+    {% for c in codes_qs %}
+      "{{ c.id }}": {
+        is_work: {{ c.is_work|yesno:"true,false" }},
+        req_am: {{ c.requires_am_work|yesno:"true,false" }},
+        req_pm: {{ c.requires_pm_work|yesno:"true,false" }},
+        def_in1: "{% if c.default_in1 %}{{ c.default_in1|time:'H:i' }}{% endif %}",
+        def_out1: "{% if c.default_out1 %}{{ c.default_out1|time:'H:i' }}{% endif %}",
+        def_in2: "{% if c.default_in2 %}{{ c.default_in2|time:'H:i' }}{% endif %}",
+        def_out2: "{% if c.default_out2 %}{{ c.default_out2|time:'H:i' }}{% endif %}"
+      }{% if not forloop.last %},{% endif %}
+    {% endfor %}
   };
 
-  // Default fill bulk IN/OUT based on shift
-  const bulkShift = document.getElementById('bulkShift');
-  const bulkIn1 = document.getElementById('bulkIn1');
-  const bulkOut1 = document.getElementById('bulkOut1');
-  const bulkIn2 = document.getElementById('bulkIn2');
-  const bulkOut2 = document.getElementById('bulkOut2');
-  if (bulkShift) {
-    bulkShift.addEventListener('change', function() {
-      const d = SHIFT_DEFAULTS[this.value] || {};
-      bulkIn1.value = d.in1 || '';
-      bulkOut1.value = d.out1 || '';
-      bulkIn2.value = d.in2 || '';
-      bulkOut2.value = d.out2 || '';
-    });
+  function applyCodeBehaviorToRow(rowId, codeId) {
+    const meta = CODE_MAP[codeId];
+    const in1  = document.querySelector('.row-in1[data-row="' + rowId + '"]');
+    const out1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
+    const in2  = document.querySelector('.row-in2[data-row="' + rowId + '"]');
+    const out2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
+
+    if (!meta) {
+      [in1,out1,in2,out2].forEach(el => { if (el) el.disabled = false; });
+      return;
+    }
+
+    if (!meta.is_work) {
+      [in1,out1,in2,out2].forEach(el => { if (!el) return; el.disabled = true; el.value = ''; });
+      return;
+    }
+
+    // Enable/disable và auto điền theo mặc định nếu ô hiện đang trống
+    if (in1)  { in1.disabled  = !meta.req_am; if (!in1.value)  in1.value  = meta.req_am ? (meta.def_in1  || "") : ""; }
+    if (out1) { out1.disabled = !meta.req_am; if (!out1.value) out1.value = meta.req_am ? (meta.def_out1 || "") : ""; }
+    if (in2)  { in2.disabled  = !meta.req_pm; if (!in2.value)  in2.value  = meta.req_pm ? (meta.def_in2  || "") : ""; }
+    if (out2) { out2.disabled = !meta.req_pm; if (!out2.value) out2.value = meta.req_pm ? (meta.def_out2 || "") : ""; }
   }
 
-  // Bulk apply: code + shift + optional IN/OUT to visible rows
+  // Áp dụng khi đổi mã trên dòng
+  document.querySelectorAll('.row-code').forEach(function(sel) {
+    const initRowId = sel.dataset.row;
+    const initCodeId = sel.value;
+    applyCodeBehaviorToRow(initRowId, initCodeId);
+
+    sel.addEventListener('change', function() {
+      const rowId = this.dataset.row;
+      const codeId = this.value;
+      applyCodeBehaviorToRow(rowId, codeId);
+      window.unsavedChanges = true;
+    });
+  });
+
+  // Bulk apply: tự điền và disable theo mã, đồng thời giữ giá trị người dùng nhập thủ công
   const btnBulkApply = document.getElementById('btnBulkApply');
   if (btnBulkApply) {
     btnBulkApply.addEventListener('click', function() {
       const bulkCode = document.getElementById('bulkCode').value;
-      const bulkShiftVal = document.getElementById('bulkShift').value;
-      const in1 = bulkIn1.value;
-      const out1 = bulkOut1.value;
-      const in2 = bulkIn2.value;
-      const out2 = bulkOut2.value;
+      const bIn1  = document.getElementById('bulkIn1').value;
+      const bOut1 = document.getElementById('bulkOut1').value;
+      const bIn2  = document.getElementById('bulkIn2').value;
+      const bOut2 = document.getElementById('bulkOut2').value;
 
       document.querySelectorAll('.row-code').forEach(function(sel) {
-        if (bulkCode) sel.value = bulkCode;
-      });
-      document.querySelectorAll('.row-shift').forEach(function(sel) {
         const rowId = sel.dataset.row;
-        if (bulkShiftVal) {
-          sel.value = bulkShiftVal;
+
+        // Áp dụng mã: đặt select và auto điền/disable theo mặc định
+        if (bulkCode) {
+          sel.value = bulkCode;
+          applyCodeBehaviorToRow(rowId, bulkCode);
         }
-        const rin1 = document.querySelector('.row-in1[data-row="' + rowId + '"]');
-        const rout1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
-        const rin2 = document.querySelector('.row-in2[data-row="' + rowId + '"]');
-        const rout2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
-        if (in1)  rin1 && (rin1.value = in1);
-        if (out1) rout1 && (rout1.value = out1);
-        if (in2)  rin2 && (rin2.value = in2);
-        if (out2) rout2 && (rout2.value = out2);
+
+        // Sau khi auto, nếu người dùng nhập giá trị nhanh thì ghi vào các ô nếu ô không bị disable
+        const in1  = document.querySelector('.row-in1[data-row="' + rowId + '"]');
+        const out1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
+        const in2  = document.querySelector('.row-in2[data-row="' + rowId + '"]');
+        const out2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
+
+        if (bIn1  && in1  && !in1.disabled)  in1.value  = bIn1;
+        if (bOut1 && out1 && !out1.disabled) out1.value = bOut1;
+        if (bIn2  && in2  && !in2.disabled)  in2.value  = bIn2;
+        if (bOut2 && out2 && !out2.disabled) out2.value = bOut2;
       });
+
+      window.unsavedChanges = true;
     });
   }
 
-  // Per row: auto fill times when shift changes
-  document.querySelectorAll('.row-shift').forEach(function(sel) {
-    sel.addEventListener('change', function() {
-      const v = this.value;
-      const rowId = this.dataset.row;
-      const d = SHIFT_DEFAULTS[v] || {};
-      const rin1 = document.querySelector('.row-in1[data-row="' + rowId + '"]');
-      const rout1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
-      const rin2 = document.querySelector('.row-in2[data-row="' + rowId + '"]');
-      const rout2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
-      if (rin1)  rin1.value  = d.in1 || '';
-      if (rout1) rout1.value = d.out1 || '';
-      if (rin2)  rin2.value  = d.in2 || '';
-      if (rout2) rout2.value = d.out2 || '';
+  // Đánh dấu thay đổi chưa lưu
+  document.querySelectorAll('input[type="time"], select').forEach(function(el) {
+    el.addEventListener('change', function() { window.unsavedChanges = true; });
+  });
+
+  // Cảnh báo khi điều hướng phân trang nếu chưa lưu
+  document.querySelectorAll('a.nav-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      if (window.unsavedChanges) {
+        const ok = confirm('Bạn có thay đổi chưa lưu. Tiếp tục chuyển trang sẽ mất thay đổi trên trang này. Bạn có muốn tiếp tục?');
+        if (!ok) {
+          e.preventDefault();
+        }
+      }
     });
   });
+
+  // Nút lưu
+  const btnSave = document.getElementById('btnSave');
+  if (btnSave) {
+    btnSave.addEventListener('click', function() {
+      document.getElementById('listForm').submit();
+    });
+  }
 </script>
 {% endblock %}

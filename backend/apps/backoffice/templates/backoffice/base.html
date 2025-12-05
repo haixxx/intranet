@@ -43,7 +43,6 @@
       <div class="page-wrapper">
         <div class="container-fluid">
 
-          {# Messages: hiển thị MỘT lần tại đây #}
           {% if messages %}
             <div class="p-3">
               {% for message in messages %}
@@ -94,18 +93,16 @@
                     <i class="ti ti-arrows-left-right me-2"></i> {% trans "Điều động tạm thời" %}</a>
                   {% endif %}
 
-                  {% if perms.attendance.view_attendancecode or perms.attendance.view_attendanceregistration or perms.attendance.change_attendancesettings or perms.attendance.view_attendancebatch or perms.attendance.view_attendancecommit %}
+                  {% if perms.attendance.view_attendancecode or perms.attendance.change_attendancesettings or perms.attendance.view_attendancebatch or perms.attendance.view_attendancecommit %}
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Chấm công" %}</div>
                   {% if perms.attendance.view_attendancecode %}
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_code_list' or request.resolver_match.url_name == 'attendance_code_create' or request.resolver_match.url_name == 'attendance_code_edit' or request.resolver_match.url_name == 'attendance_code_delete' %}active{% endif %}"
                      href="{% url 'backoffice:attendance_code_list' %}">
                     <i class="ti ti-badge me-2"></i> {% trans "Mã chế độ" %}</a>
                   {% endif %}
-                  {% if perms.attendance.view_attendanceregistration %}
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_reg_list' or request.resolver_match.url_name == 'attendance_reg_create' or request.resolver_match.url_name == 'attendance_reg_edit' %}active{% endif %}"
-                     href="{% url 'backoffice:attendance_reg_list' %}">
-                    <i class="ti ti-clipboard-list me-2"></i> {% trans "Đăng ký công (cá nhân)" %}</a>
-                  {% endif %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_settings' %}active{% endif %}"
+                     href="{% url 'backoffice:attendance_settings' %}">
+                    <i class="ti ti-adjustments-alt me-2"></i> {% trans "Cấu hình đối chiếu" %}</a>
                   {% if perms.attendance.view_attendancebatch %}
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_batch_create_or_load' %}active{% endif %}"
                      href="{% url 'backoffice:attendance_batch_create_or_load' %}">

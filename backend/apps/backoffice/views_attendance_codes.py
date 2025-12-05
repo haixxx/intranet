@@ -47,7 +47,11 @@ def attendance_code_create(request):
             obj = form.save()
             audit_log(action_verb="CREATE", object_type="attendance_code", object_id=obj.id,
                       object_repr=obj.code, actor=request.user,
-                      changes={'fields': {'code': obj.code, 'label_vi': obj.label_vi, 'priority': obj.priority}},
+                      changes={'fields': {
+                          'code': obj.code, 'label_vi': obj.label_vi, 'priority': obj.priority,
+                          'is_work': obj.is_work, 'requires_am_work': obj.requires_am_work,
+                          'requires_pm_work': obj.requires_pm_work
+                      }},
                       request=request, action_code="ATT_CODE_CREATE")
             messages.success(request, "Đã tạo mã chế độ.")
             return redirect('backoffice:attendance_code_list')
@@ -75,8 +79,13 @@ def attendance_code_edit(request, pk):
             'label_vi': obj.label_vi,
             'segments_am_type': obj.segments_am_type,
             'segments_pm_type': obj.segments_pm_type,
+            'is_work': obj.is_work,
             'requires_am_work': obj.requires_am_work,
             'requires_pm_work': obj.requires_pm_work,
+            'default_in1': obj.default_in1,
+            'default_out1': obj.default_out1,
+            'default_in2': obj.default_in2,
+            'default_out2': obj.default_out2,
             'priority': obj.priority,
             'is_active': obj.is_active
         }

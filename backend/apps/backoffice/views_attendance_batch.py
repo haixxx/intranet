@@ -2,6 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Q
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import date, time
 
 from apps.audit.utils import audit_log
@@ -14,21 +15,12 @@ from apps.attendance.models_batch import (
     AttendanceCorrectionRequest
 )
 
-# Employee & AccessControl theo repo
 from apps.hr.models import Employee, AccessControl
-# TempAssignment (điều động tạm thời) nếu có
 try:
     from apps.hr.models.temp_assignment import TempAssignment
 except Exception:
     TempAssignment = None
 
-# Ca mặc định (24h)
-DEFAULT_SHIFT_TIMES = {
-    "DAY": {"in1": time(7, 0), "out1": time(11, 0), "in2": time(13, 0), "out2": time(17, 0)},
-    "MORNING": {"in1": time(6, 0), "out1": time(14, 0), "in2": None, "out2": None},
-    "AFTERNOON": {"in1": time(14, 0), "out1": time(22, 0), "in2": None, "out2": None},
-    "NIGHT": {"in1": time(22, 0), "out1": time(6, 0), "in2": None, "out2": None},
-}
 
 def _round_to_hour_if_needed(t: time | None, settings: AttendanceSettings | None) -> time | None:
     if not t:
@@ -37,36 +29,17 @@ def _round_to_hour_if_needed(t: time | None, settings: AttendanceSettings | None
         return time(t.hour, 0, 0)
     return t
 
-def _populate_default_times(item: AttendanceBatchItem, shift_key: str, settings: AttendanceSettings | None):
-    cfg = DEFAULT_SHIFT_TIMES.get(shift_key)
-    if not cfg:
-        return
-    item.in1 = _round_to_hour_if_needed(cfg.get("in1"), settings)
-    item.out1 = _round_to_hour_if_needed(cfg.get("out1"), settings)
-    item.in2 = _round_to_hour_if_needed(cfg.get("in2"), settings)
-    item.out2 = _round_to_hour_if_needed(cfg.get("out2"), settings)
 
 def _units_for_attendance(request):
-    """
-    Trả về danh sách đơn vị được phép chấm công, giới hạn theo AccessControl của user.
-    - Chỉ lấy OrgUnit.is_attendance_unit=True và is_active=True.
-    - Scope:
-      + ALL_ORG: toàn bộ hệ thống
-      + UNIT_SUBTREE: cây con của root_org_unit
-      + PLANT_SUBTREE: cây con của nhà máy chứa root_org_unit
-    """
     base_qs = OrgUnit.objects.filter(is_attendance_unit=True, is_active=True)
     ac = getattr(request.user, "access_control", None)
     if not ac:
         return base_qs.order_by("symbol")
-
     if ac.scope == AccessControl.Scope.ALL_ORG:
         return base_qs.order_by("symbol")
-
     root = ac.root_org_unit
     if not root:
         return base_qs.none()
-
     subtree_ids = get_subtree_unit_ids(root)
     if ac.scope == AccessControl.Scope.UNIT_SUBTREE:
         return base_qs.filter(id__in=subtree_ids).order_by("symbol")
@@ -78,18 +51,33 @@ def _units_for_attendance(request):
             return base_qs.filter(id__in=subtree_ids).order_by("symbol")
         plant_subtree_ids = get_subtree_unit_ids(plant)
         return base_qs.filter(id__in=plant_subtree_ids).order_by("symbol")
-
     return base_qs.order_by("symbol")
+
+
+def _apply_code_defaults_to_item(it: AttendanceBatchItem, code: AttendanceCode, settings: AttendanceSettings | None):
+    """
+    Chỉ dùng khi khởi tạo hoặc khi đổi mã mà KHÔNG có thời gian do người dùng nhập.
+    """
+    def rt(val: time | None) -> time | None:
+        if not val:
+            return None
+        return _round_to_hour_if_needed(val, settings)
+
+    if not code.is_work:
+        it.in1 = None
+        it.out1 = None
+        it.in2 = None
+        it.out2 = None
+        return
+
+    it.in1 = rt(code.default_in1) if code.requires_am_work else None
+    it.out1 = rt(code.default_out1) if code.requires_am_work else None
+    it.in2 = rt(code.default_in2) if code.requires_pm_work else None
+    it.out2 = rt(code.default_out2) if code.requires_pm_work else None
+
 
 @login_required
 def batch_create_or_load(request):
-    """
-    Tạo/Xem chấm công:
-    - Chỉ lập danh sách nhân sự ACTIVE của đơn vị được chọn (đơn vị chấm công).
-    - Lọc tổ theo tên team.name.
-    - Dropdown đơn vị hiển thị tên đơn vị.
-    - Khi bấm 'Xem' mà chưa có danh sách, hiển thị thông báo gợi ý lập danh sách.
-    """
     if not request.user.has_perm("attendance.view_attendancebatch"):
         return render(request, "backoffice/no_permission.html", {
             "perm_codename": "attendance.view_attendancebatch",
@@ -99,17 +87,25 @@ def batch_create_or_load(request):
     work_date_str = request.GET.get("date", "")
     unit_id = request.GET.get("unit", "")
     q = request.GET.get("q", "").strip()
-    team = request.GET.get("team", "").strip()
-    page = int(request.GET.get("page", "1") or "1")
-    per_page = 50
+    team_id = request.GET.get("team", "").strip()
+    page = request.GET.get("page", "1")
+    page_size_raw = request.GET.get("page_size", "").strip()
+    try:
+        page_size = int(page_size_raw) if page_size_raw else 50
+    except ValueError:
+        page_size = 50
+    if page_size <= 0 or page_size > 500:
+        page_size = 50
 
     units_qs = _units_for_attendance(request)
     batch = None
+    items_qs = AttendanceBatchItem.objects.none()
     items = AttendanceBatchItem.objects.none()
     total_count = 0
+    teams = OrgUnit.objects.none()
+    bs_in_list = []
 
     if work_date_str and unit_id:
-        # Parse ngày
         try:
             y, m, d = map(int, work_date_str.split("-"))
             work_date = date(y, m, d)
@@ -117,7 +113,6 @@ def batch_create_or_load(request):
             messages.warning(request, "Ngày không hợp lệ.")
             work_date = None
 
-        # Lấy unit, kiểm tra cờ chấm công và quyền
         try:
             unit = OrgUnit.objects.get(pk=int(unit_id), is_attendance_unit=True, is_active=True)
         except Exception:
@@ -131,14 +126,23 @@ def batch_create_or_load(request):
                 messages.error(request, "Bạn không có quyền thao tác với đơn vị này.")
                 unit = None
 
+        if unit:
+            teams = OrgUnit.objects.filter(parent=unit, type=OrgUnit.Type.TEAM).order_by("symbol")
+            if TempAssignment is not None:
+                try:
+                    bs_in_qs = TempAssignment.objects.filter(
+                        apply_flag=True, to_unit=unit, status="ACTIVE"
+                    ).select_related("employee").order_by("employee__employee_code")
+                    bs_in_list = [f"{ta.employee.employee_code} - {ta.employee.full_name}" for ta in bs_in_qs]
+                except Exception:
+                    bs_in_list = []
+
         if work_date and unit:
             batch = AttendanceBatch.objects.filter(unit=unit, work_date=work_date).first()
 
-            # Nếu bấm 'Xem' mà chưa có danh sách -> gợi ý lập
             if request.GET.get("init") != "1" and not batch:
                 messages.info(request, f"Chưa có danh sách điểm danh cho đơn vị {unit.name} ngày {work_date_str}. Vui lòng bấm 'Lập danh sách đăng ký công' để tạo.")
 
-            # Lập danh sách mới
             if request.GET.get("init") == "1" and not batch:
                 if not request.user.has_perm("attendance.add_attendancebatch"):
                     return render(request, "backoffice/no_permission.html", {
@@ -153,13 +157,8 @@ def batch_create_or_load(request):
                     created_by_id=request.user.id
                 )
 
-                # Nhân sự ACTIVE thuộc đơn vị
-                base_qs = Employee.objects.filter(
-                    unit=unit,
-                    status=Employee.Status.ACTIVE
-                )
+                base_qs = Employee.objects.filter(unit=unit, status=Employee.Status.ACTIVE)
 
-                # Bổ sung BS đến/đi nếu có TempAssignment
                 bs_in_ids, bs_out_ids = [], []
                 if TempAssignment is not None:
                     try:
@@ -178,9 +177,9 @@ def batch_create_or_load(request):
                     Q(id__in=bs_out_ids)
                 ).distinct().order_by("employee_code")
 
+                settings = AttendanceSettings.objects.first()
                 code_ll = AttendanceCode.objects.filter(code="LL", is_active=True).first()
                 code_bs = AttendanceCode.objects.filter(code="BS", is_active=True).first()
-                settings = AttendanceSettings.objects.first()
 
                 if not employees.exists():
                     messages.info(request, f"Đơn vị {unit.name} chưa có nhân sự ACTIVE để lập danh sách.")
@@ -203,23 +202,37 @@ def batch_create_or_load(request):
                         it.include_in_unit = True
                         it.code = code_ll or AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code").first()
 
-                    it.shift = AttendanceBatchItem.Shift.DAY
-                    _populate_default_times(it, "DAY", settings)
+                    _apply_code_defaults_to_item(it, it.code, settings)
                     it.save()
 
                 messages.success(request, f"Đã lập danh sách nháp cho {unit.name} ngày {work_date_str}.")
 
-            # Load items + filter + paginate
             if batch:
-                qs = batch.items.select_related("employee", "code").order_by("employee__employee_code")
+                items_qs = batch.items.select_related("employee", "code").order_by("employee__employee_code")
                 if q:
-                    qs = qs.filter(Q(employee__employee_code__icontains=q) | Q(employee__full_name__icontains=q))
-                if team:
-                    qs = qs.filter(employee__team__name__icontains=team, employee__unit=unit)
-                total_count = qs.count()
-                start = (page - 1) * per_page
-                end = start + per_page
-                items = qs[start:end]
+                    items_qs = items_qs.filter(Q(employee__employee_code__icontains=q) | Q(employee__full_name__icontains=q))
+                if team_id:
+                    items_qs = items_qs.filter(employee__team_id=team_id, employee__unit=unit)
+
+                paginator = Paginator(items_qs, page_size)
+                try:
+                    page_obj = paginator.page(page)
+                except PageNotAnInteger:
+                    page_obj = paginator.page(1)
+                except EmptyPage:
+                    page_obj = paginator.page(paginator.num_pages)
+
+                items = page_obj.object_list
+                total_count = paginator.count
+            else:
+                paginator = None
+                page_obj = None
+        else:
+            paginator = None
+            page_obj = None
+    else:
+        paginator = None
+        page_obj = None
 
     can_save = request.user.has_perm("attendance.change_attendancebatch")
     can_commit = request.user.has_perm("attendance.add_attendancecommit")
@@ -230,7 +243,6 @@ def batch_create_or_load(request):
         has_committed = AttendanceCommit.objects.filter(unit=batch.unit, work_date=batch.work_date).exists()
 
     codes_qs = AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code")
-    total_pages = (total_count + per_page - 1) // per_page if total_count else 1
 
     return render(request, "backoffice/attendance/batch_create_or_load.html", {
         "units_qs": units_qs,
@@ -239,22 +251,31 @@ def batch_create_or_load(request):
         "work_date": work_date_str,
         "unit_id": unit_id,
         "q": q,
-        "team": team,
-        "page": page,
-        "per_page": per_page,
-        "total_pages": total_pages,
+        "team_id": team_id,
+        "teams": teams,
+        "paginator": paginator,
+        "page_obj": page_obj,
+        "current_page": page_obj.number if page_obj else 1,
+        "page_size": page_size,
+        "page_size_options": [25, 50, 100, 200],
         "total_count": total_count,
         "can_save": can_save,
         "can_commit": can_commit,
         "can_request": can_request,
         "has_committed": has_committed,
         "codes_qs": codes_qs,
+        "bs_in_list": bs_in_list,
     })
+
 
 @login_required
 def batch_save(request, batch_id):
     """
-    Lưu nháp: ghi các thay đổi từ bảng vào DB.
+    Lưu đúng thời gian người dùng nhập, KHÔNG revert về mặc định.
+    Quy tắc:
+    - Nếu đổi mã: chỉ lấy mặc định khi ô tương ứng KHÔNG xuất hiện trong POST hoặc để trống; nếu có giá trị -> dùng giá trị người dùng.
+    - Nếu không đổi mã: dùng đúng giá trị người dùng theo các key trong POST; không re-apply mặc định.
+    - Nếu mã không đi làm: set tất cả IN/OUT = None.
     """
     batch = get_object_or_404(AttendanceBatch, pk=batch_id)
     if not request.user.has_perm("attendance.change_attendancebatch"):
@@ -266,7 +287,7 @@ def batch_save(request, batch_id):
     settings = AttendanceSettings.objects.first()
 
     def parse_time(val):
-        if not val:
+        if val is None or val == "":
             return None
         try:
             hh, mm = map(int, val.split(":"))
@@ -274,42 +295,100 @@ def batch_save(request, batch_id):
         except Exception:
             return None
 
+    item_ids_in_form = set()
+    for k in request.POST.keys():
+        if "_" in k:
+            _, suffix = k.split("_", 1)
+            if suffix.isdigit():
+                item_ids_in_form.add(int(suffix))
+
     updated = 0
-    for it in batch.items.all():
-        code_val = request.POST.get(f"code_{it.id}")
-        shift_val = request.POST.get(f"shift_{it.id}")
-        in1_val = request.POST.get(f"in1_{it.id}")
-        out1_val = request.POST.get(f"out1_{it.id}")
-        in2_val = request.POST.get(f"in2_{it.id}")
-        out2_val = request.POST.get(f"out2_{it.id}")
-        notes_val = request.POST.get(f"notes_{it.id}", "")
+    if item_ids_in_form:
+        qs = batch.items.filter(id__in=item_ids_in_form).select_related("code")
+        for it in qs:
+            key_code = f"code_{it.id}"
+            key_in1 = f"in1_{it.id}"
+            key_out1 = f"out1_{it.id}"
+            key_in2 = f"in2_{it.id}"
+            key_out2 = f"out2_{it.id}"
+            key_notes = f"notes_{it.id}"
 
-        if code_val:
-            code_obj = AttendanceCode.objects.filter(pk=int(code_val)).first()
-            if code_obj:
-                it.code = code_obj
-        if shift_val:
-            it.shift = shift_val
+            # Lấy giá trị người dùng (có thể trống)
+            in1_val = request.POST.get(key_in1, None)
+            out1_val = request.POST.get(key_out1, None)
+            in2_val = request.POST.get(key_in2, None)
+            out2_val = request.POST.get(key_out2, None)
 
-        it.in1 = parse_time(in1_val)
-        it.out1 = parse_time(out1_val)
-        it.in2 = parse_time(in2_val)
-        it.out2 = parse_time(out2_val)
-        it.notes = notes_val
-        it.save()
-        updated += 1
+            # Đổi mã nếu có
+            code_changed = False
+            if key_code in request.POST:
+                code_val = request.POST.get(key_code)
+                if code_val:
+                    new_code = AttendanceCode.objects.filter(pk=int(code_val)).first()
+                    if new_code and (not it.code or new_code.id != it.code_id):
+                        it.code = new_code
+                        code_changed = True
+
+            # Nếu mã không đi làm: xoá toàn bộ mốc
+            if it.code and not it.code.is_work:
+                it.in1 = None
+                it.out1 = None
+                it.in2 = None
+                it.out2 = None
+            else:
+                # AM
+                if it.code and it.code.requires_am_work:
+                    if code_changed:
+                        # Nếu đổi mã: ưu tiên dữ liệu người dùng; nếu không nhập thì dùng mặc định theo mã mới
+                        it.in1 = parse_time(in1_val) if (key_in1 in request.POST and in1_val) else _round_to_hour_if_needed(it.code.default_in1, settings)
+                        it.out1 = parse_time(out1_val) if (key_out1 in request.POST and out1_val) else _round_to_hour_if_needed(it.code.default_out1, settings)
+                    else:
+                        # Không đổi mã: dùng đúng giá trị người dùng; nếu không nhập, giữ nguyên
+                        if key_in1 in request.POST:
+                            it.in1 = parse_time(in1_val)
+                        if key_out1 in request.POST:
+                            it.out1 = parse_time(out1_val)
+                else:
+                    it.in1 = None
+                    it.out1 = None
+
+                # PM
+                if it.code and it.code.requires_pm_work:
+                    if code_changed:
+                        it.in2 = parse_time(in2_val) if (key_in2 in request.POST and in2_val) else _round_to_hour_if_needed(it.code.default_in2, settings)
+                        it.out2 = parse_time(out2_val) if (key_out2 in request.POST and out2_val) else _round_to_hour_if_needed(it.code.default_out2, settings)
+                    else:
+                        if key_in2 in request.POST:
+                            it.in2 = parse_time(in2_val)
+                        if key_out2 in request.POST:
+                            it.out2 = parse_time(out2_val)
+                else:
+                    it.in2 = None
+                    it.out2 = None
+
+            if key_notes in request.POST:
+                it.notes = request.POST.get(key_notes, "")
+
+            it.save()
+            updated += 1
 
     audit_log(action_verb="SAVE", object_type="attendance_batch", object_id=batch.id,
               object_repr=f"{batch.unit.code}-{batch.work_date}", actor=request.user,
-              changes={"count": updated}, request=request, action_code="ATT_BATCH_SAVE")
-    messages.success(request, f"Đã lưu {updated} dòng.")
-    return redirect("backoffice:attendance_batch_create_or_load")
+              changes={"updated_rows": updated}, request=request, action_code="ATT_BATCH_SAVE")
+    messages.success(request, f"Đã lưu {updated} dòng (trang hiện tại).")
+
+    date_arg = request.POST.get("date", "")
+    unit_arg = request.POST.get("unit", "")
+    q_arg = request.POST.get("q", "")
+    team_arg = request.POST.get("team", "")
+    page_arg = request.POST.get("page", "1")
+    page_size_arg = request.POST.get("page_size", "50")
+
+    return redirect(f"/backoffice/attendance/batch/?date={date_arg}&unit={unit_arg}&q={q_arg}&team={team_arg}&page={page_arg}&page_size={page_size_arg}")
+
 
 @login_required
 def batch_commit(request, batch_id):
-    """
-    Chốt danh sách: kiểm tra mốc theo mã, tạo snapshot Commit, khóa Draft.
-    """
     batch = get_object_or_404(AttendanceBatch, pk=batch_id)
     if not request.user.has_perm("attendance.add_attendancecommit"):
         return render(request, "backoffice/no_permission.html", {
@@ -327,12 +406,12 @@ def batch_commit(request, batch_id):
 
     errors = []
     for it in batch.items.select_related("code", "employee"):
-        if it.code.segments_am_type == AttendanceCode.SegmentType.WORK and it.code.requires_am_work:
-            if not it.in1 or not it.out1:
-                errors.append(f"{it.employee.employee_code} thiếu mốc sáng (IN1/OUT1).")
-        if it.code.segments_pm_type == AttendanceCode.SegmentType.WORK and it.code.requires_pm_work:
-            if not it.in2 or not it.out2:
-                errors.append(f"{it.employee.employee_code} thiếu mốc chiều (IN2/OUT2).")
+        if not it.code.is_work:
+            continue
+        if it.code.requires_am_work and (not it.in1 or not it.out1):
+            errors.append(f"{it.employee.employee_code} thiếu mốc sáng (IN1/OUT1).")
+        if it.code.requires_pm_work and (not it.in2 or not it.out2):
+            errors.append(f"{it.employee.employee_code} thiếu mốc chiều (IN2/OUT2).")
 
     if errors:
         messages.error(request, "Không thể chốt. Vui lòng bổ sung mốc cho các dòng sau:\n" + "\n".join(errors))

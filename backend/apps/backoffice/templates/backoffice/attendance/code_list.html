@@ -27,9 +27,13 @@
       <th>Nhãn</th>
       <th>AM</th>
       <th>PM</th>
+      <th>Đi làm</th>
       <th>Yêu cầu AM</th>
       <th>Yêu cầu PM</th>
-      <th>Yêu cầu ca</th>
+      <th>IN1</th>
+      <th>OUT1</th>
+      <th>IN2</th>
+      <th>OUT2</th>
       <th>Ưu tiên</th>
       <th>Kích hoạt</th>
       <th></th>
@@ -42,9 +46,13 @@
         <td>{{ it.label_vi }}</td>
         <td>{{ it.segments_am_type }}</td>
         <td>{{ it.segments_pm_type }}</td>
+        <td>{{ it.is_work|yesno:"Có,Không" }}</td>
         <td>{{ it.requires_am_work|yesno:"Có,Không" }}</td>
         <td>{{ it.requires_pm_work|yesno:"Có,Không" }}</td>
-        <td>{{ it.requires_shift|yesno:"Có,Không" }}</td>
+        <td>{% if it.default_in1 %}{{ it.default_in1|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if it.default_out1 %}{{ it.default_out1|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if it.default_in2 %}{{ it.default_in2|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if it.default_out2 %}{{ it.default_out2|time:"H:i" }}{% else %}—{% endif %}</td>
         <td>{{ it.priority }}</td>
         <td>{{ it.is_active|yesno:"Có,Không" }}</td>
         <td class="text-nowrap">
@@ -57,7 +65,7 @@
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="10" class="text-muted">Chưa có mã.</td></tr>
+      <tr><td colspan="14" class="text-muted">Chưa có mã.</td></tr>
     {% endfor %}
   </tbody>
 </table>
