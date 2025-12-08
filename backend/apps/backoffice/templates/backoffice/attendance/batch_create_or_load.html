@@ -73,7 +73,16 @@
       <select class="form-select form-select-sm" id="bulkCode">
         <option value="">-- giữ nguyên --</option>
         {% for c in codes_qs %}
-          <option value="{{ c.id }}">{{ c.code }} - {{ c.label_vi }}</option>
+          <option
+            value="{{ c.id }}"
+            data-is-work="{{ c.is_work|yesno:'true,false' }}"
+            data-req-am="{{ c.requires_am_work|yesno:'true,false' }}"
+            data-req-pm="{{ c.requires_pm_work|yesno:'true,false' }}"
+            data-def-in1="{% if c.default_in1 %}{{ c.default_in1|time:'H:i' }}{% endif %}"
+            data-def-out1="{% if c.default_out1 %}{{ c.default_out1|time:'H:i' }}{% endif %}"
+            data-def-in2="{% if c.default_in2 %}{{ c.default_in2|time:'H:i' }}{% endif %}"
+            data-def-out2="{% if c.default_out2 %}{{ c.default_out2|time:'H:i' }}{% endif %}"
+          >{{ c.code }} - {{ c.label_vi }}</option>
         {% endfor %}
       </select>
     </div>
@@ -96,7 +105,6 @@
           <input type="time" class="form-control form-control-sm" id="bulkOut2" step="60">
         </div>
       </div>
-      <div class="form-text">Áp dụng nhanh: hệ thống sẽ tự điền và disable theo thuộc tính mã (đi làm/AM/PM yêu cầu).</div>
     </div>
     <div class="col-md-2 d-flex">
       <button type="button" class="btn btn-warning btn-sm ms-auto" id="btnBulkApply">Áp dụng hàng loạt</button>
@@ -144,10 +152,17 @@
                       class="form-select form-select-sm row-code"
                       data-row="{{ it.id }}">
                 {% for c in codes_qs %}
-                  <option value="{{ c.id }}"
-                          {% if c.id == it.code.id %} selected{% endif %}>
-                    {{ c.code }} - {{ c.label_vi }}
-                  </option>
+                  <option
+                    value="{{ c.id }}"
+                    {% if c.id == it.code.id %} selected{% endif %}
+                    data-is-work="{{ c.is_work|yesno:'true,false' }}"
+                    data-req-am="{{ c.requires_am_work|yesno:'true,false' }}"
+                    data-req-pm="{{ c.requires_pm_work|yesno:'true,false' }}"
+                    data-def-in1="{% if c.default_in1 %}{{ c.default_in1|time:'H:i' }}{% endif %}"
+                    data-def-out1="{% if c.default_out1 %}{{ c.default_out1|time:'H:i' }}{% endif %}"
+                    data-def-in2="{% if c.default_in2 %}{{ c.default_in2|time:'H:i' }}{% endif %}"
+                    data-def-out2="{% if c.default_out2 %}{{ c.default_out2|time:'H:i' }}{% endif %}"
+                  >{{ c.code }} - {{ c.label_vi }}</option>
                 {% endfor %}
               </select>
             </td>
@@ -239,23 +254,31 @@
 
 {% block extra_js %}
 <script>
-  // Map thuộc tính mã từ server
-  const CODE_MAP = {
-    {% for c in codes_qs %}
-      "{{ c.id }}": {
-        is_work: {{ c.is_work|yesno:"true,false" }},
-        req_am: {{ c.requires_am_work|yesno:"true,false" }},
-        req_pm: {{ c.requires_pm_work|yesno:"true,false" }},
-        def_in1: "{% if c.default_in1 %}{{ c.default_in1|time:'H:i' }}{% endif %}",
-        def_out1: "{% if c.default_out1 %}{{ c.default_out1|time:'H:i' }}{% endif %}",
-        def_in2: "{% if c.default_in2 %}{{ c.default_in2|time:'H:i' }}{% endif %}",
-        def_out2: "{% if c.default_out2 %}{{ c.default_out2|time:'H:i' }}{% endif %}"
-      }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-  };
+  // Lấy meta mã từ option (tránh lỗi khi render object JS qua template)
+  function getCodeMetaFromOption(opt) {
+    if (!opt) return null;
+    return {
+      is_work: (opt.dataset.isWork === 'true'),
+      req_am: (opt.dataset.reqAm === 'true'),
+      req_pm: (opt.dataset.reqPm === 'true'),
+      def_in1: opt.dataset.defIn1 || '',
+      def_out1: opt.dataset.defOut1 || '',
+      def_in2: opt.dataset.defIn2 || '',
+      def_out2: opt.dataset.defOut2 || ''
+    };
+  }
 
-  function applyCodeBehaviorToRow(rowId, codeId) {
-    const meta = CODE_MAP[codeId];
+  function getCodeMetaById(codeId) {
+    // tìm option trong bulkCode trước, nếu không thấy sẽ tìm trong một row bất kỳ
+    let opt = document.querySelector('#bulkCode option[value="' + codeId + '"]');
+    if (!opt) opt = document.querySelector('.row-code option[value="' + codeId + '"]');
+    return getCodeMetaFromOption(opt);
+  }
+
+  // forceDefaults=true: luôn set giá trị theo mặc định của mã (dùng khi đổi mã hoặc bulk apply)
+  // forceDefaults=false: chỉ điền mặc định khi ô đang trống (dùng khi khởi tạo trang)
+  function applyCodeBehaviorToRow(rowId, codeId, forceDefaults) {
+    const meta = getCodeMetaById(codeId);
     const in1  = document.querySelector('.row-in1[data-row="' + rowId + '"]');
     const out1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
     const in2  = document.querySelector('.row-in2[data-row="' + rowId + '"]');
@@ -271,28 +294,75 @@
       return;
     }
 
-    // Enable/disable và auto điền theo mặc định nếu ô hiện đang trống
-    if (in1)  { in1.disabled  = !meta.req_am; if (!in1.value)  in1.value  = meta.req_am ? (meta.def_in1  || "") : ""; }
-    if (out1) { out1.disabled = !meta.req_am; if (!out1.value) out1.value = meta.req_am ? (meta.def_out1 || "") : ""; }
-    if (in2)  { in2.disabled  = !meta.req_pm; if (!in2.value)  in2.value  = meta.req_pm ? (meta.def_in2  || "") : ""; }
-    if (out2) { out2.disabled = !meta.req_pm; if (!out2.value) out2.value = meta.req_pm ? (meta.def_out2 || "") : ""; }
+    // AM
+    if (in1) {
+      in1.disabled = !meta.req_am;
+      if (meta.req_am) {
+        if (forceDefaults) {
+          in1.value = meta.def_in1 || '';
+        } else if (!in1.value) {
+          in1.value = meta.def_in1 || '';
+        }
+      } else {
+        in1.value = '';
+      }
+    }
+    if (out1) {
+      out1.disabled = !meta.req_am;
+      if (meta.req_am) {
+        if (forceDefaults) {
+          out1.value = meta.def_out1 || '';
+        } else if (!out1.value) {
+          out1.value = meta.def_out1 || '';
+        }
+      } else {
+        out1.value = '';
+      }
+    }
+
+    // PM
+    if (in2) {
+      in2.disabled = !meta.req_pm;
+      if (meta.req_pm) {
+        if (forceDefaults) {
+          in2.value = meta.def_in2 || '';
+        } else if (!in2.value) {
+          in2.value = meta.def_in2 || '';
+        }
+      } else {
+        in2.value = '';
+      }
+    }
+    if (out2) {
+      out2.disabled = !meta.req_pm;
+      if (meta.req_pm) {
+        if (forceDefaults) {
+          out2.value = meta.def_out2 || '';
+        } else if (!out2.value) {
+          out2.value = meta.def_out2 || '';
+        }
+      } else {
+        out2.value = '';
+      }
+    }
   }
 
-  // Áp dụng khi đổi mã trên dòng
+  // Khởi tạo theo mã hiện tại: chỉ điền khi trống (không override dữ liệu từ DB)
   document.querySelectorAll('.row-code').forEach(function(sel) {
-    const initRowId = sel.dataset.row;
-    const initCodeId = sel.value;
-    applyCodeBehaviorToRow(initRowId, initCodeId);
+    const rowId = sel.dataset.row;
+    const codeId = sel.value;
+    applyCodeBehaviorToRow(rowId, codeId, false);
 
+    // Khi đổi mã: bắt buộc set mặc định của mã mới (override mốc cũ), và disable theo thuộc tính mã
     sel.addEventListener('change', function() {
-      const rowId = this.dataset.row;
-      const codeId = this.value;
-      applyCodeBehaviorToRow(rowId, codeId);
+      const rId = this.dataset.row;
+      const cId = this.value;
+      applyCodeBehaviorToRow(rId, cId, true);
       window.unsavedChanges = true;
     });
   });
 
-  // Bulk apply: tự điền và disable theo mã, đồng thời giữ giá trị người dùng nhập thủ công
+  // Bulk apply: set mã + set mặc định theo mã (forceDefaults), rồi ghi đè bằng input bulk nếu có và ô không bị disable
   const btnBulkApply = document.getElementById('btnBulkApply');
   if (btnBulkApply) {
     btnBulkApply.addEventListener('click', function() {
@@ -305,13 +375,11 @@
       document.querySelectorAll('.row-code').forEach(function(sel) {
         const rowId = sel.dataset.row;
 
-        // Áp dụng mã: đặt select và auto điền/disable theo mặc định
         if (bulkCode) {
           sel.value = bulkCode;
-          applyCodeBehaviorToRow(rowId, bulkCode);
+          applyCodeBehaviorToRow(rowId, bulkCode, true);
         }
 
-        // Sau khi auto, nếu người dùng nhập giá trị nhanh thì ghi vào các ô nếu ô không bị disable
         const in1  = document.querySelector('.row-in1[data-row="' + rowId + '"]');
         const out1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
         const in2  = document.querySelector('.row-in2[data-row="' + rowId + '"]');

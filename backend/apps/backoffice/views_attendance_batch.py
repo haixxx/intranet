@@ -447,7 +447,8 @@ def committed_view(request):
     """
     Xem công chốt (read-only):
     - Bộ lọc: ngày, đơn vị, q, team (theo tên).
-    - Dropdown đơn vị theo is_attendance_unit và AccessControl.
+    - Dropdown đơn vị theo is_attendance_unit và AccessControl (nhất quán với Tạo/Xem).
+    - Bỏ cột Ca (UI không dùng), hiển thị team.name giống phần tạo/xem.
     """
     if not request.user.has_perm("attendance.view_attendancecommit"):
         return render(request, "backoffice/no_permission.html", {
@@ -467,11 +468,14 @@ def committed_view(request):
     total_count = 0
 
     if work_date_str and unit_id:
+        # parse date
         try:
             y, m, d = map(int, work_date_str.split("-"))
             work_date = date(y, m, d)
         except Exception:
             work_date = None
+
+        # validate unit against access scope
         try:
             unit = OrgUnit.objects.get(pk=int(unit_id), is_attendance_unit=True, is_active=True)
         except Exception:
