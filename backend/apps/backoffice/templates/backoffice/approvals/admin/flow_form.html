@@ -1,0 +1,84 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% if create %}Tạo{% else %}Sửa{% endif %} Luồng phê duyệt{% endblock %}
+{% block content %}
+<h5 class="mb-3">{% if create %}Tạo{% else %}Sửa{% endif %} Luồng phê duyệt</h5>
+<form method="post">
+  {% csrf_token %}
+
+  <div class="mb-2">
+    <label class="form-label">Mã luồng (tự sinh nếu để trống)</label>
+    {{ form.flow_key }}
+    <div class="form-text">Hệ thống sẽ sinh từ tên luồng và thêm hậu tố để đảm bảo không trùng.</div>
+  </div>
+
+  <div class="mb-2">
+    <label class="form-label">Tên luồng</label>
+    {{ form.name }}
+  </div>
+
+  <div class="mb-2">
+    <label class="form-label">Mô tả</label>
+    {{ form.description }}
+  </div>
+
+  <hr>
+  <h6 class="mb-2">Đơn vị được phép tạo yêu cầu</h6>
+  <div class="mb-2">
+    {{ form.request_units }}
+    <div class="form-text">
+      - Chọn những đơn vị được phép sử dụng luồng này khi tạo yêu cầu phê duyệt.<br>
+      - Khi tạo yêu cầu, hệ thống sẽ kiểm tra đơn vị của yêu cầu có nằm trong danh sách này không.
+    </div>
+  </div>
+
+  <hr>
+  <h6 class="mb-2">Cấu hình chung</h6>
+
+  <div class="mb-2">
+    <label class="form-label">Chính sách khi bị từ chối (reject_policy)</label>
+    {{ form.reject_policy }}
+    <div class="form-text">
+      REJECT_IMMEDIATE: Khi bất kỳ bước nào bị từ chối, yêu cầu sẽ dừng ngay (chuyển “Đã từ chối”).
+    </div>
+  </div>
+
+  <div class="mb-2">
+    <div class="form-check">
+      {{ form.allow_overrides_global }}
+      <label class="form-check-label" for="{{ form.allow_overrides_global.id_for_label }}">Cho phép ghi đè cấu hình ở runtime</label>
+    </div>
+    <div class="form-text">
+      “Cho phép ghi đè” nghĩa là có thể thay đổi người ký/ngưỡng ký của bước ngay trong quá trình chạy (theo quyền được cấp),<br>
+      áp dụng các trường hợp đặc biệt: lãnh đạo vắng, ủy quyền tạm thời, thêm người ký bổ sung.<br>
+      Nếu không bật, cấu hình sẽ cố định theo phiên bản luồng đã publish.
+    </div>
+  </div>
+
+  <div class="mb-2">
+    <div class="form-check">
+      {{ form.sla_enabled }}
+      <label class="form-check-label" for="{{ form.sla_enabled.id_for_label }}">Bật SLA theo dõi hạn xử lý</label>
+    </div>
+    <div class="row g-2 mt-1">
+      <div class="col-md-3">
+        <label class="form-label">Số ngày SLA mặc định</label>
+        {{ form.sla_default_days }}
+      </div>
+    </div>
+    <div class="form-text">
+      SLA giúp theo dõi thời hạn xử lý phê duyệt. Khi quá hạn, có thể hiển thị cảnh báo/nhắc việc.
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Trạng thái</label>
+    {{ form.status }}
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
+    <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}">Hủy</a>
+  </div>
+</form>
+{% endblock %}

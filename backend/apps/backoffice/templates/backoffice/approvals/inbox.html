@@ -1,0 +1,56 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Danh sách phê duyệt{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h5 class="mb-0">Danh sách phê duyệt</h5>
+  <form method="get" class="d-flex gap-2">
+    <select name="scope" class="form-select form-select-sm" style="width:auto">
+      <option value="to_approve" {% if scope == 'to_approve' %}selected{% endif %}>Tôi cần duyệt</option>
+      <option value="my_requests" {% if scope == 'my_requests' %}selected{% endif %}>Tôi yêu cầu</option>
+      <option value="approved_by_me" {% if scope == 'approved_by_me' %}selected{% endif %}>Tôi đã duyệt</option>
+      <option value="in_units" {% if scope == 'in_units' %}selected{% endif %}>Tất cả trong đơn vị</option>
+    </select>
+    <select name="unit" class="form-select form-select-sm" style="width:auto">
+      <option value="">— Đơn vị —</option>
+      {% for u in units_qs %}
+        <option value="{{ u.id }}" {% if unit_id|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.name }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Tìm theo tiêu đề/id">
+    <button class="btn btn-outline-secondary btn-sm">Lọc</button>
+  </form>
+</div>
+
+<table class="table table-sm table-striped">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Tiêu đề</th>
+      <th>Luồng</th>
+      <th>Trạng thái</th>
+      <th>Người yêu cầu</th>
+      <th>Ngày gửi</th>
+      <th>Đơn vị</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in requests %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td>{{ r.title }}</td>
+        <td>{{ r.flow.name }} (v{{ r.flow_version.version }})</td>
+        <td>{{ r.status }}</td>
+        <td>{{ r.requester.get_full_name|default:r.requester.username }}</td>
+        <td>{% if r.submitted_at %}{{ r.submitted_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ r.unit_id|default:"—" }}</td>
+        <td class="text-end">
+          <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approvals_request_detail' r.id %}">Xem</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" class="text-muted">Không có yêu cầu.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

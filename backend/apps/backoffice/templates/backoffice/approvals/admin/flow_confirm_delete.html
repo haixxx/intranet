@@ -1,0 +1,11 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Xóa luồng phê duyệt{% endblock %}
+{% block content %}
+<h5>Xóa luồng phê duyệt</h5>
+<p>Bạn chắc chắn muốn xóa luồng: <code>{{ obj.flow_key }}</code> - {{ obj.name }}?</p>
+<form method="post">
+  {% csrf_token %}
+  <button class="btn btn-danger btn-sm" type="submit">Xóa</button>
+  <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}">Hủy</a>
+</form>
+{% endblock %}

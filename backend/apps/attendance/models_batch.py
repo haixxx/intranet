@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings  # ADD: để dùng AUTH_USER_MODEL
 from apps.organization.models import OrgUnit
 from apps.hr.models import Employee
 from apps.attendance.models import AttendanceCode
@@ -13,7 +14,8 @@ class AttendanceBatch(models.Model):
     work_date = models.DateField()
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
 
-    created_by = models.ForeignKey("auth.User", on_delete=models.PROTECT, related_name="+")
+    # FIX: dùng settings.AUTH_USER_MODEL thay vì "auth.User"
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -44,7 +46,6 @@ class AttendanceBatchItem(models.Model):
     code = models.ForeignKey(AttendanceCode, on_delete=models.PROTECT, related_name="+")
     shift = models.CharField(max_length=16, choices=Shift.choices, default=Shift.DAY)
 
-    # Ca ngày: 4 mốc; các ca khác dùng in1/out1, in2/out2 để trống
     in1 = models.TimeField(null=True, blank=True)
     out1 = models.TimeField(null=True, blank=True)
     in2 = models.TimeField(null=True, blank=True)
@@ -52,10 +53,9 @@ class AttendanceBatchItem(models.Model):
 
     notes = models.TextField(blank=True, default="")
 
-    # Bổ sung
     bs_direction = models.CharField(max_length=8, choices=BSDirection.choices, default=BSDirection.NONE)
     bs_peer_unit = models.ForeignKey(OrgUnit, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
-    include_in_unit = models.BooleanField(default=True)  # False cho BS OUT theo yêu cầu
+    include_in_unit = models.BooleanField(default=True)
 
     class Meta:
         unique_together = ("batch", "employee")
@@ -70,7 +70,9 @@ class AttendanceBatchItem(models.Model):
 class AttendanceCommit(models.Model):
     unit = models.ForeignKey(OrgUnit, on_delete=models.PROTECT, related_name="attendance_commits")
     work_date = models.DateField()
-    committed_by = models.ForeignKey("auth.User", on_delete=models.PROTECT, related_name="+")
+
+    # FIX: dùng settings.AUTH_USER_MODEL
+    committed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     committed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -133,13 +135,14 @@ class AttendanceCorrectionRequest(models.Model):
     work_date = models.DateField()
     status = models.CharField(max_length=24, choices=Status.choices, default=Status.REQUESTED)
 
-    requested_by = models.ForeignKey("auth.User", on_delete=models.PROTECT, related_name="+")
+    # FIX: dùng settings.AUTH_USER_MODEL cho các user FK
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     requested_at = models.DateTimeField(auto_now_add=True)
 
-    approved_unit_by = models.ForeignKey("auth.User", on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    approved_unit_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
     approved_unit_at = models.DateTimeField(null=True, blank=True)
 
-    approved_hr_by = models.ForeignKey("auth.User", on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    approved_hr_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
     approved_hr_at = models.DateTimeField(null=True, blank=True)
 
     applied_at = models.DateTimeField(null=True, blank=True)

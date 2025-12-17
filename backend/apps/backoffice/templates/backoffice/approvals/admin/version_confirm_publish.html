@@ -1,0 +1,11 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Publish phiên bản{% endblock %}
+{% block content %}
+<h5>Publish phiên bản</h5>
+<p>Bạn chắc chắn publish phiên bản <strong>v{{ obj.version }}</strong> cho luồng <code>{{ flow.flow_key }}</code>?</p>
+<form method="post">
+  {% csrf_token %}
+  <button class="btn btn-primary btn-sm" type="submit">Publish</button>
+  <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_list' flow.id %}">Hủy</a>
+</form>
+{% endblock %}

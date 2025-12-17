@@ -1,0 +1,46 @@
+{% extends "backoffice/base.html" %}
+{% block title %}{% if create %}Thêm{% else %}Sửa{% endif %} Role Title Mapping{% endblock %}
+{% block content %}
+<h5 class="mb-3">{% if create %}Thêm{% else %}Sửa{% endif %} Role Title Mapping</h5>
+<form method="post">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="alert alert-warning">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="mb-2">
+    <label class="form-label">Role key</label>
+    {{ form.role_key }}
+    {% if form.role_key.errors %}
+      <div class="text-danger small">{{ form.role_key.errors|join:", " }}</div>
+    {% endif %}
+  </div>
+
+  <div class="mb-2">
+    <label class="form-label">Chức danh</label>
+    {{ form.job_title }}
+    <div class="form-text">Lưu mã chức danh từ JobTitle.code.</div>
+    {% if form.job_title.errors %}
+      <div class="text-danger small">{{ form.job_title.errors|join:", " }}</div>
+    {% endif %}
+  </div>
+
+  {{ form.title_code }} {# hidden #}
+  {% if form.title_code.errors %}
+    <div class="text-danger small">{{ form.title_code.errors|join:", " }}</div>
+  {% endif %}
+
+  <div class="mb-3">
+    <label class="form-label">Kích hoạt</label>
+    {{ form.is_active }}
+    {% if form.is_active.errors %}
+      <div class="text-danger small">{{ form.is_active.errors|join:", " }}</div>
+    {% endif %}
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
+    <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_list' %}">Hủy</a>
+  </div>
+</form>
+{% endblock %}

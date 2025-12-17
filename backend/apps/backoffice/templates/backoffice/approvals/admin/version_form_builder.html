@@ -1,0 +1,468 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% if create %}Tạo{% else %}Sửa{% endif %} Phiên bản (Builder){% endblock %}
+{% block content %}
+<h5 class="mb-3">{% if create %}Tạo{% else %}Sửa{% endif %} Phiên bản (Builder) cho <code>{{ flow.flow_key }}</code></h5>
+
+{% if form.non_field_errors %}
+  <div class="alert alert-danger">
+    {% for e in form.non_field_errors %}
+      <div>{{ e }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<form method="post" id="builderForm">
+  {% csrf_token %}
+
+  <div class="mb-2">
+    <label class="form-label">Phiên bản</label>
+    {{ form.version }}
+    <div class="form-text">Nếu để trống khi tạo mới, hệ thống tự tăng version.</div>
+  </div>
+  <div class="mb-2">
+    <label class="form-label">Ghi chú</label>
+    {{ form.notes }}
+  </div>
+  <div class="mb-2">
+    <label class="form-label">Kích hoạt</label>
+    {{ form.is_active }}
+  </div>
+
+  <hr>
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0">Các bước trong luồng</h6>
+    <div class="d-flex gap-2">
+      <input type="number" min="1" id="stepsCount" class="form-control form-control-sm" placeholder="Số bước" style="width:120px" value="{{ form.steps_count.value|default:'' }}">
+      <button class="btn btn-outline-secondary btn-sm" type="button" id="btnInitSteps">Khởi tạo</button>
+      <button class="btn btn-primary btn-sm" type="button" id="btnAddStep">Thêm bước</button>
+    </div>
+  </div>
+
+  <div id="stepsContainer">
+    {% if initial_steps %}
+      {% for st in initial_steps %}
+        {% with idx=forloop.counter %}
+        <div class="card mb-2 step-card" data-idx="{{ idx }}">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Bước #{{ idx }}</strong>
+            <button class="btn btn-outline-danger btn-sm" type="button" onclick="removeStep(this)">Xóa</button>
+          </div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-2">
+                <label class="form-label">Thứ tự</label>
+                <input type="number" name="step_{{ idx }}_order" class="form-control form-control-sm" value="{{ st.order }}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Loại bước</label>
+                <select name="step_{{ idx }}_type" class="form-select form-select-sm step-type" data-idx="{{ idx }}">
+                  <option value="EXPLICIT_USERS" {% if st.type == 'EXPLICIT_USERS' %}selected{% endif %}>Người ký đích danh</option>
+                  <option value="UNIT_LEADERS" {% if st.type == 'UNIT_LEADERS' %}selected{% endif %}>Lãnh đạo đơn vị</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Tên hiển thị</label>
+                <input type="text" name="step_{{ idx }}_label" class="form-control form-control-sm" value="{{ st.label }}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Ngưỡng ký</label>
+                <select name="step_{{ idx }}_quorum" class="form-select form-select-sm">
+                  <option value="ALL" {% if st.quorum == 'ALL' %}selected{% endif %}>Tất cả phải ký</option>
+                  <option value="ANY" {% if st.quorum == 'ANY' %}selected{% endif %}>Một người ký là đủ</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row g-2 mt-1">
+              <div class="col-md-3">
+                <div class="form-check mt-4">
+                  <input type="checkbox" class="form-check-input" id="step_{{ idx }}_allow_overrides" name="step_{{ idx }}_allow_overrides" {% if st.allow_overrides %}checked{% endif %}>
+                  <label class="form-check-label" for="step_{{ idx }}_allow_overrides">Cho phép ghi đè</label>
+                </div>
+              </div>
+            </div>
+
+            <hr>
+            <div class="mb-2"><strong>Tham số theo loại bước</strong></div>
+
+            <!-- EXPLICIT_USERS params -->
+            <div class="row g-2 type-explicit-users" data-idx="{{ idx }}" {% if st.type != 'EXPLICIT_USERS' %}style="display:none"{% endif %}>
+              <div class="col-md-8">
+                <label class="form-label">User IDs</label>
+                <div class="input-group input-group-sm">
+                  <input type="text" name="step_{{ idx }}_user_ids" class="form-control" value="{% if st.type == 'EXPLICIT_USERS' and st.resolver.user_ids %}{{ st.resolver.user_ids|join:", " }}{% endif %}" placeholder="Ví dụ: 12, 34">
+                  <button class="btn btn-outline-primary btn-open-users" type="button" data-idx="{{ idx }}">Chọn từ danh sách</button>
+                </div>
+                <div class="form-text">Nhập hoặc chọn một/multiple nhân sự. Giá trị sẽ lưu dưới dạng danh sách ID.</div>
+              </div>
+            </div>
+
+            <!-- UNIT_LEADERS params -->
+            <div class="row g-2 mt-1 type-unit-leaders" data-idx="{{ idx }}" {% if st.type != 'UNIT_LEADERS' %}style="display:none"{% endif %}>
+              <div class="col-md-4">
+                <div class="form-check mt-4">
+                  <input type="checkbox" class="form-check-input" id="step_{{ idx }}_use_requester_unit" name="step_{{ idx }}_use_requester_unit" {% if st.type == 'UNIT_LEADERS' and st.resolver.use_requester_unit %}checked{% endif %}>
+                  <label class="form-check-label" for="step_{{ idx }}_use_requester_unit">Dùng đơn vị của người tạo yêu cầu</label>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <label class="form-label">Đơn vị cố định (chọn 1)</label>
+                <div class="input-group input-group-sm">
+                  <select name="step_{{ idx }}_unit_id" class="form-select">
+                    <option value="">— Không chọn —</option>
+                    {% for u in units_qs %}
+                      <option value="{{ u.id }}"
+                        {% if st.type == 'UNIT_LEADERS' and st.resolver.unit_ids and u.id in st.resolver.unit_ids %}selected{% endif %}
+                      >{{ u.name }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-outline-primary btn-open-units" type="button" data-idx="{{ idx }}">Chọn từ danh sách</button>
+                </div>
+                <div class="form-text">Chỉ chọn 1 đơn vị; nếu cần nhiều đơn vị, hãy thêm nhiều bước riêng.</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+        {% endwith %}
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <div class="d-flex gap-2 mt-3">
+    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
+    <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_list' flow.id %}">Hủy</a>
+  </div>
+</form>
+
+<!-- Users Modal -->
+<div class="modal fade" id="usersModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">Chọn nhân sự</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control form-control-sm mb-2" id="userSearch" placeholder="Tìm theo username / họ tên">
+        <div style="max-height: 60vh; overflow:auto">
+          <table class="table table-sm table-hover">
+            <thead><tr><th></th><th>Username</th><th>Họ tên</th><th>Email</th></tr></thead>
+            <tbody id="usersTableBody">
+              {% for u in users_qs %}
+                <tr data-uid="{{ u.id }}" data-uname="{{ u.username|default_if_none:'' }}" data-fullname="{{ u.get_full_name|default_if_none:'' }}" data-email="{{ u.email|default_if_none:'' }}">
+                  <td><input type="checkbox" class="form-check-input user-select" value="{{ u.id }}"></td>
+                  <td>{{ u.username }}</td>
+                  <td>{{ u.get_full_name }}</td>
+                  <td>{{ u.email }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+        <button class="btn btn-primary btn-sm" id="usersModalApply">Áp dụng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Units Modal -->
+<div class="modal fade" id="unitsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">Chọn đơn vị (1 đơn vị)</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control form-control-sm mb-2" id="unitSearch" placeholder="Tìm theo tên / mã">
+        <div style="max-height: 60vh; overflow:auto">
+          <table class="table table-sm table-hover">
+            <thead><tr><th></th><th>Tên đơn vị</th></tr></thead>
+            <tbody id="unitsTableBody">
+              {% for u in units_qs %}
+                <tr data-uid="{{ u.id }}" data-name="{{ u.name|default_if_none:'' }}" data-symbol="{{ u.symbol|default_if_none:'' }}">
+                  <td><input type="radio" class="form-check-input unit-select" name="unit-select-radio" value="{{ u.id }}"></td>
+                  <td>{{ u.name }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+        <button class="btn btn-primary btn-sm" id="unitsModalApply">Áp dụng</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentUserTargetIdx = null;
+let currentUnitTargetIdx = null;
+
+function removeStep(btn) {
+  const card = btn.closest('.step-card');
+  if (card) card.remove();
+}
+
+function addStep(idx) {
+  const container = document.getElementById('stepsContainer');
+  const unitOptions = (window.__unitsOptionsHtml || '');
+  const html = `
+    <div class="card mb-2 step-card" data-idx="${idx}">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Bước #${idx}</strong>
+        <button class="btn btn-outline-danger btn-sm" type="button" onclick="removeStep(this)">Xóa</button>
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-2">
+            <label class="form-label">Thứ tự</label>
+            <input type="number" name="step_${idx}_order" class="form-control form-control-sm" value="${idx}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Loại bước</label>
+            <select name="step_${idx}_type" class="form-select form-select-sm step-type" data-idx="${idx}">
+              <option value="EXPLICIT_USERS">Người ký đích danh</option>
+              <option value="UNIT_LEADERS">Lãnh đạo đơn vị</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Tên hiển thị</label>
+            <input type="text" name="step_${idx}_label" class="form-control form-control-sm" value="">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Ngưỡng ký</label>
+            <select name="step_${idx}_quorum" class="form-select form-select-sm">
+              <option value="ALL">Tất cả phải ký</option>
+              <option value="ANY">Một người ký là đủ</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row g-2 mt-1">
+          <div class="col-md-3">
+            <div class="form-check mt-4">
+              <input type="checkbox" class="form-check-input" id="step_${idx}_allow_overrides" name="step_${idx}_allow_overrides">
+              <label class="form-check-label" for="step_${idx}_allow_overrides">Cho phép ghi đè</label>
+            </div>
+          </div>
+        </div>
+
+        <hr>
+        <div class="mb-2"><strong>Tham số theo loại bước</strong></div>
+
+        <!-- EXPLICIT_USERS -->
+        <div class="row g-2 type-explicit-users" data-idx="${idx}">
+          <div class="col-md-8">
+            <label class="form-label">User IDs</label>
+            <div class="input-group input-group-sm">
+              <input type="text" name="step_${idx}_user_ids" class="form-control" placeholder="12, 34">
+              <button class="btn btn-outline-primary btn-open-users" type="button" data-idx="${idx}">Chọn từ danh sách</button>
+            </div>
+            <div class="form-text">Nhập hoặc chọn một/multiple nhân sự.</div>
+          </div>
+        </div>
+
+        <!-- UNIT_LEADERS -->
+        <div class="row g-2 mt-1 type-unit-leaders" data-idx="${idx}" style="display:none">
+          <div class="col-md-4">
+            <div class="form-check mt-4">
+              <input type="checkbox" class="form-check-input" id="step_${idx}_use_requester_unit" name="step_${idx}_use_requester_unit">
+              <label class="form-check-label" for="step_${idx}_use_requester_unit">Dùng đơn vị của người tạo yêu cầu</label>
+            </div>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Đơn vị cố định (chọn 1)</label>
+            <div class="input-group input-group-sm">
+              <select name="step_${idx}_unit_id" class="form-select">
+                <option value="">— Không chọn —</option>
+                ${unitOptions}
+              </select>
+              <button class="btn btn-outline-primary btn-open-units" type="button" data-idx="${idx}">Chọn từ danh sách</button>
+            </div>
+            <div class="form-text">Chỉ chọn 1 đơn vị; nếu cần nhiều đơn vị, hãy thêm nhiều bước riêng.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+(function initUnitsOptions(){
+  const tmp = document.createElement('textarea');
+  tmp.innerHTML = `
+    {% for u in units_qs %}
+      <option value="{{ u.id }}">{{ u.name }}</option>
+    {% endfor %}
+  `.trim();
+  window.__unitsOptionsHtml = tmp.value || tmp.innerText || tmp.textContent;
+})();
+
+function updateStepParamsVisibility(idx, typeVal) {
+  const card = document.querySelector('.step-card[data-idx="'+idx+'"]');
+  if (!card) return;
+  const explicit = card.querySelector('.type-explicit-users');
+  const leaders = card.querySelector('.type-unit-leaders');
+
+  if (typeVal === 'EXPLICIT_USERS') {
+    explicit.style.display = '';
+    leaders.style.display = 'none';
+    // disable unit inputs
+    const unitSelect = card.querySelector('[name="step_'+idx+'_unit_id"]');
+    const useReq = card.querySelector('#step_'+idx+'_use_requester_unit');
+    if (unitSelect) unitSelect.disabled = true;
+    if (useReq) useReq.disabled = true;
+    // enable user ids
+    const userIds = card.querySelector('[name="step_'+idx+'_user_ids"]');
+    if (userIds) userIds.disabled = false;
+  } else {
+    explicit.style.display = 'none';
+    leaders.style.display = '';
+    // disable user ids
+    const userIds = card.querySelector('[name="step_'+idx+'_user_ids"]');
+    if (userIds) userIds.disabled = true;
+    // enable unit inputs
+    const unitSelect = card.querySelector('[name="step_'+idx+'_unit_id"]');
+    const useReq = card.querySelector('#step_'+idx+'_use_requester_unit');
+    if (unitSelect) unitSelect.disabled = false;
+    if (useReq) useReq.disabled = false;
+  }
+}
+
+function initExistingCards() {
+  document.querySelectorAll('.step-card').forEach(card => {
+    const idx = card.getAttribute('data-idx');
+    const typeSel = card.querySelector('.step-type');
+    const typeVal = typeSel ? typeSel.value : 'EXPLICIT_USERS';
+    updateStepParamsVisibility(idx, typeVal);
+    if (typeSel) {
+      typeSel.addEventListener('change', function() {
+        updateStepParamsVisibility(idx, this.value);
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initExistingCards);
+
+document.getElementById('btnInitSteps')?.addEventListener('click', function(){
+  const n = parseInt(document.getElementById('stepsCount').value || '0', 10);
+  if (!n || n < 1) { alert('Vui lòng nhập số bước >= 1'); return; }
+  const container = document.getElementById('stepsContainer');
+  container.innerHTML = '';
+  for (let i=1; i<=n; i++) {
+    addStep(i);
+  }
+  initExistingCards();
+});
+
+document.getElementById('btnAddStep')?.addEventListener('click', function(){
+  const container = document.getElementById('stepsContainer');
+  const last = container.querySelector('.step-card:last-child');
+  const nextIdx = last ? (parseInt(last.getAttribute('data-idx')) + 1) : 1;
+  addStep(nextIdx);
+  initExistingCards();
+});
+
+// Users modal logic (using data-idx to avoid inline template expressions)
+function openUsersModal(idx) {
+  currentUserTargetIdx = idx;
+  const modalEl = document.getElementById('usersModal');
+  const bsModal = new bootstrap.Modal(modalEl);
+  // Pre-select based on current input
+  const card = document.querySelector('.step-card[data-idx="'+idx+'"]');
+  const input = card.querySelector('[name="step_'+idx+'_user_ids"]');
+  const existing = (input && input.value ? input.value.split(',').map(s => s.trim()).filter(Boolean) : []);
+  document.querySelectorAll('#usersTableBody .user-select').forEach(chk => {
+    chk.checked = existing.includes(String(chk.value));
+  });
+  bsModal.show();
+}
+
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('.btn-open-users');
+  if (btn) {
+    const idx = btn.getAttribute('data-idx');
+    if (idx) openUsersModal(idx);
+  }
+});
+
+document.getElementById('usersModalApply')?.addEventListener('click', function(){
+  if (currentUserTargetIdx == null) return;
+  const selected = Array.from(document.querySelectorAll('#usersTableBody .user-select'))
+    .filter(chk => chk.checked)
+    .map(chk => chk.value);
+  const card = document.querySelector('.step-card[data-idx="'+currentUserTargetIdx+'"]');
+  const input = card.querySelector('[name="step_'+currentUserTargetIdx+'_user_ids"]');
+  if (input) input.value = selected.join(', ');
+  const modalEl = document.getElementById('usersModal');
+  bootstrap.Modal.getInstance(modalEl)?.hide();
+});
+
+// Users search
+document.getElementById('userSearch')?.addEventListener('input', function(){
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#usersTableBody tr').forEach(tr => {
+    const uname = (tr.dataset.uname || '').toLowerCase();
+    const fullname = (tr.dataset.fullname || '').toLowerCase();
+    const email = (tr.dataset.email || '').toLowerCase();
+    tr.style.display = (uname.includes(q) || fullname.includes(q) || email.includes(q)) ? '' : 'none';
+  });
+});
+
+// Units modal logic (single select) using data-idx
+function openUnitsModal(idx) {
+  currentUnitTargetIdx = idx;
+  const modalEl = document.getElementById('unitsModal');
+  const bsModal = new bootstrap.Modal(modalEl);
+  // Pre-select based on current select
+  const card = document.querySelector('.step-card[data-idx="'+idx+'"]');
+  const select = card.querySelector('[name="step_'+idx+'_unit_id"]');
+  const currentVal = select ? select.value : '';
+  document.querySelectorAll('#unitsTableBody .unit-select').forEach(r => {
+    r.checked = (String(r.value) === String(currentVal));
+  });
+  bsModal.show();
+}
+
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('.btn-open-units');
+  if (btn) {
+    const idx = btn.getAttribute('data-idx');
+    if (idx) openUnitsModal(idx);
+  }
+});
+
+document.getElementById('unitsModalApply')?.addEventListener('click', function(){
+  if (currentUnitTargetIdx == null) return;
+  const chosen = document.querySelector('#unitsTableBody .unit-select:checked');
+  const val = chosen ? chosen.value : '';
+  const card = document.querySelector('.step-card[data-idx="'+currentUnitTargetIdx+'"]');
+  const select = card.querySelector('[name="step_'+currentUnitTargetIdx+'_unit_id"]');
+  if (select) select.value = val;
+  const modalEl = document.getElementById('unitsModal');
+  bootstrap.Modal.getInstance(modalEl)?.hide();
+});
+
+// Units search
+document.getElementById('unitSearch')?.addEventListener('input', function(){
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#unitsTableBody tr').forEach(tr => {
+    const name = (tr.dataset.name || '').toLowerCase();
+    const symbol = (tr.dataset.symbol || '').toLowerCase();
+    tr.style.display = (name.includes(q) || symbol.includes(q)) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

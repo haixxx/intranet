@@ -242,13 +242,78 @@
         {% if not has_committed and can_commit %}
           <a class="btn btn-success btn-sm" href="{% url 'backoffice:attendance_batch_commit' batch.id %}">Chốt danh sách</a>
         {% endif %}
-        {% if has_committed and can_request %}
-          <a class="btn btn-outline-warning btn-sm" href="#">Đề nghị sửa chấm công</a>
-        {% endif %}
       </div>
     </div>
   </form>
 </div>
+
+{% if has_committed and can_request %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+  <div class="text-muted">
+    {% if diff_count > 0 %}
+      Có {{ diff_count }} khác biệt so với công đã chốt.
+    {% else %}
+      Không có khác biệt so với công đã chốt.
+    {% endif %}
+  </div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <button id="btnViewDiff" class="btn btn-outline-primary btn-sm" {% if diff_count == 0 %}disabled{% endif %}>
+      Xem khác biệt
+    </button>
+    <form id="formRequestCorrection" method="post" action="{% url 'backoffice:attendance_correction_request_create' batch.id %}" class="d-flex gap-2 align-items-center">
+      {% csrf_token %}
+      <input type="hidden" name="date" value="{{ work_date }}">
+      <input type="hidden" name="unit" value="{{ unit_id }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="team" value="{{ team_id }}">
+      <input type="hidden" name="page" value="{{ current_page }}">
+      <input type="hidden" name="page_size" value="{{ page_size }}">
+
+      <select name="flow_key" class="form-select form-select-sm" required style="width: 260px;">
+        <option value="">— Chọn luồng phê duyệt —</option>
+        {% for f in flows %}
+          <option value="{{ f.flow_key }}">{{ f.name }} ({{ f.flow_key }})</option>
+        {% empty %}
+          {# Không có luồng phù hợp theo đơn vị #}
+        {% endfor %}
+      </select>
+
+      <input type="text" name="reason" class="form-control form-control-sm" style="width: 320px;" placeholder="Lý do (tuỳ chọn)">
+
+      <button class="btn btn-primary btn-sm" type="submit" {% if not can_request_now or flows|length == 0 %}disabled{% endif %}>
+        Đề nghị sửa chấm công
+      </button>
+    </form>
+    {% if flows|length == 0 %}
+      <div class="text-muted small">
+        Chưa có luồng phù hợp. Vui lòng cấu hình tại mục
+        <a href="{% url 'backoffice:approval_flow_list' %}">Quản trị luồng phê duyệt</a>.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal diff -->
+<div class="modal fade" id="diffModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">Khác biệt giữa Nháp và Công đã chốt</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+      </div>
+      <div class="modal-body">
+        <div id="diffContainer">
+          <div class="text-muted">Đang tải khác biệt…</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+        <button class="btn btn-primary btn-sm" form="formRequestCorrection" {% if not can_request_now or flows|length == 0 %}disabled{% endif %}>Gửi đề nghị</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endif %}
 {% endblock %}
 
@@ -269,14 +334,11 @@
   }
 
   function getCodeMetaById(codeId) {
-    // tìm option trong bulkCode trước, nếu không thấy sẽ tìm trong một row bất kỳ
     let opt = document.querySelector('#bulkCode option[value="' + codeId + '"]');
     if (!opt) opt = document.querySelector('.row-code option[value="' + codeId + '"]');
     return getCodeMetaFromOption(opt);
   }
 
-  // forceDefaults=true: luôn set giá trị theo mặc định của mã (dùng khi đổi mã hoặc bulk apply)
-  // forceDefaults=false: chỉ điền mặc định khi ô đang trống (dùng khi khởi tạo trang)
   function applyCodeBehaviorToRow(rowId, codeId, forceDefaults) {
     const meta = getCodeMetaById(codeId);
     const in1  = document.querySelector('.row-in1[data-row="' + rowId + '"]');
@@ -347,13 +409,11 @@
     }
   }
 
-  // Khởi tạo theo mã hiện tại: chỉ điền khi trống (không override dữ liệu từ DB)
   document.querySelectorAll('.row-code').forEach(function(sel) {
     const rowId = sel.dataset.row;
     const codeId = sel.value;
     applyCodeBehaviorToRow(rowId, codeId, false);
 
-    // Khi đổi mã: bắt buộc set mặc định của mã mới (override mốc cũ), và disable theo thuộc tính mã
     sel.addEventListener('change', function() {
       const rId = this.dataset.row;
       const cId = this.value;
@@ -362,7 +422,6 @@
     });
   });
 
-  // Bulk apply: set mã + set mặc định theo mã (forceDefaults), rồi ghi đè bằng input bulk nếu có và ô không bị disable
   const btnBulkApply = document.getElementById('btnBulkApply');
   if (btnBulkApply) {
     btnBulkApply.addEventListener('click', function() {
@@ -395,12 +454,10 @@
     });
   }
 
-  // Đánh dấu thay đổi chưa lưu
   document.querySelectorAll('input[type="time"], select').forEach(function(el) {
     el.addEventListener('change', function() { window.unsavedChanges = true; });
   });
 
-  // Cảnh báo khi điều hướng phân trang nếu chưa lưu
   document.querySelectorAll('a.nav-link').forEach(function(link) {
     link.addEventListener('click', function(e) {
       if (window.unsavedChanges) {
@@ -412,12 +469,67 @@
     });
   });
 
-  // Nút lưu
   const btnSave = document.getElementById('btnSave');
   if (btnSave) {
     btnSave.addEventListener('click', function() {
       document.getElementById('listForm').submit();
     });
   }
+
+  (function(){
+    const btnViewDiff = document.getElementById('btnViewDiff');
+    const diffContainer = document.getElementById('diffContainer');
+    const diffModalEl = document.getElementById('diffModal');
+
+    if (btnViewDiff) {
+      btnViewDiff.addEventListener('click', async function() {
+        const unit = "{{ unit_id }}";
+        const workDate = "{{ work_date }}";
+        if (!unit || !workDate) return;
+
+        try {
+          diffContainer.innerHTML = '<div class="text-muted">Đang tải khác biệt…</div>';
+          const resp = await fetch(`/backoffice/attendance/batch/diff?date=${encodeURIComponent(workDate)}&unit=${encodeURIComponent(unit)}`);
+          const data = await resp.json();
+
+          if (!data.ok) {
+            diffContainer.innerHTML = `<div class="alert alert-warning">Không thể tính khác biệt: ${data.error || 'Lỗi không xác định'}.</div>`;
+          } else if ((data.items || []).length === 0) {
+            diffContainer.innerHTML = '<div class="alert alert-info">Không có khác biệt nào.</div>';
+          } else {
+            let html = `
+              <table class="table table-sm table-bordered">
+                <thead>
+                  <tr>
+                    <th>Nhân viên</th><th>Trường</th><th>Giá trị cũ</th><th>Giá trị mới</th>
+                  </tr>
+                </thead>
+                <tbody>
+            `;
+            for (const ch of data.items) {
+              html += `
+                <tr>
+                  <td>${ch.employee_name ?? ch.employee_code ?? ch.employee_id}</td>
+                  <td>${ch.field}</td>
+                  <td>${ch.old ?? '—'}</td>
+                  <td>${ch.new ?? '—'}</td>
+                </tr>
+              `;
+            }
+            html += '</tbody></table>';
+            diffContainer.innerHTML = html;
+          }
+
+          // open modal
+          const bsModal = new bootstrap.Modal(diffModalEl);
+          bsModal.show();
+        } catch (e) {
+          diffContainer.innerHTML = `<div class="alert alert-danger">Lỗi khi tải khác biệt: ${e}</div>`;
+          const bsModal = new bootstrap.Modal(diffModalEl);
+          bsModal.show();
+        }
+      });
+    }
+  })();
 </script>
 {% endblock %}

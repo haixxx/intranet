@@ -7,6 +7,20 @@ from apps.backoffice import views_attendance_codes
 # BỎ đăng ký công (cá nhân)
 from apps.backoffice import views_attendance_batch
 
+# Approvals (thêm import)
+from apps.backoffice import views_approvals
+
+# NEW: Diff API & Notifications
+from apps.backoffice import views_attendance_diff
+from apps.backoffice import views_notifications
+
+# NEW: role mapping views
+from apps.backoffice import views_role_mapping
+# NEW: Approvals admin
+from apps.backoffice import views_approvals_admin
+# NEW: Approvals manage (cancel, edit, override)
+from apps.backoffice import views_approvals_manage
+
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('profile/', views_profile.profile_view, name='profile'),
@@ -69,4 +83,41 @@ urlpatterns = [
     path('attendance/batch/<int:batch_id>/save/', views_attendance_batch.batch_save, name='attendance_batch_save'),
     path('attendance/batch/<int:batch_id>/commit/', views_attendance_batch.batch_commit, name='attendance_batch_commit'),
     path('attendance/committed/', views_attendance_batch.committed_view, name='attendance_committed_view'),
+    # Tạo Phiếu đề nghị sửa chấm công (cả ngày)
+    path('attendance/batch/<int:batch_id>/request-correction/', views_attendance_batch.attendance_correction_request_create, name='attendance_correction_request_create'),
+
+    # NEW: Diff API
+    path('attendance/batch/diff', views_attendance_diff.batch_diff_api, name='attendance_batch_diff_api'),
+
+    # Notifications
+    path('notifications/', views_notifications.notifications_list, name='notifications_list'),
+
+    # Approvals
+    path('approvals/', views_approvals.approvals_inbox, name='approvals_inbox'),
+    path('approvals/my-requests/', views_approvals.approvals_my_requests, name='approvals_my_requests'),
+    path('approvals/requests/<int:request_id>/', views_approvals.approval_request_detail, name='approvals_request_detail'),
+
+     # Approvals - quản trị luồng (Builder-only)
+    path('approvals/admin/flows/', views_approvals_admin.flow_list, name='approval_flow_list'),
+    path('approvals/admin/flows/new/', views_approvals_admin.flow_create, name='approval_flow_create'),
+    path('approvals/admin/flows/<int:flow_id>/', views_approvals_admin.flow_edit, name='approval_flow_edit'),
+    path('approvals/admin/flows/<int:flow_id>/delete/', views_approvals_admin.flow_delete, name='approval_flow_delete'),
+
+    path('approvals/admin/flows/<int:flow_id>/versions/', views_approvals_admin.version_list, name='approval_flow_version_list'),
+    path('approvals/admin/flows/<int:flow_id>/versions/new/builder/', views_approvals_admin.version_create_builder, name='approval_flow_version_create_builder'),
+    path('approvals/admin/flows/<int:flow_id>/versions/<int:version_id>/builder/', views_approvals_admin.version_edit_builder, name='approval_flow_version_edit_builder'),
+    path('approvals/admin/flows/<int:flow_id>/versions/<int:version_id>/publish/', views_approvals_admin.version_publish, name='approval_flow_version_publish'),
+    path('approvals/admin/flows/<int:flow_id>/versions/<int:version_id>/delete/', views_approvals_admin.version_delete, name='approval_flow_version_delete'),
+
+    # NEW: Hành động trên bước
+    path('approvals/requests/<int:request_id>/steps/<int:order_index>/action/', views_approvals.approval_step_action, name='approval_step_action'),
+
+    # NEW: Cancel request
+    path('approvals/requests/<int:request_id>/cancel/', views_approvals_manage.approval_request_cancel, name='approvals_request_cancel'),
+
+    # Role Title Mapping
+    path('approvals/role-mapping/', views_role_mapping.role_title_mapping_list, name='role_title_mapping_list'),
+    path('approvals/role-mapping/new/', views_role_mapping.role_title_mapping_create, name='role_title_mapping_create'),
+    path('approvals/role-mapping/<int:pk>/', views_role_mapping.role_title_mapping_edit, name='role_title_mapping_edit'),
+    path('approvals/role-mapping/<int:pk>/delete/', views_role_mapping.role_title_mapping_delete, name='role_title_mapping_delete'),
 ]

@@ -1,0 +1,18 @@
+{% extends "backoffice/base.html" %}
+{% block content %}
+<h6>Thông báo</h6>
+<ul class="list-group">
+  {% for n in notes %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <div>
+        <div><strong>{{ n.title }}</strong></div>
+        {% if n.body %}<div class="text-muted">{{ n.body }}</div>{% endif %}
+        {% if n.url %}<a href="{{ n.url }}" class="btn btn-link btn-sm">Xem</a>{% endif %}
+      </div>
+      <small class="text-muted">{{ n.created_at|date:"Y-m-d H:i" }}</small>
+    </li>
+  {% empty %}
+    <li class="list-group-item text-muted">Không có thông báo.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

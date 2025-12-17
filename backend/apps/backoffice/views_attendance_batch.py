@@ -2,8 +2,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Q
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import date, time
+from django.utils import timezone
 
 from apps.audit.utils import audit_log
 from apps.organization.models import OrgUnit
@@ -14,6 +14,11 @@ from apps.attendance.models_batch import (
     AttendanceCommit, AttendanceCommitItem,
     AttendanceCorrectionRequest
 )
+
+# Approvals: services để tạo yêu cầu và kích hoạt bước
+from apps.approvals.services import create_request
+from apps.approvals.services_runtime import activate_next_step_if_any
+from apps.approvals.models import ApprovalFlow  # NEW: để lấy danh sách luồng cho UI
 
 from apps.hr.models import Employee, AccessControl
 try:
@@ -28,6 +33,10 @@ def _round_to_hour_if_needed(t: time | None, settings: AttendanceSettings | None
     if settings and getattr(settings, "round_registration_to_hour", False):
         return time(t.hour, 0, 0)
     return t
+
+
+def _time_to_str(t: time | None) -> str | None:
+    return t.strftime("%H:%M") if t else None
 
 
 def _units_for_attendance(request):
@@ -76,6 +85,37 @@ def _apply_code_defaults_to_item(it: AttendanceBatchItem, code: AttendanceCode, 
     it.out2 = rt(code.default_out2) if code.requires_pm_work else None
 
 
+def _count_diff_between_batch_and_commit(batch: AttendanceBatch, commit: AttendanceCommit) -> int:
+    """
+    Đếm số khác biệt giữa NHÁP hiện tại (batch.items) và CÔNG ĐÃ CHỐT (commit.items).
+    Dùng cùng tiêu chí với payload sinh khi tạo Phiếu đề nghị.
+    """
+    if not batch or not commit:
+        return 0
+    commit_items = {ci.employee_id: ci for ci in commit.items.all()}
+    diff = 0
+    for it in batch.items.select_related("employee", "code"):
+        ci = commit_items.get(it.employee_id)
+        if not ci:
+            # về nguyên tắc không xảy ra, vì khi chốt đã copy 1-1
+            continue
+        if (ci.code.code if ci.code else None) != (it.code.code if it.code else None):
+            diff += 1
+        if _time_to_str(ci.in1) != _time_to_str(it.in1):
+            diff += 1
+        if _time_to_str(ci.out1) != _time_to_str(it.out1):
+            diff += 1
+        if _time_to_str(ci.in2) != _time_to_str(it.in2):
+            diff += 1
+        if _time_to_str(ci.out2) != _time_to_str(it.out2):
+            diff += 1
+        if (ci.notes or "") != (it.notes or ""):
+            diff += 1
+        if bool(ci.include_in_unit) != bool(it.include_in_unit):
+            diff += 1
+    return diff
+
+
 @login_required
 def batch_create_or_load(request):
     if not request.user.has_perm("attendance.view_attendancebatch"):
@@ -104,6 +144,8 @@ def batch_create_or_load(request):
     total_count = 0
     teams = OrgUnit.objects.none()
     bs_in_list = []
+    diff_count = 0  # NEW
+    available_flows = []  # NEW: danh sách luồng cho đơn vị hiện tại (nếu có)
 
     if work_date_str and unit_id:
         try:
@@ -214,6 +256,7 @@ def batch_create_or_load(request):
                 if team_id:
                     items_qs = items_qs.filter(employee__team_id=team_id, employee__unit=unit)
 
+                from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
                 paginator = Paginator(items_qs, page_size)
                 try:
                     page_obj = paginator.page(page)
@@ -224,6 +267,22 @@ def batch_create_or_load(request):
 
                 items = page_obj.object_list
                 total_count = paginator.count
+
+                # NEW: Tính diff_count để quyết định hiển thị nút "Đề nghị sửa chấm công"
+                commit_for_day = AttendanceCommit.objects.filter(unit=unit, work_date=work_date).first()
+                if commit_for_day:
+                    diff_count = _count_diff_between_batch_and_commit(batch, commit_for_day)
+
+                # NEW: Lấy danh sách luồng phù hợp với đơn vị (PUBLISHED + version active + request_units rỗng hoặc có đơn vị này)
+                flows_qs = ApprovalFlow.objects.filter(
+                    status=ApprovalFlow.Status.PUBLISHED,
+                    versions__is_active=True
+                ).distinct().order_by("name")
+                for f in flows_qs:
+                    st = f.settings_json or {}
+                    allowed = st.get("request_units") or []
+                    if not allowed or batch.unit.id in [int(x) for x in allowed]:
+                        available_flows.append(f)
             else:
                 paginator = None
                 page_obj = None
@@ -244,6 +303,9 @@ def batch_create_or_load(request):
 
     codes_qs = AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code")
 
+    # NEW: Chỉ bật nút "Đề nghị" khi có khác biệt và đã có bản chốt (để so sánh)
+    can_request_now = bool(can_request and has_committed and diff_count > 0)
+
     return render(request, "backoffice/attendance/batch_create_or_load.html", {
         "units_qs": units_qs,
         "batch": batch,
@@ -261,10 +323,13 @@ def batch_create_or_load(request):
         "total_count": total_count,
         "can_save": can_save,
         "can_commit": can_commit,
-        "can_request": can_request,
+        "can_request": can_request,          # quyền gốc
+        "can_request_now": can_request_now,  # trạng thái hiển thị nút theo chênh lệch
         "has_committed": has_committed,
         "codes_qs": codes_qs,
         "bs_in_list": bs_in_list,
+        "diff_count": diff_count,            # để UI hiển thị số lượng khác biệt (nếu cần)
+        "flows": available_flows,            # NEW: danh sách luồng có thể chọn
     })
 
 
@@ -442,6 +507,7 @@ def batch_commit(request, batch_id):
     messages.success(request, f"Đã chốt danh sách chấm công cho {batch.unit.name}.")
     return redirect("backoffice:attendance_committed_view")
 
+
 @login_required
 def committed_view(request):
     """
@@ -515,3 +581,167 @@ def committed_view(request):
         "total_pages": total_pages,
         "total_count": total_count,
     })
+
+
+@login_required
+def attendance_correction_request_create(request, batch_id):
+    """
+    Tạo Phiếu đề nghị sửa chấm công cho cả ngày dựa trên Batch đã chốt,
+    đồng thời mở quy trình phê duyệt trong Approvals.
+    Server-side guard: chỉ cho phép tạo khi có khác biệt so với công đã chốt.
+    NEW: Người dùng chọn luồng phê duyệt (flow_key) khi gửi đề nghị.
+    """
+    batch = get_object_or_404(AttendanceBatch, pk=batch_id)
+    if not request.user.has_perm("attendance.add_attendancecorrectionrequest"):
+        return render(request, "backoffice/no_permission.html", {
+            "perm_codename": "attendance.add_attendancecorrectionrequest",
+            "title": "Bạn chưa được cấp quyền tạo Phiếu đề nghị sửa chấm công"
+        }, status=403)
+
+    committed = AttendanceCommit.objects.filter(unit=batch.unit, work_date=batch.work_date).first()
+    if not committed:
+        messages.warning(request, "Ngày + đơn vị này chưa có danh sách đã chốt. Vui lòng chốt trước khi gửi đề nghị.")
+        return redirect("backoffice:attendance_batch_create_or_load")
+
+    if request.method != "POST":
+        return redirect("backoffice:attendance_batch_create_or_load")
+
+    # NEW: lấy flow_key từ form
+    selected_flow_key = (request.POST.get("flow_key") or "").strip()
+    if not selected_flow_key:
+        messages.error(request, "Vui lòng chọn luồng phê duyệt.")
+        return redirect(f"/backoffice/attendance/batch/?date={batch.work_date.strftime('%Y-%m-%d')}&unit={batch.unit.id}")
+
+    reason = request.POST.get("reason", "").strip()
+    acr_code = f"ACR-{batch.unit.code}-{batch.work_date.strftime('%Y%m%d')}-{request.user.id}-{int(timezone.now().timestamp())}"
+
+    # So sánh khác biệt giữa BatchItem vs CommitItem theo employee_id -> sinh payload
+    commit_items = {ci.employee_id: ci for ci in committed.items.select_related("code", "employee")}
+    changes = []
+    for it in batch.items.select_related("employee", "code"):
+        ci = commit_items.get(it.employee_id)
+        if not ci:
+            continue
+        emp_id = it.employee_id
+        emp_code = it.employee.employee_code
+        emp_name = it.employee.full_name  # NEW: tên nhân viên
+        # code
+        old_code = ci.code.code if ci.code else None
+        new_code = it.code.code if it.code else None
+        if old_code != new_code:
+            changes.append({
+                "employee_id": emp_id,
+                "employee_code": emp_code,
+                "employee_name": emp_name,  # NEW
+                "field": "code",
+                "old": old_code,
+                "new": new_code,
+            })
+        # times
+        pairs = [("in1", ci.in1, it.in1), ("out1", ci.out1, it.out1), ("in2", ci.in2, it.in2), ("out2", ci.out2, it.out2)]
+        for fname, old_v, new_v in pairs:
+            if _time_to_str(old_v) != _time_to_str(new_v):
+                changes.append({
+                    "employee_id": emp_id,
+                    "employee_code": emp_code,
+                    "employee_name": emp_name,  # NEW
+                    "field": fname,
+                    "old": _time_to_str(old_v),
+                    "new": _time_to_str(new_v),
+                })
+        # notes
+        if (ci.notes or "") != (it.notes or ""):
+            changes.append({
+                "employee_id": emp_id,
+                "employee_code": emp_code,
+                "employee_name": emp_name,  # NEW
+                "field": "notes",
+                "old": ci.notes or "",
+                "new": it.notes or "",
+            })
+        # include flag
+        if bool(ci.include_in_unit) != bool(it.include_in_unit):
+            changes.append({
+                "employee_id": emp_id,
+                "employee_code": emp_code,
+                "employee_name": emp_name,  # NEW
+                "field": "include_in_unit",
+                "old": bool(ci.include_in_unit),
+                "new": bool(it.include_in_unit),
+            })
+
+    # Guard: nếu không có bất kỳ thay đổi chi tiết nào -> không tạo ACR
+    real_changes = [x for x in changes if x.get("field")]
+    if len(real_changes) == 0:
+        messages.info(request, "Không có thay đổi nào so với công đã chốt. Vui lòng lưu nháp các chỉnh sửa trước khi gửi đề nghị.")
+        # Giữ nguyên filter hiện tại khi quay lại
+        date_arg = request.POST.get("date", "")
+        unit_arg = request.POST.get("unit", "")
+        q_arg = request.POST.get("q", "")
+        team_arg = request.POST.get("team", "")
+        page_arg = request.POST.get("page", "1")
+        page_size_arg = request.POST.get("page_size", "50")
+        return redirect(f"/backoffice/attendance/batch/?date={date_arg}&unit={unit_arg}&q={q_arg}&team={team_arg}&page={page_arg}&page_size={page_size_arg}")
+
+    if reason:
+        changes.insert(0, {"type": "NOTE", "value": reason, "acr_code": acr_code})
+
+    # 1) Tạo Phiếu đề nghị sửa chấm công (Attendance)
+    acr = AttendanceCorrectionRequest.objects.create(
+        unit=batch.unit,
+        work_date=batch.work_date,
+        status=AttendanceCorrectionRequest.Status.REQUESTED,
+        requested_by=request.user,
+        payload_json=changes
+    )
+
+    # 2) Tạo ApprovalRequest tham chiếu tới ACR
+    metadata = {
+        "flow": "Phê duyệt sửa chấm công",
+        "object_type": "attendance_correction",
+        "object_id": str(acr.id),
+        "acr_code": acr_code,
+        "unit_id": batch.unit.id,
+        "unit_code": batch.unit.code,
+        "work_date": batch.work_date.strftime("%Y-%m-%d"),
+        "requester_username": request.user.username,
+        "reason": reason,
+        "diff_count": len(real_changes),
+        "payload_changes": real_changes,  # NEW: truyền snapshot changes vào metadata để renderer dùng
+    }
+    try:
+        req = create_request(
+            flow_key=selected_flow_key,  # NEW: dùng luồng được chọn
+            requester=request.user,
+            object_type="attendance_correction",
+            object_id=str(acr.id),
+            title=f"Đề nghị sửa chấm công {batch.work_date.strftime('%Y-%m-%d')}",
+            unit_id=batch.unit.id,
+            metadata_json=metadata
+        )
+        # Kích hoạt bước đầu
+        activate_next_step_if_any(req)
+    except Exception as e:
+        messages.warning(request, f"Đã tạo Phiếu đề nghị, nhưng mở quy trình phê duyệt gặp lỗi: {e}")
+
+    # Audit
+    audit_log(
+        action_verb="REQUEST",
+        object_type="attendance_correction",
+        object_id=acr.id,
+        object_repr=f"{acr_code}",
+        actor=request.user,
+        changes={"unit": batch.unit.code, "work_date": batch.work_date.strftime("%Y-%m-%d"), "reason": reason, "diff_count": len(real_changes), "flow_key": selected_flow_key},
+        request=request,
+        action_code="ATT_CORRECTION_REQUEST"
+    )
+
+    messages.success(request, f"Đã tạo Phiếu đề nghị sửa chấm công cho {batch.unit.name} ngày {batch.work_date}. Mã: {acr_code}")
+    date_arg = request.POST.get("date", "")
+    unit_arg = request.POST.get("unit", "")
+    q_arg = request.POST.get("q", "")
+    team_arg = request.POST.get("team", "")
+    page_arg = request.POST.get("page", "1")
+    page_size_arg = request.POST.get("page_size", "50")
+
+    return redirect(f"/backoffice/attendance/batch/?date={date_arg}&unit={unit_arg}&q={q_arg}&team={team_arg}&page={page_arg}&page_size={page_size_arg}")

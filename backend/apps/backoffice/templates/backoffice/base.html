@@ -1,12 +1,14 @@
 {% load i18n %}
+{% load static %}
 <!doctype html>
 <html lang="vi">
   <head>
     <meta charset="utf-8">
     <title>{% block title %}Backoffice{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" rel="stylesheet">
+    <!-- Offline assets -->
+    <link href="{% static 'vendor/tabler.min.css' %}" rel="stylesheet">
+    <link href="{% static 'vendor/tabler-icons.min.css' %}" rel="stylesheet">
     {% block extra_head %}{% endblock %}
     <style>
       .list-group-item.active { background-color:#0d6efd; color:#fff; font-weight:500; }
@@ -115,6 +117,24 @@
                   {% endif %}
                   {% endif %}
 
+                  <!-- Phê duyệt -->
+                  <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Phê duyệt" %}</div>
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'approvals_inbox' %}active{% endif %}"
+                     href="{% url 'backoffice:approvals_inbox' %}">
+                    <i class="ti ti-checkup-list me-2"></i> {% trans "Danh sách phê duyệt" %}
+                  </a>
+                  <a class="list-group-item list-group-item-action {% if 'approval_flow_' in request.resolver_match.url_name %}active{% endif %}"
+                    href="{% url 'backoffice:approval_flow_list' %}">
+                    <i class="ti ti-adjustments-alt me-2"></i> Quản trị luồng phê duyệt
+                  </a>
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'approvals_my_requests' %}active{% endif %}"
+                     href="{% url 'backoffice:approvals_my_requests' %}">
+                    <i class="ti ti-file-description me-2"></i> {% trans "Yêu cầu của tôi" %}</a>
+                  <a class="list-group-item list-group-item-action {% if 'role_title_mapping_' in request.resolver_match.url_name %}active{% endif %}"
+                    href="{% url 'backoffice:role_title_mapping_list' %}">
+                    <i class="ti ti-adjustments-alt me-2"></i> Cấu hình Role Mapping
+                  </a>
+
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Quản trị hệ thống" %}</div>
                   {% if perms.auth.view_user %}
                   <a class="list-group-item list-group-item-action {% if 'user_' in request.resolver_match.url_name %}active{% endif %}"
@@ -144,7 +164,9 @@
           </div>
         </div>
       </div>
-      <script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
+      <!-- Offline JS: Bootstrap bundle (để modal hoạt động) + Tabler -->
+      <script src="{% static 'vendor/bootstrap.bundle.min.js' %}"></script>
+      <script src="{% static 'vendor/tabler.min.js' %}"></script>
       {% block extra_js %}{% endblock %}
     </div>
   </body>

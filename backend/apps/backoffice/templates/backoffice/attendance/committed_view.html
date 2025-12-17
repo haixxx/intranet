@@ -35,6 +35,24 @@
   </div>
 </form>
 
+{# Chip trạng thái ACR gần nhất + link chi tiết phê duyệt #}
+{% if latest_acr %}
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div>
+      <span class="badge
+        {% if latest_acr_status == 'APPLIED' %}bg-success
+        {% elif latest_acr_status == 'REQUESTED' %}bg-warning text-dark
+        {% elif latest_acr_status == 'REJECTED' %}bg-danger
+        {% else %}bg-secondary{% endif %}">
+        {% trans "Yêu cầu sửa công" %}: {{ latest_acr_status }}
+      </span>
+      {% if latest_acr_request_url %}
+        <a class="btn btn-link btn-sm" href="{{ latest_acr_request_url }}">{% trans "Xem chi tiết phê duyệt" %}</a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
 <div class="table-responsive">
 <table class="table table-sm table-striped align-middle">
   <thead>

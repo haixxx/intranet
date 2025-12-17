@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     'apps.organization',
     'apps.hr',
     'apps.attendance',
+    'apps.approvals',
+    'apps.notifications',
 ]
 
 MIDDLEWARE = [

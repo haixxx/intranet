@@ -1,0 +1,11 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Xóa mapping{% endblock %}
+{% block content %}
+<h5>Xóa Role Title Mapping</h5>
+<p>Bạn chắc chắn muốn xóa mapping: <strong>{{ obj.role_key }}</strong> ↔ <code>{{ obj.title_code }}</code>?</p>
+<form method="post">
+  {% csrf_token %}
+  <button class="btn btn-danger btn-sm" type="submit">Xóa</button>
+  <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_list' %}">Hủy</a>
+</form>
+{% endblock %}

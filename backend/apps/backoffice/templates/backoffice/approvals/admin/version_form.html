@@ -1,0 +1,29 @@
+{% extends "backoffice/base.html" %}
+{% block title %}{% if create %}Tạo{% else %}Sửa{% endif %} Phiên bản luồng{% endblock %}
+{% block content %}
+<h5 class="mb-3">{% if create %}Tạo{% else %}Sửa{% endif %} Phiên bản cho <code>{{ flow.flow_key }}</code></h5>
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-2">
+    <label class="form-label">Phiên bản</label>
+    {{ form.version }}
+    <div class="form-text">Nếu để trống khi tạo mới, hệ thống tự tăng version.</div>
+  </div>
+  <div class="mb-2">
+    <label class="form-label">Cấu hình bước (JSON)</label>
+    {{ form.steps_json_text }}
+  </div>
+  <div class="mb-2">
+    <label class="form-label">Kích hoạt</label>
+    {{ form.is_active }}
+  </div>
+  <div class="mb-2">
+    <label class="form-label">Ghi chú</label>
+    {{ form.notes }}
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
+    <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_list' flow.id %}">Hủy</a>
+  </div>
+</form>
+{% endblock %}
