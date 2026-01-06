@@ -114,6 +114,9 @@
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_committed_view' %}active{% endif %}"
                      href="{% url 'backoffice:attendance_committed_view' %}">
                     <i class="ti ti-eye me-2"></i> {% trans "Xem công chốt" %}</a>
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_monthly_view' %}active{% endif %}"
+                     href="{% url 'backoffice:attendance_monthly_view' %}">
+                    <i class="ti ti-calendar-stats me-2"></i> {% trans "Xem công theo tháng" %}</a>
                   {% endif %}
                   {% endif %}
 

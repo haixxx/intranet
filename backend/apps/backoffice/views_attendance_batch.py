@@ -15,10 +15,16 @@ from apps.attendance.models_batch import (
     AttendanceCorrectionRequest
 )
 
-# Approvals: services để tạo yêu cầu và kích hoạt bước
+# Approvals
 from apps.approvals.services import create_request
 from apps.approvals.services_runtime import activate_next_step_if_any
-from apps.approvals.models import ApprovalFlow  # NEW: để lấy danh sách luồng cho UI
+from apps.approvals.models import ApprovalFlow
+
+# ROSTER
+try:
+    from apps.attendance.services_bs import build_expected_roster
+except Exception:
+    build_expected_roster = None
 
 from apps.hr.models import Employee, AccessControl
 try:
@@ -64,9 +70,6 @@ def _units_for_attendance(request):
 
 
 def _apply_code_defaults_to_item(it: AttendanceBatchItem, code: AttendanceCode, settings: AttendanceSettings | None):
-    """
-    Chỉ dùng khi khởi tạo hoặc khi đổi mã mà KHÔNG có thời gian do người dùng nhập.
-    """
     def rt(val: time | None) -> time | None:
         if not val:
             return None
@@ -85,35 +88,73 @@ def _apply_code_defaults_to_item(it: AttendanceBatchItem, code: AttendanceCode, 
     it.out2 = rt(code.default_out2) if code.requires_pm_work else None
 
 
-def _count_diff_between_batch_and_commit(batch: AttendanceBatch, commit: AttendanceCommit) -> int:
-    """
-    Đếm số khác biệt giữa NHÁP hiện tại (batch.items) và CÔNG ĐÃ CHỐT (commit.items).
-    Dùng cùng tiêu chí với payload sinh khi tạo Phiếu đề nghị.
-    """
+def _count_full_diff_between_batch_and_commit(batch: AttendanceBatch, commit: AttendanceCommit) -> int:
     if not batch or not commit:
         return 0
-    commit_items = {ci.employee_id: ci for ci in commit.items.all()}
-    diff = 0
-    for it in batch.items.select_related("employee", "code"):
-        ci = commit_items.get(it.employee_id)
+    commit_items = {ci.employee_id: ci for ci in commit.items.select_related("code")}
+    batch_items = {bi.employee_id: bi for bi in batch.items.select_related("code")}
+    count = 0
+    for emp_id, bi in batch_items.items():
+        if emp_id not in commit_items and bool(bi.include_in_unit):
+            count += 1
+    for emp_id, ci in commit_items.items():
+        bi = batch_items.get(emp_id)
+        if (bi is None) or (bi is not None and not bool(bi.include_in_unit)):
+            count += 1
+    for emp_id, bi in batch_items.items():
+        ci = commit_items.get(emp_id)
         if not ci:
-            # về nguyên tắc không xảy ra, vì khi chốt đã copy 1-1
             continue
-        if (ci.code.code if ci.code else None) != (it.code.code if it.code else None):
-            diff += 1
-        if _time_to_str(ci.in1) != _time_to_str(it.in1):
-            diff += 1
-        if _time_to_str(ci.out1) != _time_to_str(it.out1):
-            diff += 1
-        if _time_to_str(ci.in2) != _time_to_str(it.in2):
-            diff += 1
-        if _time_to_str(ci.out2) != _time_to_str(it.out2):
-            diff += 1
-        if (ci.notes or "") != (it.notes or ""):
-            diff += 1
-        if bool(ci.include_in_unit) != bool(it.include_in_unit):
-            diff += 1
-    return diff
+        old_code = ci.code.code if ci.code else None
+        new_code = bi.code.code if bi.code else None
+        if old_code != new_code:
+            count += 1
+        for old_v, new_v in ((ci.in1, bi.in1), (ci.out1, bi.out1), (ci.in2, bi.in2), (ci.out2, bi.out2)):
+            if _time_to_str(old_v) != _time_to_str(new_v):
+                count += 1
+        if (ci.notes or "") != (bi.notes or ""):
+            count += 1
+        if bool(ci.include_in_unit) != bool(bi.include_in_unit):
+            count += 1
+    return count
+
+
+def _compare_roster_simple(batch: AttendanceBatch) -> bool:
+    if build_expected_roster is None:
+        return False
+    unit = batch.unit
+    work_date = batch.work_date
+    expected = build_expected_roster(unit, work_date)
+    exp_map = {e.employee_id: (bool(e.include_in_unit), str(e.bs_direction), e.bs_peer_unit_id or None) for e in expected}
+    cur_items = list(batch.items.values("employee_id", "include_in_unit", "bs_direction", "bs_peer_unit_id"))
+    cur_map = {it["employee_id"]: (bool(it["include_in_unit"]), str(it["bs_direction"]), it["bs_peer_unit_id"] or None) for it in cur_items}
+    if len(exp_map) != len(cur_map):
+        return True
+    for emp_id, exp_tuple in exp_map.items():
+        cur_tuple = cur_map.get(emp_id)
+        if cur_tuple is None or cur_tuple != exp_tuple:
+            return True
+    return False
+
+
+def _pending_acr_qs(unit: OrgUnit, work_date: date):
+    """
+    Xác định ACR còn “chờ duyệt/thực hiện” để khóa nháp.
+    Chỉ coi là pending nếu STATUS ∈ {REQUESTED, APPROVED_BY_UNIT}.
+    Các trạng thái đã kết thúc (REJECTED, APPLIED, CANCELLED, ...) sẽ KHÔNG khóa.
+    """
+    try:
+        requested = AttendanceCorrectionRequest.Status.REQUESTED
+    except Exception:
+        requested = "REQUESTED"
+    try:
+        approved_unit = AttendanceCorrectionRequest.Status.APPROVED_BY_UNIT
+    except Exception:
+        approved_unit = "APPROVED_BY_UNIT"
+
+    return AttendanceCorrectionRequest.objects.filter(
+        unit=unit, work_date=work_date, status__in=[requested, approved_unit]
+    )
 
 
 @login_required
@@ -144,8 +185,11 @@ def batch_create_or_load(request):
     total_count = 0
     teams = OrgUnit.objects.none()
     bs_in_list = []
-    diff_count = 0  # NEW
-    available_flows = []  # NEW: danh sách luồng cho đơn vị hiện tại (nếu có)
+    diff_count = 0
+    available_flows = []
+    roster_has_diff = False
+    pending_locked = False
+    pending_acr_count = 0
 
     if work_date_str and unit_id:
         try:
@@ -170,11 +214,13 @@ def batch_create_or_load(request):
 
         if unit:
             teams = OrgUnit.objects.filter(parent=unit, type=OrgUnit.Type.TEAM).order_by("symbol")
-            if TempAssignment is not None:
+            if TempAssignment is not None and work_date:
                 try:
                     bs_in_qs = TempAssignment.objects.filter(
-                        apply_flag=True, to_unit=unit, status="ACTIVE"
-                    ).select_related("employee").order_by("employee__employee_code")
+                        apply_flag=True, to_unit=unit, status="ACTIVE",
+                        start_date__lte=work_date
+                    ).filter(Q(end_date__isnull=True) | Q(end_date__gte=work_date))
+                    bs_in_qs = bs_in_qs.select_related("employee").order_by("employee__employee_code")
                     bs_in_list = [f"{ta.employee.employee_code} - {ta.employee.full_name}" for ta in bs_in_qs]
                 except Exception:
                     bs_in_list = []
@@ -199,55 +245,37 @@ def batch_create_or_load(request):
                     created_by_id=request.user.id
                 )
 
-                base_qs = Employee.objects.filter(unit=unit, status=Employee.Status.ACTIVE)
-
-                bs_in_ids, bs_out_ids = [], []
-                if TempAssignment is not None:
-                    try:
-                        bs_in_ids = list(TempAssignment.objects.filter(
-                            apply_flag=True, to_unit=unit, status="ACTIVE"
-                        ).values_list("employee_id", flat=True))
-                        bs_out_ids = list(TempAssignment.objects.filter(
-                            apply_flag=True, from_unit=unit, status="ACTIVE"
-                        ).values_list("employee_id", flat=True))
-                    except Exception:
-                        bs_in_ids, bs_out_ids = [], []
-
-                employees = Employee.objects.filter(
-                    Q(id__in=base_qs.values_list("id", flat=True)) |
-                    Q(id__in=bs_in_ids) |
-                    Q(id__in=bs_out_ids)
-                ).distinct().order_by("employee_code")
-
                 settings = AttendanceSettings.objects.first()
                 code_ll = AttendanceCode.objects.filter(code="LL", is_active=True).first()
+                if not code_ll:
+                    code_ll = AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code").first()
                 code_bs = AttendanceCode.objects.filter(code="BS", is_active=True).first()
 
-                if not employees.exists():
-                    messages.info(request, f"Đơn vị {unit.name} chưa có nhân sự ACTIVE để lập danh sách.")
+                expected = build_expected_roster(unit, work_date) if build_expected_roster else []
+                if not expected:
+                    messages.info(request, f"Đơn vị {unit.name} không có nhân sự trong roster theo ngày {work_date_str}.")
 
-                for emp in employees:
-                    bs_in = TempAssignment is not None and TempAssignment.objects.filter(
-                        apply_flag=True, to_unit=unit, status="ACTIVE", employee=emp
-                    ).exists()
-                    bs_out = TempAssignment is not None and TempAssignment.objects.filter(
-                        apply_flag=True, from_unit=unit, status="ACTIVE", employee=emp
-                    ).exists()
+                emp_ids = [e.employee_id for e in expected]
+                emp_map = {e.id: e for e in Employee.objects.filter(id__in=emp_ids).order_by("employee_code")}
 
+                for e in expected:
+                    emp = emp_map.get(e.employee_id)
+                    if not emp:
+                        continue
                     it = AttendanceBatchItem(batch=batch, employee=emp)
-                    if bs_out and not bs_in:
-                        it.bs_direction = AttendanceBatchItem.BSDirection.OUT
+                    if str(e.bs_direction) == "OUT" and code_bs:
+                        it.code = code_bs
                         it.include_in_unit = False
-                        it.code = code_bs if code_bs else (code_ll or AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code").first())
+                        it.bs_direction = AttendanceBatchItem.BSDirection.OUT
                     else:
-                        it.bs_direction = AttendanceBatchItem.BSDirection.IN if (bs_in and not bs_out) else AttendanceBatchItem.BSDirection.NONE
-                        it.include_in_unit = True
-                        it.code = code_ll or AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code").first()
-
+                        it.code = code_ll
+                        it.include_in_unit = bool(e.include_in_unit)
+                        it.bs_direction = e.bs_direction
+                    it.bs_peer_unit_id = e.bs_peer_unit_id
                     _apply_code_defaults_to_item(it, it.code, settings)
                     it.save()
 
-                messages.success(request, f"Đã lập danh sách nháp cho {unit.name} ngày {work_date_str}.")
+                messages.success(request, f"Đã lập danh sách nháp (theo roster ngày {work_date_str}) cho {unit.name}.")
 
             if batch:
                 items_qs = batch.items.select_related("employee", "code").order_by("employee__employee_code")
@@ -268,12 +296,16 @@ def batch_create_or_load(request):
                 items = page_obj.object_list
                 total_count = paginator.count
 
-                # NEW: Tính diff_count để quyết định hiển thị nút "Đề nghị sửa chấm công"
                 commit_for_day = AttendanceCommit.objects.filter(unit=unit, work_date=work_date).first()
                 if commit_for_day:
-                    diff_count = _count_diff_between_batch_and_commit(batch, commit_for_day)
+                    diff_count = _count_full_diff_between_batch_and_commit(batch, commit_for_day)
 
-                # NEW: Lấy danh sách luồng phù hợp với đơn vị (PUBLISHED + version active + request_units rỗng hoặc có đơn vị này)
+                # KHÓA nháp nếu còn ACR pending cho đơn vị/ngày
+                pending_qs = _pending_acr_qs(unit, work_date)
+                pending_acr_count = pending_qs.count()
+                pending_locked = pending_acr_count > 0
+
+                # Luồng phê duyệt
                 flows_qs = ApprovalFlow.objects.filter(
                     status=ApprovalFlow.Status.PUBLISHED,
                     versions__is_active=True
@@ -283,6 +315,11 @@ def batch_create_or_load(request):
                     allowed = st.get("request_units") or []
                     if not allowed or batch.unit.id in [int(x) for x in allowed]:
                         available_flows.append(f)
+
+                try:
+                    roster_has_diff = _compare_roster_simple(batch)
+                except Exception:
+                    roster_has_diff = False
             else:
                 paginator = None
                 page_obj = None
@@ -293,7 +330,7 @@ def batch_create_or_load(request):
         paginator = None
         page_obj = None
 
-    can_save = request.user.has_perm("attendance.change_attendancebatch")
+    base_can_save = request.user.has_perm("attendance.change_attendancebatch")
     can_commit = request.user.has_perm("attendance.add_attendancecommit")
     can_request = request.user.has_perm("attendance.add_attendancecorrectionrequest")
 
@@ -302,9 +339,9 @@ def batch_create_or_load(request):
         has_committed = AttendanceCommit.objects.filter(unit=batch.unit, work_date=batch.work_date).exists()
 
     codes_qs = AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code")
-
-    # NEW: Chỉ bật nút "Đề nghị" khi có khác biệt và đã có bản chốt (để so sánh)
-    can_request_now = bool(can_request and has_committed and diff_count > 0)
+    can_save = bool(base_can_save and not pending_locked)
+    can_request_now = bool(can_request and has_committed and diff_count > 0 and not pending_locked)
+    roster_can_refresh = bool(batch and can_save)
 
     return render(request, "backoffice/attendance/batch_create_or_load.html", {
         "units_qs": units_qs,
@@ -323,13 +360,18 @@ def batch_create_or_load(request):
         "total_count": total_count,
         "can_save": can_save,
         "can_commit": can_commit,
-        "can_request": can_request,          # quyền gốc
-        "can_request_now": can_request_now,  # trạng thái hiển thị nút theo chênh lệch
+        "can_request": can_request,
+        "can_request_now": can_request_now,
         "has_committed": has_committed,
         "codes_qs": codes_qs,
         "bs_in_list": bs_in_list,
-        "diff_count": diff_count,            # để UI hiển thị số lượng khác biệt (nếu cần)
-        "flows": available_flows,            # NEW: danh sách luồng có thể chọn
+        "diff_count": diff_count,
+        "flows": available_flows,
+        "roster_has_diff": roster_has_diff,
+        "roster_can_refresh": roster_can_refresh,
+        "batch_id": (batch.id if batch else None),
+        "pending_locked": pending_locked,
+        "pending_acr_count": pending_acr_count,
     })
 
 
@@ -337,17 +379,19 @@ def batch_create_or_load(request):
 def batch_save(request, batch_id):
     """
     Lưu đúng thời gian người dùng nhập, KHÔNG revert về mặc định.
-    Quy tắc:
-    - Nếu đổi mã: chỉ lấy mặc định khi ô tương ứng KHÔNG xuất hiện trong POST hoặc để trống; nếu có giá trị -> dùng giá trị người dùng.
-    - Nếu không đổi mã: dùng đúng giá trị người dùng theo các key trong POST; không re-apply mặc định.
-    - Nếu mã không đi làm: set tất cả IN/OUT = None.
+    Guard: KHÔNG cho lưu nếu đang có ACR pending cho cùng đơn vị/ngày.
     """
-    batch = get_object_or_404(AttendanceBatch, pk=batch_id)
+    batch = get_object_or_404(AttendanceBatch.objects.select_related("unit"), pk=batch_id)
     if not request.user.has_perm("attendance.change_attendancebatch"):
         return render(request, "backoffice/no_permission.html", {
             "perm_codename": "attendance.change_attendancebatch",
             "title": "Bạn chưa được cấp quyền lưu Batch"
         }, status=403)
+
+    # Lock khi ACR còn pending
+    if _pending_acr_qs(batch.unit, batch.work_date).exists():
+        messages.warning(request, "Danh sách nháp đang bị khóa do có Phiếu đề nghị sửa chấm công đang chờ duyệt.")
+        return redirect(f"/backoffice/attendance/batch/?date={batch.work_date.strftime('%Y-%m-%d')}&unit={batch.unit_id}")
 
     settings = AttendanceSettings.objects.first()
 
@@ -378,13 +422,11 @@ def batch_save(request, batch_id):
             key_out2 = f"out2_{it.id}"
             key_notes = f"notes_{it.id}"
 
-            # Lấy giá trị người dùng (có thể trống)
             in1_val = request.POST.get(key_in1, None)
             out1_val = request.POST.get(key_out1, None)
             in2_val = request.POST.get(key_in2, None)
             out2_val = request.POST.get(key_out2, None)
 
-            # Đổi mã nếu có
             code_changed = False
             if key_code in request.POST:
                 code_val = request.POST.get(key_code)
@@ -394,21 +436,17 @@ def batch_save(request, batch_id):
                         it.code = new_code
                         code_changed = True
 
-            # Nếu mã không đi làm: xoá toàn bộ mốc
             if it.code and not it.code.is_work:
                 it.in1 = None
                 it.out1 = None
                 it.in2 = None
                 it.out2 = None
             else:
-                # AM
                 if it.code and it.code.requires_am_work:
                     if code_changed:
-                        # Nếu đổi mã: ưu tiên dữ liệu người dùng; nếu không nhập thì dùng mặc định theo mã mới
                         it.in1 = parse_time(in1_val) if (key_in1 in request.POST and in1_val) else _round_to_hour_if_needed(it.code.default_in1, settings)
                         it.out1 = parse_time(out1_val) if (key_out1 in request.POST and out1_val) else _round_to_hour_if_needed(it.code.default_out1, settings)
                     else:
-                        # Không đổi mã: dùng đúng giá trị người dùng; nếu không nhập, giữ nguyên
                         if key_in1 in request.POST:
                             it.in1 = parse_time(in1_val)
                         if key_out1 in request.POST:
@@ -417,7 +455,6 @@ def batch_save(request, batch_id):
                     it.in1 = None
                     it.out1 = None
 
-                # PM
                 if it.code and it.code.requires_pm_work:
                     if code_changed:
                         it.in2 = parse_time(in2_val) if (key_in2 in request.POST and in2_val) else _round_to_hour_if_needed(it.code.default_in2, settings)
@@ -511,10 +548,7 @@ def batch_commit(request, batch_id):
 @login_required
 def committed_view(request):
     """
-    Xem công chốt (read-only):
-    - Bộ lọc: ngày, đơn vị, q, team (theo tên).
-    - Dropdown đơn vị theo is_attendance_unit và AccessControl (nhất quán với Tạo/Xem).
-    - Bỏ cột Ca (UI không dùng), hiển thị team.name giống phần tạo/xem.
+    Xem công đã chốt (read-only). CHỈ hiển thị include_in_unit=True.
     """
     if not request.user.has_perm("attendance.view_attendancecommit"):
         return render(request, "backoffice/no_permission.html", {
@@ -534,14 +568,12 @@ def committed_view(request):
     total_count = 0
 
     if work_date_str and unit_id:
-        # parse date
         try:
             y, m, d = map(int, work_date_str.split("-"))
             work_date = date(y, m, d)
         except Exception:
             work_date = None
 
-        # validate unit against access scope
         try:
             unit = OrgUnit.objects.get(pk=int(unit_id), is_attendance_unit=True, is_active=True)
         except Exception:
@@ -562,13 +594,13 @@ def committed_view(request):
                     qs = qs.filter(Q(employee__employee_code__icontains=q) | Q(employee__full_name__icontains=q))
                 if team:
                     qs = qs.filter(employee__team__name__icontains=team, employee__unit=unit)
+                qs = qs.filter(include_in_unit=True)
                 total_count = qs.count()
                 start = (page - 1) * per_page
                 end = start + per_page
                 items = qs[start:end]
 
     total_pages = (total_count + per_page - 1) // per_page if total_count else 1
-
     return render(request, "backoffice/attendance/committed_view.html", {
         "units_qs": units_qs,
         "items": items,
@@ -586,12 +618,10 @@ def committed_view(request):
 @login_required
 def attendance_correction_request_create(request, batch_id):
     """
-    Tạo Phiếu đề nghị sửa chấm công cho cả ngày dựa trên Batch đã chốt,
-    đồng thời mở quy trình phê duyệt trong Approvals.
-    Server-side guard: chỉ cho phép tạo khi có khác biệt so với công đã chốt.
-    NEW: Người dùng chọn luồng phê duyệt (flow_key) khi gửi đề nghị.
+    Tạo Phiếu đề nghị sửa chấm công từ Batch đã chốt.
+    Guard: KHÔNG tạo ACR mới nếu đã có ACR pending cho cùng đơn vị/ngày.
     """
-    batch = get_object_or_404(AttendanceBatch, pk=batch_id)
+    batch = get_object_or_404(AttendanceBatch.objects.select_related("unit"), pk=batch_id)
     if not request.user.has_perm("attendance.add_attendancecorrectionrequest"):
         return render(request, "backoffice/no_permission.html", {
             "perm_codename": "attendance.add_attendancecorrectionrequest",
@@ -603,10 +633,13 @@ def attendance_correction_request_create(request, batch_id):
         messages.warning(request, "Ngày + đơn vị này chưa có danh sách đã chốt. Vui lòng chốt trước khi gửi đề nghị.")
         return redirect("backoffice:attendance_batch_create_or_load")
 
+    if _pending_acr_qs(batch.unit, batch.work_date).exists():
+        messages.warning(request, "Đang có Phiếu đề nghị sửa chấm công chờ duyệt cho ngày/đơn vị này. Vui lòng hoàn tất trước khi gửi đề nghị mới.")
+        return redirect(f"/backoffice/attendance/batch/?date={batch.work_date.strftime('%Y-%m-%d')}&unit={batch.unit_id}")
+
     if request.method != "POST":
         return redirect("backoffice:attendance_batch_create_or_load")
 
-    # NEW: lấy flow_key từ form
     selected_flow_key = (request.POST.get("flow_key") or "").strip()
     if not selected_flow_key:
         messages.error(request, "Vui lòng chọn luồng phê duyệt.")
@@ -615,66 +648,59 @@ def attendance_correction_request_create(request, batch_id):
     reason = request.POST.get("reason", "").strip()
     acr_code = f"ACR-{batch.unit.code}-{batch.work_date.strftime('%Y%m%d')}-{request.user.id}-{int(timezone.now().timestamp())}"
 
-    # So sánh khác biệt giữa BatchItem vs CommitItem theo employee_id -> sinh payload
     commit_items = {ci.employee_id: ci for ci in committed.items.select_related("code", "employee")}
+    batch_items = {bi.employee_id: bi for bi in batch.items.select_related("employee", "code")}
+
     changes = []
-    for it in batch.items.select_related("employee", "code"):
-        ci = commit_items.get(it.employee_id)
-        if not ci:
-            continue
-        emp_id = it.employee_id
-        emp_code = it.employee.employee_code
-        emp_name = it.employee.full_name  # NEW: tên nhân viên
-        # code
-        old_code = ci.code.code if ci.code else None
-        new_code = it.code.code if it.code else None
-        if old_code != new_code:
+
+    # Membership-level
+    for emp_id, bi in batch_items.items():
+        if emp_id not in commit_items and bool(bi.include_in_unit):
             changes.append({
+                "type": "ADD_EMPLOYEE",
                 "employee_id": emp_id,
-                "employee_code": emp_code,
-                "employee_name": emp_name,  # NEW
-                "field": "code",
-                "old": old_code,
-                "new": new_code,
+                "employee_code": bi.employee.employee_code,
+                "employee_name": bi.employee.full_name,
+                "code": bi.code.code if bi.code else None,
+                "in1": _time_to_str(bi.in1),
+                "out1": _time_to_str(bi.out1),
+                "in2": _time_to_str(bi.in2),
+                "out2": _time_to_str(bi.out2),
+                "notes": bi.notes or "",
+                "include_in_unit": True,
             })
-        # times
-        pairs = [("in1", ci.in1, it.in1), ("out1", ci.out1, it.out1), ("in2", ci.in2, it.in2), ("out2", ci.out2, it.out2)]
-        for fname, old_v, new_v in pairs:
-            if _time_to_str(old_v) != _time_to_str(new_v):
-                changes.append({
-                    "employee_id": emp_id,
-                    "employee_code": emp_code,
-                    "employee_name": emp_name,  # NEW
-                    "field": fname,
-                    "old": _time_to_str(old_v),
-                    "new": _time_to_str(new_v),
-                })
-        # notes
-        if (ci.notes or "") != (it.notes or ""):
+    for emp_id, ci in commit_items.items():
+        bi = batch_items.get(emp_id)
+        if (bi is None) or (bi is not None and not bool(bi.include_in_unit)):
             changes.append({
+                "type": "REMOVE_EMPLOYEE",
                 "employee_id": emp_id,
-                "employee_code": emp_code,
-                "employee_name": emp_name,  # NEW
-                "field": "notes",
-                "old": ci.notes or "",
-                "new": it.notes or "",
-            })
-        # include flag
-        if bool(ci.include_in_unit) != bool(it.include_in_unit):
-            changes.append({
-                "employee_id": emp_id,
-                "employee_code": emp_code,
-                "employee_name": emp_name,  # NEW
-                "field": "include_in_unit",
-                "old": bool(ci.include_in_unit),
-                "new": bool(it.include_in_unit),
+                "employee_code": ci.employee.employee_code,
+                "employee_name": ci.employee.full_name,
             })
 
-    # Guard: nếu không có bất kỳ thay đổi chi tiết nào -> không tạo ACR
-    real_changes = [x for x in changes if x.get("field")]
+    # Field-level
+    for emp_id, bi in batch_items.items():
+        ci = commit_items.get(emp_id)
+        if not ci:
+            continue
+        emp_code = bi.employee.employee_code
+        emp_name = bi.employee.full_name
+        old_code = ci.code.code if ci.code else None
+        new_code = bi.code.code if bi.code else None
+        if old_code != new_code:
+            changes.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "code", "old": old_code, "new": new_code})
+        for fname, old_v, new_v in [("in1", ci.in1, bi.in1), ("out1", ci.out1, bi.out1), ("in2", ci.in2, bi.in2), ("out2", ci.out2, bi.out2)]:
+            if _time_to_str(old_v) != _time_to_str(new_v):
+                changes.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": fname, "old": _time_to_str(old_v), "new": _time_to_str(new_v)})
+        if (ci.notes or "") != (bi.notes or ""):
+            changes.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "notes", "old": ci.notes or "", "new": bi.notes or ""})
+        if bool(ci.include_in_unit) != bool(bi.include_in_unit):
+            changes.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "include_in_unit", "old": bool(ci.include_in_unit), "new": bool(bi.include_in_unit)})
+
+    real_changes = [x for x in changes if x.get("field") or x.get("type")]
     if len(real_changes) == 0:
         messages.info(request, "Không có thay đổi nào so với công đã chốt. Vui lòng lưu nháp các chỉnh sửa trước khi gửi đề nghị.")
-        # Giữ nguyên filter hiện tại khi quay lại
         date_arg = request.POST.get("date", "")
         unit_arg = request.POST.get("unit", "")
         q_arg = request.POST.get("q", "")
@@ -686,7 +712,6 @@ def attendance_correction_request_create(request, batch_id):
     if reason:
         changes.insert(0, {"type": "NOTE", "value": reason, "acr_code": acr_code})
 
-    # 1) Tạo Phiếu đề nghị sửa chấm công (Attendance)
     acr = AttendanceCorrectionRequest.objects.create(
         unit=batch.unit,
         work_date=batch.work_date,
@@ -695,7 +720,6 @@ def attendance_correction_request_create(request, batch_id):
         payload_json=changes
     )
 
-    # 2) Tạo ApprovalRequest tham chiếu tới ACR
     metadata = {
         "flow": "Phê duyệt sửa chấm công",
         "object_type": "attendance_correction",
@@ -707,11 +731,11 @@ def attendance_correction_request_create(request, batch_id):
         "requester_username": request.user.username,
         "reason": reason,
         "diff_count": len(real_changes),
-        "payload_changes": real_changes,  # NEW: truyền snapshot changes vào metadata để renderer dùng
+        "payload_changes": [c for c in real_changes if c.get("field")],
     }
     try:
         req = create_request(
-            flow_key=selected_flow_key,  # NEW: dùng luồng được chọn
+            flow_key=selected_flow_key,
             requester=request.user,
             object_type="attendance_correction",
             object_id=str(acr.id),
@@ -719,12 +743,10 @@ def attendance_correction_request_create(request, batch_id):
             unit_id=batch.unit.id,
             metadata_json=metadata
         )
-        # Kích hoạt bước đầu
         activate_next_step_if_any(req)
     except Exception as e:
         messages.warning(request, f"Đã tạo Phiếu đề nghị, nhưng mở quy trình phê duyệt gặp lỗi: {e}")
 
-    # Audit
     audit_log(
         action_verb="REQUEST",
         object_type="attendance_correction",
@@ -745,3 +767,64 @@ def attendance_correction_request_create(request, batch_id):
     page_size_arg = request.POST.get("page_size", "50")
 
     return redirect(f"/backoffice/attendance/batch/?date={date_arg}&unit={unit_arg}&q={q_arg}&team={team_arg}&page={page_arg}&page_size={page_size_arg}")
+
+
+@login_required
+def batch_refresh_roster(request, batch_id: int):
+    """
+    XÓA toàn bộ nháp và tạo lại theo roster kỳ vọng của đúng work_date.
+    Guard: KHÔNG refresh nếu còn ACR pending.
+    """
+    batch = get_object_or_404(AttendanceBatch.objects.select_related("unit"), pk=batch_id)
+    if not request.user.has_perm("attendance.change_attendancebatch"):
+        return render(request, "backoffice/no_permission.html", {
+            "perm_codename": "attendance.change_attendancebatch",
+            "title": "Bạn chưa được cấp quyền cập nhật danh sách nháp"
+        }, status=403)
+
+    if _pending_acr_qs(batch.unit, batch.work_date).exists():
+        messages.warning(request, "Danh sách nháp đang bị khóa do có Phiếu đề nghị sửa chấm công đang chờ duyệt.")
+        return redirect("backoffice:attendance_batch_create_or_load")
+
+    unit = batch.unit
+    work_date = batch.work_date
+
+    if build_expected_roster is None:
+        messages.error(request, "Thiếu dịch vụ tính roster. Vui lòng liên hệ quản trị.")
+        return redirect("backoffice:attendance_batch_create_or_load")
+
+    expected = build_expected_roster(unit, work_date)
+
+    deleted = batch.items.count()
+    batch.items.all().delete()
+
+    settings = AttendanceSettings.objects.first()
+    code_ll = AttendanceCode.objects.filter(code="LL", is_active=True).first()
+    if not code_ll:
+        code_ll = AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code").first()
+
+    emp_map = {e.id: e for e in Employee.objects.filter(id__in=[x.employee_id for x in expected]).select_related("team")}
+
+    created = 0
+    for e in expected:
+        emp = emp_map.get(e.employee_id)
+        if not emp:
+            continue
+        it = AttendanceBatchItem(
+            batch=batch,
+            employee=emp,
+            code=code_ll,
+            include_in_unit=bool(e.include_in_unit),
+            bs_direction=e.bs_direction,
+            bs_peer_unit_id=e.bs_peer_unit_id
+        )
+        _apply_code_defaults_to_item(it, it.code, settings)
+        it.save()
+        created += 1
+
+    audit_log(action_verb="REFRESH", object_type="attendance_batch", object_id=batch.id,
+              object_repr=f"{batch.unit.code}-{batch.work_date}", actor=request.user,
+              changes={"deleted": deleted, "created": created}, request=request, action_code="ATT_BATCH_REFRESH")
+
+    messages.success(request, f"Đã cập nhật danh sách nháp theo roster ngày {work_date} (xóa {deleted}, tạo {created}).")
+    return redirect(f"/backoffice/attendance/batch/?date={work_date.strftime('%Y-%m-%d')}&unit={unit.id}")

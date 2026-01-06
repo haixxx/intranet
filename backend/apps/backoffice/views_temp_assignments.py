@@ -73,6 +73,7 @@ def temp_assignment_list(request):
 def temp_assignment_create(request):
     """
     Tạo điều động tạm thời. from_unit & snapshot sẽ tự động set trong model.
+    UI: thêm ô lọc nhanh cho danh sách nhân sự.
     """
     scope_units = set(allowed_org_ids_for_user(request.user))
     units = OrgUnit.objects.filter(id__in=scope_units, type__in=['DEPARTMENT', 'DIVISION', 'WORKSHOP']).order_by('symbol')
@@ -115,7 +116,7 @@ def temp_assignment_create(request):
             try:
                 parsed_start = dt.strptime(start_date, "%Y-%m-%d").date()
             except Exception:
-                errors.append("start_date sai định dạng.")
+                errors.append("start_date sai định dạng (YYYY-MM-DD).")
         else:
             errors.append("Thiếu start_date.")
 
@@ -123,7 +124,7 @@ def temp_assignment_create(request):
             try:
                 parsed_end = dt.strptime(end_date, "%Y-%m-%d").date()
             except Exception:
-                errors.append("end_date sai định dạng.")
+                errors.append("end_date sai định dạng (YYYY-MM-DD).")
 
         if not reason_code:
             errors.append("Chọn lý do điều động.")
@@ -166,6 +167,121 @@ def temp_assignment_create(request):
         'employees': employees,
         'units': units,
         'reasons': TempAssignment.Reason.choices,
+        'obj': None,              # để template biết chế độ tạo mới
+        'is_edit': False,
+    })
+
+
+@login_required
+@permission_required('hr.change_employee', raise_exception=True)
+def temp_assignment_edit(request, pk: int):
+    """
+    Sửa điều động tạm thời (cập nhật thời gian/to_unit/lý do/ghi chú/apply_flag).
+    Không cho đổi nhân sự và from_unit.
+    """
+    obj = get_object_or_404(TempAssignment.objects.select_related('employee', 'from_unit', 'to_unit'), pk=pk)
+
+    # Quyền: người dùng phải có quyền trên đơn vị gốc hoặc đơn vị nhận của phiếu này
+    scope_units = set(allowed_org_ids_for_user(request.user))
+    if obj.employee.unit_id not in scope_units and obj.to_unit_id not in scope_units:
+        messages.error(request, "Bạn không có quyền sửa điều động này.")
+        return redirect('backoffice:temp_assignment_list')
+
+    units = OrgUnit.objects.filter(id__in=scope_units, type__in=['DEPARTMENT', 'DIVISION', 'WORKSHOP']).order_by('symbol')
+
+    if request.method == 'POST':
+        to_unit_id = request.POST.get('to_unit_id', '').strip()
+        start_date = request.POST.get('start_date', '').strip()
+        end_date = request.POST.get('end_date', '').strip()
+        reason_code = request.POST.get('reason_code', '').strip()
+        note = request.POST.get('note', '').strip()
+        apply_flag = request.POST.get('apply_flag', 'on') in ('on', 'true', '1')
+
+        errors = []
+        to_unit = None
+
+        if not to_unit_id or not to_unit_id.isdigit():
+            errors.append("Thiếu to_unit_id.")
+        else:
+            to_unit = OrgUnit.objects.filter(pk=int(to_unit_id)).first()
+            if not to_unit:
+                errors.append("Đơn vị nhận không tồn tại.")
+            elif to_unit.id not in scope_units:
+                errors.append("Đơn vị nhận ngoài phạm vi quyền của bạn.")
+
+        from datetime import datetime as dt
+        parsed_start = None
+        parsed_end = None
+        if start_date:
+            try:
+                parsed_start = dt.strptime(start_date, "%Y-%m-%d").date()
+            except Exception:
+                errors.append("start_date sai định dạng (YYYY-MM-DD).")
+        else:
+            errors.append("Thiếu start_date.")
+
+        if end_date:
+            try:
+                parsed_end = dt.strptime(end_date, "%Y-%m-%d").date()
+            except Exception:
+                errors.append("end_date sai định dạng (YYYY-MM-DD).")
+
+        if not reason_code:
+            errors.append("Chọn lý do điều động.")
+
+        if errors:
+            messages.error(request, "; ".join(errors))
+            return redirect('backoffice:temp_assignment_edit', pk=obj.id)
+
+        # Ghi nhận thay đổi để audit
+        old = {
+            "to_unit_id": obj.to_unit_id,
+            "start_date": obj.start_date.isoformat() if obj.start_date else None,
+            "end_date": obj.end_date.isoformat() if obj.end_date else None,
+            "reason_code": obj.reason_code,
+            "note": obj.note,
+            "apply_flag": obj.apply_flag,
+        }
+
+        obj.to_unit = to_unit
+        obj.start_date = parsed_start
+        obj.end_date = parsed_end
+        obj.reason_code = reason_code
+        obj.note = note
+        obj.apply_flag = apply_flag
+
+        try:
+            obj.full_clean()
+            obj.save()
+            audit_log(action_verb="UPDATE",
+                      object_type="temp_assignment",
+                      object_id=obj.id,
+                      object_repr=str(obj.id),
+                      actor=request.user,
+                      request=request,
+                      action_code="TEMP_ASSIGNMENT_UPDATE",
+                      changes={
+                          "to_unit_id": {"old": old["to_unit_id"], "new": obj.to_unit_id},
+                          "start_date": {"old": old["start_date"], "new": obj.start_date.isoformat() if obj.start_date else None},
+                          "end_date": {"old": old["end_date"], "new": obj.end_date.isoformat() if obj.end_date else None},
+                          "reason_code": {"old": old["reason_code"], "new": obj.reason_code},
+                          "note": {"old": old["note"], "new": obj.note},
+                          "apply_flag": {"old": old["apply_flag"], "new": obj.apply_flag},
+                      })
+            messages.success(request, "Đã cập nhật điều động.")
+            return redirect('backoffice:temp_assignment_list')
+        except Exception as e:
+            messages.error(request, f"Lỗi: {e}")
+            return redirect('backoffice:temp_assignment_edit', pk=obj.id)
+
+    # Tạo dữ liệu render
+    employees = Employee.objects.filter(id=obj.employee_id)  # chỉ để hiển thị thông tin nhân sự đã chọn
+    return render(request, 'backoffice/hr/assignments/form.html', {
+        'employees': employees,
+        'units': units,
+        'reasons': TempAssignment.Reason.choices,
+        'obj': obj,        # để template biết prefill
+        'is_edit': True,
     })
 
 

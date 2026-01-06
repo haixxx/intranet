@@ -10,6 +10,7 @@ def batch_diff_api(request):
     """
     Trả về diff JSON giữa Batch và Commit theo ngày/đơn vị hiện tại.
     Hiển thị employee_name để dùng trong modal diff.
+    Bổ sung ADD_EMPLOYEE/REMOVE_EMPLOYEE để phản ánh chênh lệch membership.
     """
     work_date_str = request.GET.get("date", "")
     unit_id = request.GET.get("unit", "")
@@ -32,54 +33,51 @@ def batch_diff_api(request):
         return JsonResponse({"ok": True, "items": []})
 
     commit_items = {ci.employee_id: ci for ci in commit.items.select_related("code", "employee")}
+    batch_items = {bi.employee_id: bi for bi in batch.items.select_related("employee", "code")}
+
     items = []
-    for it in batch.items.select_related("employee", "code"):
-        ci = commit_items.get(it.employee_id)
+
+    # ADD_EMPLOYEE (trong batch nhưng không có trong commit và include=True)
+    for emp_id, bi in batch_items.items():
+        if emp_id not in commit_items and bool(bi.include_in_unit):
+            items.append({
+                "employee_id": emp_id,
+                "employee_code": bi.employee.employee_code,
+                "employee_name": bi.employee.full_name,
+                "field": "ADD_EMPLOYEE",
+                "old": None,
+                "new": bi.code.code if bi.code else None,
+            })
+
+    # REMOVE_EMPLOYEE (trong commit nhưng không còn/được exclude trong batch)
+    for emp_id, ci in commit_items.items():
+        bi = batch_items.get(emp_id)
+        if (bi is None) or (bi is not None and not bool(bi.include_in_unit)):
+            items.append({
+                "employee_id": emp_id,
+                "employee_code": ci.employee.employee_code,
+                "employee_name": ci.employee.full_name,
+                "field": "REMOVE_EMPLOYEE",
+                "old": ci.code.code if ci.code else None,
+                "new": None,
+            })
+
+    # Field-level diff cũ (khi tồn tại ở cả 2 bên)
+    for emp_id, bi in batch_items.items():
+        ci = commit_items.get(emp_id)
         if not ci:
             continue
-        emp_name = it.employee.full_name
-        emp_code = it.employee.employee_code
-        # code
+        emp_name = bi.employee.full_name
+        emp_code = bi.employee.employee_code
         old_code = ci.code.code if ci.code else None
-        new_code = it.code.code if it.code else None
+        new_code = bi.code.code if bi.code else None
         if old_code != new_code:
-            items.append({
-                "employee_id": it.employee_id,
-                "employee_code": emp_code,
-                "employee_name": emp_name,
-                "field": "code",
-                "old": old_code,
-                "new": new_code,
-            })
-        # times
-        for fname, old_v, new_v in [("in1", ci.in1, it.in1), ("out1", ci.out1, it.out1), ("in2", ci.in2, it.in2), ("out2", ci.out2, it.out2)]:
+            items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "code", "old": old_code, "new": new_code})
+        for fname, old_v, new_v in [("in1", ci.in1, bi.in1), ("out1", ci.out1, bi.out1), ("in2", ci.in2, bi.in2), ("out2", ci.out2, bi.out2)]:
             if _time_to_str(old_v) != _time_to_str(new_v):
-                items.append({
-                    "employee_id": it.employee_id,
-                    "employee_code": emp_code,
-                    "employee_name": emp_name,
-                    "field": fname,
-                    "old": _time_to_str(old_v),
-                    "new": _time_to_str(new_v),
-                })
-        # notes
-        if (ci.notes or "") != (it.notes or ""):
-            items.append({
-                "employee_id": it.employee_id,
-                "employee_code": emp_code,
-                "employee_name": emp_name,
-                "field": "notes",
-                "old": ci.notes or "",
-                "new": it.notes or "",
-            })
-        # include flag
-        if bool(ci.include_in_unit) != bool(it.include_in_unit):
-            items.append({
-                "employee_id": it.employee_id,
-                "employee_code": emp_code,
-                "employee_name": emp_name,
-                "field": "include_in_unit",
-                "old": bool(ci.include_in_unit),
-                "new": bool(it.include_in_unit),
-            })
+                items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": fname, "old": _time_to_str(old_v), "new": _time_to_str(new_v)})
+        if (ci.notes or "") != (bi.notes or ""):
+            items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "notes", "old": ci.notes or "", "new": bi.notes or ""})
+        if bool(ci.include_in_unit) != bool(bi.include_in_unit):
+            items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "include_in_unit", "old": bool(ci.include_in_unit), "new": bool(bi.include_in_unit)})
     return JsonResponse({"ok": True, "items": items})

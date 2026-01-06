@@ -1,0 +1,92 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}Xem công theo tháng{% endblock %}
+{% block content %}
+<h5 class="mb-3">Xem công theo tháng</h5>
+
+<form method="get" class="card card-body mb-3" id="monthlyFilterForm">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <label class="form-label">Đơn vị</label>
+      <select name="unit" class="form-select form-select-sm" id="unitSelect">
+        <option value="">— Chọn đơn vị —</option>
+        {% for u in units_qs %}
+          <option value="{{ u.id }}"{% if unit_id|stringformat:"s" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Tổ</label>
+      <select name="team" class="form-select form-select-sm" id="teamSelect">
+        <option value="">— Tất cả —</option>
+        {% for t in teams %}
+          <option value="{{ t.id }}"{% if team_id|default:'' == t.id|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Tháng</label>
+      <input type="number" name="month" value="{{ month }}" min="1" max="12" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Năm</label>
+      <input type="number" name="year" value="{{ year }}" min="2000" max="2100" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2 d-flex align-items-end gap-2">
+      <button class="btn btn-primary btn-sm">Xem</button>
+      {% if has_data %}
+        <a class="btn btn-success btn-sm"
+           href="{% url 'backoffice:attendance_monthly_export' %}?unit={{ unit_id }}&team={{ team_id }}&month={{ month }}&year={{ year }}">
+          Xuất Excel
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+{% if has_data %}
+<div class="table-responsive">
+  <table class="table table-sm table-bordered align-middle">
+    <thead>
+      <tr>
+        <th rowspan="2" style="width:6%">STT</th>
+        <th rowspan="2" style="width:24%">Họ và tên</th>
+        {% for d in days %}
+          <th class="text-center" style="width:4%">{{ d.d }}</th>
+        {% endfor %}
+      </tr>
+      <tr>
+        {% for d in days %}
+          <th class="text-center text-muted">{{ d.wd }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td class="text-center">{{ row.idx }}</td>
+          <td class="text-truncate" style="max-width:240px">{{ row.emp.full_name }}</td>
+          {% for c in row.codes %}
+            <td class="text-center">{{ c|default:"" }}</td>
+          {% endfor %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="{{ 2|add:days|length }}" class="text-muted">Không có dữ liệu.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Tự động load danh sách tổ khi chọn đơn vị: submit form để server render lại teams
+  document.getElementById('unitSelect')?.addEventListener('change', function(){
+    // Reset team về 'Tất cả' để tránh filter sai khi đổi đơn vị
+    const teamSel = document.getElementById('teamSelect');
+    if (teamSel) teamSel.value = '';
+    document.getElementById('monthlyFilterForm').submit();
+  });
+</script>
+{% endblock %}

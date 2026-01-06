@@ -11,6 +11,12 @@ try:
 except Exception:
     sync_batch_with_commit = None
 
+# NEW: cần Employee để tạo commit item khi ADD_EMPLOYEE
+try:
+    from apps.hr.models import Employee
+except Exception:
+    Employee = None
+
 User = get_user_model()
 
 
@@ -33,17 +39,18 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
     """
     Áp dụng thay đổi từ AttendanceCorrectionRequest.payload_json vào công đã chốt cùng ngày/đơn vị.
     Idempotent: nếu ACR đã APPLIED => return ngay (không áp dụng lại).
-    Sau khi áp dụng xong, đồng bộ AttendanceBatchItem theo AttendanceCommitItem.
 
     Định dạng payload_json mong đợi:
-      [{employee_id, employee_code?, field, old, new}, ...]
-    Hỗ trợ field: code, in1, out1, in2, out2, notes, include_in_unit.
+      - Field-level: [{employee_id, employee_code?, field, old, new}, ...] với field ∈ {code, in1, out1, in2, out2, notes, include_in_unit}
+      - Membership-level:
+        + {"type":"ADD_EMPLOYEE", ...}
+        + {"type":"REMOVE_EMPLOYEE","employee_id":...}  -> HARD REMOVE: xoá commit item
     """
     acr = AttendanceCorrectionRequest.objects.select_related("unit").filter(id=acr_id).first()
     if not acr:
         return {"ok": False, "error": "ACR not found"}
 
-    # Idempotent: nếu đã APPLIED thì không áp dụng lại
+    # Idempotent
     try:
         applied_status = AttendanceCorrectionRequest.Status.APPLIED
     except Exception:
@@ -59,15 +66,121 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
     applied_rows = 0
     deltas: List[Dict[str, Any]] = []
 
+    # Helper: pick default code when needed
+    def _pick_default_code():
+        code_ll = AttendanceCode.objects.filter(code="LL", is_active=True).first()
+        if code_ll:
+            return code_ll
+        return AttendanceCode.objects.filter(is_active=True).order_by("-priority", "code").first()
+
     with transaction.atomic():
         for ch in changes:
+            op_type = (ch.get("type") or "").upper()
+
+            # ADD_EMPLOYEE: tạo mới nếu chưa có; nếu có thì bật include_in_unit=True và cập nhật
+            if op_type == "ADD_EMPLOYEE":
+                emp_id = ch.get("employee_id")
+                if not emp_id:
+                    continue
+                item = AttendanceCommitItem.objects.filter(commit_id=commit.id, employee_id=emp_id).first()
+                if not item and Employee is not None:
+                    emp = Employee.objects.filter(id=emp_id).first()
+                    if not emp:
+                        continue
+                    code_val = ch.get("code")
+                    code_obj = AttendanceCode.objects.filter(code=str(code_val).strip(), is_active=True).first() if code_val else None
+                    if not code_obj:
+                        code_obj = _pick_default_code()
+                    item = AttendanceCommitItem.objects.create(
+                        commit=commit,
+                        employee=emp,
+                        code=code_obj,
+                        shift=getattr(AttendanceCommitItem.Shift, "DAY", "DAY"),
+                        in1=_parse_time_str(ch.get("in1")),
+                        out1=_parse_time_str(ch.get("out1")),
+                        in2=_parse_time_str(ch.get("in2")),
+                        out2=_parse_time_str(ch.get("out2")),
+                        notes=ch.get("notes") or "",
+                        bs_direction=getattr(AttendanceCommitItem.BSDirection, "NONE", "NONE"),
+                        bs_peer_unit=None,
+                        include_in_unit=True,
+                    )
+                    applied_rows += 1
+                    deltas.append({
+                        "employee_id": emp_id,
+                        "field": "ADD_EMPLOYEE",
+                        "old": None,
+                        "new": {
+                            "code": item.code.code if item.code else None,
+                            "in1": item.in1 and item.in1.strftime("%H:%M"),
+                            "out1": item.out1 and item.out1.strftime("%H:%M"),
+                            "in2": item.in2 and item.in2.strftime("%H:%M"),
+                            "out2": item.out2 and item.out2.strftime("%H:%M"),
+                            "include_in_unit": item.include_in_unit,
+                        },
+                    })
+                    continue
+
+                if item:
+                    prev = {
+                        "include_in_unit": bool(item.include_in_unit),
+                        "code": item.code.code if item.code else None,
+                        "in1": item.in1 and item.in1.strftime("%H:%M"),
+                        "out1": item.out1 and item.out1.strftime("%H:%M"),
+                        "in2": item.in2 and item.in2.strftime("%H:%M"),
+                        "out2": item.out2 and item.out2.strftime("%H:%M"),
+                    }
+                    item.include_in_unit = True
+                    code_val = ch.get("code")
+                    if code_val:
+                        code_obj = AttendanceCode.objects.filter(code=str(code_val).strip(), is_active=True).first()
+                        if code_obj and (not item.code or item.code_id != code_obj.id):
+                            item.code = code_obj
+                    for fname in ("in1", "out1", "in2", "out2"):
+                        if fname in ch:
+                            setattr(item, fname, _parse_time_str(ch.get(fname)))
+                    if "notes" in ch:
+                        item.notes = ch.get("notes") or ""
+                    item.save()
+                    applied_rows += 1
+                    deltas.append({"employee_id": emp_id, "field": "ADD_EMPLOYEE_UPDATE", "old": prev, "new": {
+                        "include_in_unit": item.include_in_unit,
+                        "code": item.code.code if item.code else None,
+                        "in1": item.in1 and item.in1.strftime("%H:%M"),
+                        "out1": item.out1 and item.out1.strftime("%H:%M"),
+                        "in2": item.in2 and item.in2.strftime("%H:%M"),
+                        "out2": item.out2 and item.out2.strftime("%H:%M"),
+                    }})
+                    continue
+
+            # REMOVE_EMPLOYEE: HARD REMOVE -> xoá commit item
+            if op_type == "REMOVE_EMPLOYEE":
+                emp_id = ch.get("employee_id")
+                if not emp_id:
+                    continue
+                item = AttendanceCommitItem.objects.filter(commit_id=commit.id, employee_id=emp_id).first()
+                if not item:
+                    continue
+                prev = {
+                    "include_in_unit": bool(item.include_in_unit),
+                    "code": item.code.code if item.code else None,
+                    "in1": item.in1 and item.in1.strftime("%H:%M"),
+                    "out1": item.out1 and item.out1.strftime("%H:%M"),
+                    "in2": item.in2 and item.in2.strftime("%H:%M"),
+                    "out2": item.out2 and item.out2.strftime("%H:%M"),
+                }
+                item.delete()
+                applied_rows += 1
+                deltas.append({"employee_id": emp_id, "field": "REMOVE_EMPLOYEE", "old": prev, "new": None})
+                continue
+
+            # Field-level operations
             emp_id = ch.get("employee_id")
             field = ch.get("field")
             if not emp_id or not field:
                 continue
 
             new = ch.get("new")
-            # Cho phép new là False/0, nên không loại bỏ theo new is None khi field là boolean/text
             item = AttendanceCommitItem.objects.filter(commit_id=commit.id, employee_id=emp_id).first()
             if not item:
                 continue
@@ -80,7 +193,6 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
                     continue
                 setattr(item, field, new_time)
             elif field == "code":
-                # new là mã AttendanceCode (string). Đổi mã code nếu tìm thấy.
                 if not new:
                     continue
                 new_code = AttendanceCode.objects.filter(code=str(new).strip(), is_active=True).first()
@@ -100,7 +212,6 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
                     continue
                 setattr(item, field, new_bool)
             else:
-                # Field ngoài whitelist: bỏ qua để an toàn
                 continue
 
             item.save()
@@ -108,7 +219,7 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
             deltas.append({
                 "employee_id": emp_id,
                 "field": field,
-                "old": prev if field != "code" else prev,  # prev của code là string ở trên
+                "old": prev if field != "code" else prev,
                 "new": new,
             })
 
@@ -119,15 +230,13 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
             acr.approved_hr_by = actor
         acr.save(update_fields=["status", "applied_at", "approved_hr_by"])
 
-    # Đồng bộ nháp theo công đã chốt sau khi apply (nếu service tồn tại)
+    # Đồng bộ nháp theo commit: sau khi REMOVE (xoá hẳn item), batch sẽ phản ánh đúng
     if sync_batch_with_commit:
         try:
             sync_batch_with_commit(unit_id=acr.unit_id, work_date=acr.work_date)
         except Exception:
-            # tránh làm vỡ apply nếu đồng bộ lỗi
             pass
 
-    # Audit tổng hợp
     audit_log(
         action_verb="APPLY",
         object_type="attendance_correction",

@@ -74,7 +74,10 @@
         <td>{{ it.duration_days }}</td>
         <td>{% if it.apply_flag %}Có{% else %}Không{% endif %}</td>
         <td>{% if it.apply_flag %}{{ it.to_unit.symbol }}{% else %}—{% endif %}</td>
-        <td class="text-nowrap">
+        <td class="text-nowrap d-flex gap-2">
+          {% if manage_allowed %}
+            <a href="{% url 'backoffice:temp_assignment_edit' it.id %}" class="btn btn-sm btn-outline-primary">Sửa</a>
+          {% endif %}
           {% if manage_allowed and it.status == 'ACTIVE' %}
             <a href="{% url 'backoffice:temp_assignment_cancel' it.id %}" class="btn btn-sm btn-outline-danger">Huỷ</a>
           {% endif %}

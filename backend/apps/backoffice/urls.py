@@ -20,6 +20,10 @@ from apps.backoffice import views_role_mapping
 from apps.backoffice import views_approvals_admin
 # NEW: Approvals manage (cancel, edit, override)
 from apps.backoffice import views_approvals_manage
+# NEW: Monthly attendance (view + export)
+from apps.backoffice import views_attendance_monthly
+# NEW: Roster diff/apply APIs (giữ nếu cần)
+from apps.backoffice import views_attendance_roster
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
@@ -69,6 +73,7 @@ urlpatterns = [
     # Temp assignments
     path('assignments/', views_temp_assignments.temp_assignment_list, name='temp_assignment_list'),
     path('assignments/create/', views_temp_assignments.temp_assignment_create, name='temp_assignment_create'),
+    path('assignments/<int:pk>/edit/', views_temp_assignments.temp_assignment_edit, name='temp_assignment_edit'),
     path('assignments/<int:pk>/cancel/', views_temp_assignments.temp_assignment_cancel, name='temp_assignment_cancel'),
     # Attendance Codes Catalog
     path('attendance/codes/', views_attendance_codes.attendance_code_list, name='attendance_code_list'),
@@ -77,17 +82,24 @@ urlpatterns = [
     path('attendance/codes/<int:pk>/delete/', views_attendance_codes.attendance_code_delete, name='attendance_code_delete'),
     # Global settings for attendance reconciliation
     path('attendance/settings/', views_attendance_codes.attendance_settings_view, name='attendance_settings'),
-    # Bỏ Attendance Registration (NTSK - cá nhân)
     # Batch chấm công
     path('attendance/batch/', views_attendance_batch.batch_create_or_load, name='attendance_batch_create_or_load'),
     path('attendance/batch/<int:batch_id>/save/', views_attendance_batch.batch_save, name='attendance_batch_save'),
     path('attendance/batch/<int:batch_id>/commit/', views_attendance_batch.batch_commit, name='attendance_batch_commit'),
+    path('attendance/batch/<int:batch_id>/refresh/', views_attendance_batch.batch_refresh_roster, name='attendance_batch_refresh'),
     path('attendance/committed/', views_attendance_batch.committed_view, name='attendance_committed_view'),
-    # Tạo Phiếu đề nghị sửa chấm công (cả ngày)
     path('attendance/batch/<int:batch_id>/request-correction/', views_attendance_batch.attendance_correction_request_create, name='attendance_correction_request_create'),
 
-    # NEW: Diff API
+    # Diff API (batch vs commit)
     path('attendance/batch/diff', views_attendance_diff.batch_diff_api, name='attendance_batch_diff_api'),
+
+    # Monthly attendance (view + export)
+    path('attendance/monthly/', views_attendance_monthly.monthly_view, name='attendance_monthly_view'),
+    path('attendance/monthly/export/', views_attendance_monthly.monthly_export, name='attendance_monthly_export'),
+
+    # Roster expected vs batch (diff/apply)
+    path('attendance/batch/roster/diff', views_attendance_roster.batch_roster_diff_api, name='attendance_batch_roster_diff'),
+    path('attendance/batch/roster/apply', views_attendance_roster.batch_roster_apply, name='attendance_batch_roster_apply'),
 
     # Notifications
     path('notifications/', views_notifications.notifications_list, name='notifications_list'),
@@ -109,15 +121,15 @@ urlpatterns = [
     path('approvals/admin/flows/<int:flow_id>/versions/<int:version_id>/publish/', views_approvals_admin.version_publish, name='approval_flow_version_publish'),
     path('approvals/admin/flows/<int:flow_id>/versions/<int:version_id>/delete/', views_approvals_admin.version_delete, name='approval_flow_version_delete'),
 
-    # NEW: Hành động trên bước
+    # Hành động trên bước
     path('approvals/requests/<int:request_id>/steps/<int:order_index>/action/', views_approvals.approval_step_action, name='approval_step_action'),
 
-    # NEW: Cancel request
+    # Cancel request
     path('approvals/requests/<int:request_id>/cancel/', views_approvals_manage.approval_request_cancel, name='approvals_request_cancel'),
 
     # Role Title Mapping
     path('approvals/role-mapping/', views_role_mapping.role_title_mapping_list, name='role_title_mapping_list'),
     path('approvals/role-mapping/new/', views_role_mapping.role_title_mapping_create, name='role_title_mapping_create'),
     path('approvals/role-mapping/<int:pk>/', views_role_mapping.role_title_mapping_edit, name='role_title_mapping_edit'),
-    path('approvals/role-mapping/<int:pk>/delete/', views_role_mapping.role_title_mapping_delete, name='role_title_mapping_delete'),
+    path('approvals/role-mapping/<int:pk>/delete/', views_role_mapping.role_title_mapping_delete, name='approval_role_title_mapping_delete'),
 ]

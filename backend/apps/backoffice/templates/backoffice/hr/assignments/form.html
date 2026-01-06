@@ -1,59 +1,99 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Tạo điều động{% endblock %}
+{% block title %}{% if is_edit %}Sửa điều động{% else %}Tạo điều động{% endif %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">Tạo điều động tạm thời</h2>
+<h2 class="mb-3">{% if is_edit %}Sửa điều động tạm thời{% else %}Tạo điều động tạm thời{% endif %}</h2>
 <form method="post" class="card card-body">
   {% csrf_token %}
   <div class="row g-3">
     <div class="col-md-4">
       <label class="form-label">Nhân sự</label>
-      <select name="employee_id" class="form-select form-select-sm" required>
-        <option value="">-- Chọn nhân sự --</option>
-        {% for e in employees %}
-          <option value="{{ e.id }}">{{ e.employee_code }} - {{ e.full_name }}</option>
-        {% endfor %}
-      </select>
+      {% if is_edit %}
+        <div class="form-control form-control-sm">
+          {{ obj.employee.employee_code }} - {{ obj.employee.full_name }}
+        </div>
+        <input type="hidden" name="employee_id" value="{{ obj.employee.id }}">
+      {% else %}
+        <input type="text" id="empFilter" class="form-control form-control-sm mb-2" placeholder="Lọc nhanh nhân sự (mã/tên)">
+        <select name="employee_id" id="employeeSelect" class="form-select form-select-sm" required>
+          <option value="">-- Chọn nhân sự --</option>
+          {% for e in employees %}
+            <option value="{{ e.id }}">{{ e.employee_code }} - {{ e.full_name }}</option>
+          {% endfor %}
+        </select>
+        <small class="text-muted">Gõ để lọc nhanh trong danh sách.</small>
+      {% endif %}
     </div>
     <div class="col-md-4">
       <label class="form-label">Đơn vị nhận</label>
       <select name="to_unit_id" class="form-select form-select-sm" required>
         <option value="">-- Chọn đơn vị --</option>
         {% for u in units %}
-          <option value="{{ u.id }}">{{ u.symbol }} - {{ u.name }}</option>
+          <option value="{{ u.id }}"{% if is_edit and obj.to_unit_id == u.id %} selected{% endif %}>{{ u.symbol }} - {{ u.name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="col-md-2">
       <label class="form-label">Bắt đầu</label>
-      <input type="date" name="start_date" class="form-control form-control-sm" required>
+      <input type="date" name="start_date" class="form-control form-control-sm" required
+             value="{% if is_edit and obj.start_date %}{{ obj.start_date|date:'Y-m-d' }}{% endif %}">
     </div>
     <div class="col-md-2">
       <label class="form-label">Kết thúc (tùy chọn)</label>
-      <input type="date" name="end_date" class="form-control form-control-sm">
+      <input type="date" name="end_date" class="form-control form-control-sm"
+             value="{% if is_edit and obj.end_date %}{{ obj.end_date|date:'Y-m-d' }}{% endif %}">
     </div>
     <div class="col-md-4">
       <label class="form-label">Lý do</label>
       <select name="reason_code" class="form-select form-select-sm" required>
         <option value="">-- Chọn lý do --</option>
         {% for code,label in reasons %}
-          <option value="{{ code }}">{{ label }}</option>
+          <option value="{{ code }}"{% if is_edit and obj.reason_code == code %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="col-md-4">
       <label class="form-label">Ghi chú</label>
-      <textarea name="note" rows="2" class="form-control form-control-sm"></textarea>
+      <textarea name="note" rows="2" class="form-control form-control-sm">{% if is_edit %}{{ obj.note }}{% endif %}</textarea>
     </div>
     <div class="col-md-2">
       <div class="form-check mt-4">
-        <input class="form-check-input" type="checkbox" name="apply_flag" id="apply_flag" checked>
+        <input class="form-check-input" type="checkbox" name="apply_flag" id="apply_flag"
+               {% if not is_edit or obj.apply_flag %}checked{% endif %}>
         <label class="form-check-label" for="apply_flag">Tính quân số cho đơn vị đến</label>
       </div>
     </div>
     <div class="col-12">
-      <button class="btn btn-primary btn-sm">Lưu</button>
+      <button class="btn btn-primary btn-sm">{% if is_edit %}Lưu thay đổi{% else %}Lưu{% endif %}</button>
       <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-secondary btn-sm">Hủy</a>
     </div>
   </div>
 </form>
+
+{% if not is_edit %}
+<script>
+  // Lọc nhanh danh sách nhân sự trong select
+  (function() {
+    const filterInput = document.getElementById('empFilter');
+    const select = document.getElementById('employeeSelect');
+    if (!filterInput || !select) return;
+    const allOptions = Array.from(select.options);
+
+    filterInput.addEventListener('input', function() {
+      const q = this.value.toLowerCase().trim();
+      // giữ option đầu tiên là placeholder
+      const placeholder = allOptions[0];
+      const rest = allOptions.slice(1);
+      // clear
+      select.innerHTML = '';
+      select.appendChild(placeholder);
+      for (const opt of rest) {
+        const text = (opt.text || '').toLowerCase();
+        if (!q || text.includes(q)) {
+          select.appendChild(opt);
+        }
+      }
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

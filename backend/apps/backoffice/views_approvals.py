@@ -6,6 +6,12 @@ from django.db.models import Q
 from apps.approvals.models import ApprovalRequest, ApprovalStep, ApprovalSigner, ApprovalAction
 from apps.approvals.services_runtime import approve_step, reject_step
 
+# NEW: đồng bộ trạng thái ACR sau approve/reject
+try:
+    from apps.attendance.models_batch import AttendanceCorrectionRequest as ACR
+except Exception:
+    ACR = None
+
 # NEW: lọc theo phạm vi đơn vị
 try:
     from apps.hr.models import AccessControl
@@ -80,7 +86,6 @@ def approvals_inbox(request):
 
     return render(request, "backoffice/approvals/inbox.html", {"requests": data, "scope": scope, "q": q})
 
-
 @login_required
 def approvals_my_requests(request):
     status = request.GET.get("status", "").strip()
@@ -98,7 +103,6 @@ def approvals_my_requests(request):
     requests_list = list(qs[:500])
 
     return render(request, "backoffice/approvals/my_requests.html", {"requests": requests_list, "status": status, "q": q})
-
 
 @login_required
 def approval_request_detail(request, request_id: int):
@@ -154,6 +158,39 @@ def approval_request_detail(request, request_id: int):
         "content_html": content_html,
     })
 
+def _sync_acr_status_for_request(req: ApprovalRequest):
+    """
+    Đồng bộ trạng thái ACR theo trạng thái ApprovalRequest.
+    - REJECTED -> ACR.Status.REJECTED
+    - APPROVED -> ACR.Status.APPROVED_BY_HR
+    - CANCELLED -> ACR.Status.CANCELLED
+    Lưu ý: chỉ áp dụng cho object_type="attendance_correction".
+    """
+    if not ACR:
+        return
+    if req.object_type != "attendance_correction":
+        return
+    try:
+        acr_id = int(req.object_id)
+    except Exception:
+        return
+    acr = ACR.objects.filter(id=acr_id).first()
+    if not acr:
+        return
+    try:
+        if req.status == ApprovalRequest.Status.REJECTED:
+            acr.status = getattr(ACR.Status, "REJECTED", "REJECTED")
+            acr.save(update_fields=["status"])
+        elif req.status == ApprovalRequest.Status.APPROVED:
+            # Khi toàn bộ luồng đã APPROVED -> coi như đã duyệt xong bởi HR
+            acr.status = getattr(ACR.Status, "APPROVED_BY_HR", "APPROVED_BY_HR")
+            acr.save(update_fields=["status"])
+        elif req.status == ApprovalRequest.Status.CANCELLED:
+            acr.status = getattr(ACR.Status, "CANCELLED", "CANCELLED")
+            acr.save(update_fields=["status"])
+    except Exception:
+        # tránh crash UI nếu đồng bộ thất bại
+        pass
 
 @login_required
 def approval_step_action(request, request_id: int, order_index: int):
@@ -182,12 +219,18 @@ def approval_step_action(request, request_id: int, order_index: int):
 
     if action == "APPROVE":
         approve_step(step, signer, request.user, comment=comment or "")
+        # Sau approve, trạng thái req có thể thay đổi (hoàn tất hoặc chuyển bước)
+        req.refresh_from_db(fields=["status"])
+        _sync_acr_status_for_request(req)
         messages.success(request, _("Đã phê duyệt bước thành công."))
     elif action == "REJECT":
         if not comment:
             messages.error(request, _("Vui lòng nhập lý do từ chối."))
             return redirect("backoffice:approvals_request_detail", request_id=req.id)
         reject_step(step, signer, request.user, reason=comment)
+        # Sau reject, req.status phải là REJECTED -> đồng bộ ACR
+        req.refresh_from_db(fields=["status"])
+        _sync_acr_status_for_request(req)
         messages.success(request, _("Đã từ chối bước."))
     else:
         messages.error(request, _("Hành động không hợp lệ."))

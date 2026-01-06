@@ -62,9 +62,35 @@
 
 {% if bs_in_list %}
   <div class="alert alert-info">
-    Người bổ sung đến (BS IN): {{ bs_in_list|join:", " }}
+    Người bổ sung đến (BS IN) theo ngày {{ work_date }}: {{ bs_in_list|join:", " }}
   </div>
 {% endif %}
+
+{% if roster_has_diff %}
+  <div class="alert alert-warning d-flex justify-content-between align-items-center">
+    <div>Danh sách nháp <strong>khác</strong> với danh sách theo ngày {{ work_date }}.</div>
+    <form method="post" action="{% url 'backoffice:attendance_batch_refresh' batch.id %}">
+      {% csrf_token %}
+      <button class="btn btn-primary btn-sm" type="submit" {% if not roster_can_refresh %}disabled{% endif %}>
+        Cập nhật danh sách
+      </button>
+    </form>
+  </div>
+{% else %}
+  <div class="alert alert-success">Danh sách nháp <strong>trùng</strong> với danh sách theo ngày {{ work_date }}.</div>
+{% endif %}
+
+{% if pending_locked %}
+  <div class="alert alert-warning">
+    Đang có Phiếu đề nghị sửa chấm công <strong>chờ duyệt</strong> cho ngày {{ work_date }} ({{ pending_acr_count }} phiếu).
+    Danh sách nháp tạm <strong>bị khóa</strong>: không thể Lưu nháp hay Cập nhật danh sách cho tới khi phiếu được xử lý.
+  </div>
+{% endif %}
+
+<!-- Truyền trạng thái/giá trị sang JS an toàn -->
+<input type="hidden" id="pendingLockedVal" value="{{ pending_locked|yesno:'true,false' }}">
+<input type="hidden" id="currentUnitId" value="{{ unit_id }}">
+<input type="hidden" id="currentWorkDate" value="{{ work_date }}">
 
 <div class="card card-body mb-3">
   <div class="row g-2 align-items-end">
@@ -107,7 +133,7 @@
       </div>
     </div>
     <div class="col-md-2 d-flex">
-      <button type="button" class="btn btn-warning btn-sm ms-auto" id="btnBulkApply">Áp dụng hàng loạt</button>
+      <button type="button" class="btn btn-warning btn-sm ms-auto" id="btnBulkApply" {% if not can_save %}disabled{% endif %}>Áp dụng hàng loạt</button>
     </div>
   </div>
 </div>
@@ -163,6 +189,8 @@
                     data-def-in2="{% if c.default_in2 %}{{ c.default_in2|time:'H:i' }}{% endif %}"
                     data-def-out2="{% if c.default_out2 %}{{ c.default_out2|time:'H:i' }}{% endif %}"
                   >{{ c.code }} - {{ c.label_vi }}</option>
+                {% empty %}
+                  <option value="" disabled>— Chưa có mã chế độ —</option>
                 {% endfor %}
               </select>
             </td>
@@ -238,7 +266,7 @@
           {% endif %}
         {% endwith %}
 
-        <button class="btn btn-primary btn-sm" id="btnSave">Lưu nháp</button>
+        <button class="btn btn-primary btn-sm" id="btnSave" {% if not can_save %}disabled{% endif %}>Lưu nháp</button>
         {% if not has_committed and can_commit %}
           <a class="btn btn-success btn-sm" href="{% url 'backoffice:attendance_batch_commit' batch.id %}">Chốt danh sách</a>
         {% endif %}
@@ -274,7 +302,7 @@
         {% for f in flows %}
           <option value="{{ f.flow_key }}">{{ f.name }} ({{ f.flow_key }})</option>
         {% empty %}
-          {# Không có luồng phù hợp theo đơn vị #}
+          <option value="" disabled>— Chưa có luồng phù hợp theo đơn vị —</option>
         {% endfor %}
       </select>
 
@@ -284,12 +312,6 @@
         Đề nghị sửa chấm công
       </button>
     </form>
-    {% if flows|length == 0 %}
-      <div class="text-muted small">
-        Chưa có luồng phù hợp. Vui lòng cấu hình tại mục
-        <a href="{% url 'backoffice:approval_flow_list' %}">Quản trị luồng phê duyệt</a>.
-      </div>
-    {% endif %}
   </div>
 </div>
 
@@ -319,7 +341,21 @@
 
 {% block extra_js %}
 <script>
-  // Lấy meta mã từ option (tránh lỗi khi render object JS qua template)
+  // Khóa toàn bộ input khi pending_locked=true (đọc từ hidden input)
+  (function () {
+    const lockedEl = document.getElementById('pendingLockedVal');
+    const locked = lockedEl && lockedEl.value === 'true';
+    if (locked) {
+      const listForm = document.getElementById('listForm');
+      if (listForm) {
+        listForm.querySelectorAll('input, select, textarea, button').forEach(el => {
+          if (el.id === 'btnViewDiff') return; // vẫn cho xem diff
+          el.disabled = true;
+        });
+      }
+    }
+  })();
+
   function getCodeMetaFromOption(opt) {
     if (!opt) return null;
     return {
@@ -350,70 +386,45 @@
       [in1,out1,in2,out2].forEach(el => { if (el) el.disabled = false; });
       return;
     }
-
     if (!meta.is_work) {
       [in1,out1,in2,out2].forEach(el => { if (!el) return; el.disabled = true; el.value = ''; });
       return;
     }
-
-    // AM
     if (in1) {
       in1.disabled = !meta.req_am;
       if (meta.req_am) {
-        if (forceDefaults) {
-          in1.value = meta.def_in1 || '';
-        } else if (!in1.value) {
-          in1.value = meta.def_in1 || '';
-        }
-      } else {
-        in1.value = '';
-      }
+        if (forceDefaults) { in1.value = meta.def_in1 || ''; }
+        else if (!in1.value) { in1.value = meta.def_in1 || ''; }
+      } else { in1.value = ''; }
     }
     if (out1) {
       out1.disabled = !meta.req_am;
       if (meta.req_am) {
-        if (forceDefaults) {
-          out1.value = meta.def_out1 || '';
-        } else if (!out1.value) {
-          out1.value = meta.def_out1 || '';
-        }
-      } else {
-        out1.value = '';
-      }
+        if (forceDefaults) { out1.value = meta.def_out1 || ''; }
+        else if (!out1.value) { out1.value = meta.def_out1 || ''; }
+      } else { out1.value = ''; }
     }
-
-    // PM
     if (in2) {
       in2.disabled = !meta.req_pm;
       if (meta.req_pm) {
-        if (forceDefaults) {
-          in2.value = meta.def_in2 || '';
-        } else if (!in2.value) {
-          in2.value = meta.def_in2 || '';
-        }
-      } else {
-        in2.value = '';
-      }
+        if (forceDefaults) { in2.value = meta.def_in2 || ''; }
+        else if (!in2.value) { in2.value = meta.def_in2 || ''; }
+      } else { in2.value = ''; }
     }
     if (out2) {
       out2.disabled = !meta.req_pm;
       if (meta.req_pm) {
-        if (forceDefaults) {
-          out2.value = meta.def_out2 || '';
-        } else if (!out2.value) {
-          out2.value = meta.def_out2 || '';
-        }
-      } else {
-        out2.value = '';
-      }
+        if (forceDefaults) { out2.value = meta.def_out2 || ''; }
+        else if (!out2.value) { out2.value = meta.def_out2 || ''; }
+      } else { out2.value = ''; }
     }
   }
 
+  // Áp hành vi mã theo từng dòng
   document.querySelectorAll('.row-code').forEach(function(sel) {
     const rowId = sel.dataset.row;
     const codeId = sel.value;
     applyCodeBehaviorToRow(rowId, codeId, false);
-
     sel.addEventListener('change', function() {
       const rId = this.dataset.row;
       const cId = this.value;
@@ -422,6 +433,7 @@
     });
   });
 
+  // Áp dụng hàng loạt
   const btnBulkApply = document.getElementById('btnBulkApply');
   if (btnBulkApply) {
     btnBulkApply.addEventListener('click', function() {
@@ -433,12 +445,10 @@
 
       document.querySelectorAll('.row-code').forEach(function(sel) {
         const rowId = sel.dataset.row;
-
         if (bulkCode) {
           sel.value = bulkCode;
           applyCodeBehaviorToRow(rowId, bulkCode, true);
         }
-
         const in1  = document.querySelector('.row-in1[data-row="' + rowId + '"]');
         const out1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
         const in2  = document.querySelector('.row-in2[data-row="' + rowId + '"]');
@@ -449,26 +459,27 @@
         if (bIn2  && in2  && !in2.disabled)  in2.value  = bIn2;
         if (bOut2 && out2 && !out2.disabled) out2.value = bOut2;
       });
-
       window.unsavedChanges = true;
     });
   }
 
-  document.querySelectorAll('input[type="time"], select').forEach(function(el) {
+  // Đánh dấu có thay đổi
+  document.querySelectorAll('input[type="time"], select, input[type="text"]').forEach(function(el) {
     el.addEventListener('change', function() { window.unsavedChanges = true; });
   });
 
+  // Cảnh báo khi chuyển trang nếu chưa lưu
   document.querySelectorAll('a.nav-link').forEach(function(link) {
     link.addEventListener('click', function(e) {
-      if (window.unsavedChanges) {
+      const ignore = (link.getAttribute('data-ignore-unsaved') === 'true');
+      if (!ignore && window.unsavedChanges) {
         const ok = confirm('Bạn có thay đổi chưa lưu. Tiếp tục chuyển trang sẽ mất thay đổi trên trang này. Bạn có muốn tiếp tục?');
-        if (!ok) {
-          e.preventDefault();
-        }
+        if (!ok) { e.preventDefault(); }
       }
     });
   });
 
+  // Nút lưu
   const btnSave = document.getElementById('btnSave');
   if (btnSave) {
     btnSave.addEventListener('click', function() {
@@ -476,6 +487,7 @@
     });
   }
 
+  // Diff Batch vs Commit
   (function(){
     const btnViewDiff = document.getElementById('btnViewDiff');
     const diffContainer = document.getElementById('diffContainer');
@@ -483,15 +495,13 @@
 
     if (btnViewDiff) {
       btnViewDiff.addEventListener('click', async function() {
-        const unit = "{{ unit_id }}";
-        const workDate = "{{ work_date }}";
+        const unit = document.getElementById('currentUnitId')?.value || '';
+        const workDate = document.getElementById('currentWorkDate')?.value || '';
         if (!unit || !workDate) return;
-
         try {
           diffContainer.innerHTML = '<div class="text-muted">Đang tải khác biệt…</div>';
           const resp = await fetch(`/backoffice/attendance/batch/diff?date=${encodeURIComponent(workDate)}&unit=${encodeURIComponent(unit)}`);
           const data = await resp.json();
-
           if (!data.ok) {
             diffContainer.innerHTML = `<div class="alert alert-warning">Không thể tính khác biệt: ${data.error || 'Lỗi không xác định'}.</div>`;
           } else if ((data.items || []).length === 0) {
@@ -519,8 +529,6 @@
             html += '</tbody></table>';
             diffContainer.innerHTML = html;
           }
-
-          // open modal
           const bsModal = new bootstrap.Modal(diffModalEl);
           bsModal.show();
         } catch (e) {
