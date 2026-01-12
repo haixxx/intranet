@@ -1,0 +1,12 @@
+{% extends "backoffice/base.html" %}
+{% block content %}
+<h5 class="mb-3">Xóa thiết bị</h5>
+<div class="alert alert-warning">
+  Bạn có chắc chắn muốn xóa thiết bị <strong>{{ obj.name }}</strong> ({{ obj.host }}:{{ obj.port }})?
+</div>
+<form method="post" class="d-flex gap-2">
+  {% csrf_token %}
+  <button class="btn btn-danger btn-sm" type="submit">Xóa</button>
+  <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:backoffice_device_list' %}">Hủy</a>
+</form>
+{% endblock %}

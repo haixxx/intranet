@@ -95,16 +95,8 @@
                     <i class="ti ti-arrows-left-right me-2"></i> {% trans "Điều động tạm thời" %}</a>
                   {% endif %}
 
-                  {% if perms.attendance.view_attendancecode or perms.attendance.change_attendancesettings or perms.attendance.view_attendancebatch or perms.attendance.view_attendancecommit %}
+                  {% if perms.attendance.view_attendancebatch or perms.attendance.view_attendancecommit %}
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Chấm công" %}</div>
-                  {% if perms.attendance.view_attendancecode %}
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_code_list' or request.resolver_match.url_name == 'attendance_code_create' or request.resolver_match.url_name == 'attendance_code_edit' or request.resolver_match.url_name == 'attendance_code_delete' %}active{% endif %}"
-                     href="{% url 'backoffice:attendance_code_list' %}">
-                    <i class="ti ti-badge me-2"></i> {% trans "Mã chế độ" %}</a>
-                  {% endif %}
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_settings' %}active{% endif %}"
-                     href="{% url 'backoffice:attendance_settings' %}">
-                    <i class="ti ti-adjustments-alt me-2"></i> {% trans "Cấu hình đối chiếu" %}</a>
                   {% if perms.attendance.view_attendancebatch %}
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_batch_create_or_load' %}active{% endif %}"
                      href="{% url 'backoffice:attendance_batch_create_or_load' %}">
@@ -117,7 +109,53 @@
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_monthly_view' %}active{% endif %}"
                      href="{% url 'backoffice:attendance_monthly_view' %}">
                     <i class="ti ti-calendar-stats me-2"></i> {% trans "Xem công theo tháng" %}</a>
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'compare_committed_day' %}active{% endif %}"
+                     href="{% url 'attendance_devices:compare_committed_day' %}">
+                    <i class="ti ti-compare me-2"></i> So sánh giờ máy vs công đã chốt
+                  </a>
                   {% endif %}
+                  {% endif %}
+
+                  {# Thiết bị chấm công + Điều chỉnh/Import mốc ngày #}
+                  {% if perms.attendance_devices.view_attendancedevice or perms.attendance_devices.add_attendancemanualadjustment or perms.attendance_devices.add_attendanceimportbatch %}
+                  <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Thiết bị chấm công" %}</div>
+                  {% if perms.attendance_devices.view_attendancedevice %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices' and request.resolver_match.url_name == 'backoffice_device_list' %}active{% endif %}"
+                     href="{% url 'attendance_devices:backoffice_device_list' %}">
+                    <i class="ti ti-devices me-2"></i> {% trans "Thiết bị chấm công" %}
+                  </a>
+                  {% endif %}
+                  {% if perms.attendance_devices.add_attendancemanualadjustment %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'day_adjust_bulk' %}active{% endif %}"
+                     href="{% url 'attendance_devices:day_adjust_bulk' %}">
+                    <i class="ti ti-adjustments-alt me-2"></i> Điều chỉnh mốc ngày (nhiều nhân sự)
+                  </a>
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'day_adjust_select' %}active{% endif %}"
+                     href="{% url 'attendance_devices:day_adjust_select' %}">
+                    <i class="ti ti-edit-circle me-2"></i> Điều chỉnh mốc ngày (theo nhân sự)
+                  </a>
+                  {% endif %}
+                  {% if perms.attendance_devices.add_attendanceimportbatch %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'dayfacts_import' %}active{% endif %}"
+                     href="{% url 'attendance_devices:dayfacts_import' %}">
+                    <i class="ti ti-file-import me-2"></i> Import mốc ngày (CSV/XLSX)
+                  </a>
+                  {% endif %}
+                  {% endif %}
+
+                  {# Cấu hình hệ thống: di chuyển Mã chế độ + Cấu hình đối chiếu xuống đây #}
+                  {% if perms.attendance.view_attendancecode or perms.attendance.change_attendancesettings %}
+                  <div class="text-uppercase text-muted small mt-3 mb-1">Cấu hình hệ thống</div>
+                  {% if perms.attendance.view_attendancecode %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name in 'attendance_code_list attendance_code_create attendance_code_edit attendance_code_delete' %}active{% endif %}"
+                     href="{% url 'backoffice:attendance_code_list' %}">
+                    <i class="ti ti-badge me-2"></i> {% trans "Mã chế độ" %}
+                  </a>
+                  {% endif %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_settings' %}active{% endif %}"
+                     href="{% url 'backoffice:attendance_settings' %}">
+                    <i class="ti ti-adjustments-alt me-2"></i> {% trans "Cấu hình đối chiếu" %}
+                  </a>
                   {% endif %}
 
                   <!-- Phê duyệt -->

@@ -1,0 +1,64 @@
+{% extends "backoffice/base.html" %}
+{% block content %}
+<h4 class="mb-3">Ingest logs: {{ device.name }} ({{ device.host }}:{{ device.port }})</h4>
+
+<div class="table-responsive">
+  <table class="table table-sm table-striped align-middle">
+    <thead>
+      <tr>
+        <th>Bắt đầu</th>
+        <th>Kết thúc</th>
+        <th>Processed</th>
+        <th>Duplicates</th>
+        <th>Rejected</th>
+        <th>Success</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.started_at }}</td>
+        <td>{{ it.finished_at|default:"—" }}</td>
+        <td>{{ it.count }}</td>
+        <td>{{ it.duplicates }}</td>
+        <td>{{ it.rejected }}</td>
+        <td>
+          {% if it.success %}<span class="badge bg-success">OK</span>
+          {% else %}<span class="badge bg-danger">FAIL</span>{% endif %}
+        </td>
+        <td class="text-truncate" style="max-width: 320px;">{{ it.error_message|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="text-muted">Chưa có log.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page_obj and paginator %}
+<nav>
+  <ul class="pagination pagination-sm">
+    {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page=1">&laquo;</a></li>
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Trước</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+      <li class="page-item disabled"><span class="page-link">Trước</span></li>
+    {% endif %}
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+    {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Sau</a></li>
+      <li class="page-item"><a class="page-link" href="?page={{ paginator.num_pages }}">&raquo;</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Sau</span></li>
+      <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+<div class="mt-3">
+  <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:backoffice_device_list' %}">Quay lại danh sách</a>
+</div>
+{% endblock %}

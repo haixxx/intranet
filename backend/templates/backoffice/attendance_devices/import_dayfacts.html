@@ -1,0 +1,80 @@
+{% extends "backoffice/base.html" %}
+{% block content %}
+<h4 class="mb-3">Import mốc ngày (CSV/XLSX)</h4>
+
+<form method="post" enctype="multipart/form-data" class="card card-body mb-3">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Tệp CSV/XLSX</label>
+      {{ form.file }}
+      <div class="form-text">Cột: employee_code, work_date(YYYY-MM-DD), in1, out1, in2, out2, note</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Chế độ</label>
+      {{ form.mode }}
+      <div class="form-text">
+        - Chỉ bù mốc thiếu (khuyến nghị)<br>
+        - Ghi đè rõ ràng (yêu cầu lý do)
+      </div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Lý do</label>
+      {{ form.reason_code }}
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Ghi chú</label>
+      {{ form.note }}
+    </div>
+  </div>
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary btn-sm" type="submit">Xem trước</button>
+    <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:backoffice_device_list' %}">Về thiết bị</a>
+  </div>
+</form>
+
+{% if preview_rows %}
+<div class="card">
+  <div class="card-header py-2"><strong>Xem trước</strong></div>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle mb-0">
+      <thead>
+        <tr>
+          <th>employee_code</th>
+          <th>work_date</th>
+          <th>in1</th>
+          <th>out1</th>
+          <th>in2</th>
+          <th>out2</th>
+          <th>note</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in preview_rows %}
+        <tr>
+          <td>{{ r.employee_code }}</td>
+          <td>{{ r.work_date }}</td>
+          <td>{{ r.in1|default:"" }}</td>
+          <td>{{ r.out1|default:"" }}</td>
+          <td>{{ r.in2|default:"" }}</td>
+          <td>{{ r.out2|default:"" }}</td>
+          <td>{{ r.note|default:"" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="apply" value="1">
+      <button class="btn btn-primary btn-sm" type="submit">Áp dụng import</button>
+      <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:dayfacts_import' %}">Tải lại tệp khác</a>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

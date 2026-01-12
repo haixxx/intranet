@@ -1,0 +1,150 @@
+{% extends "backoffice/base.html" %}
+{% block extra_head %}
+<style>
+  .chip { display:inline-block; padding:2px 6px; border-radius:4px; font-weight:500; }
+  .chip-red { background:#fde2e4; color:#8a1c1c; }   /* đỏ nhạt */
+  .chip-green { background:#e7f6e7; color:#0f5132; } /* xanh nhạt */
+</style>
+{% endblock %}
+{% block content %}
+<h4 class="mb-3">So sánh giờ máy vs công đã chốt</h4>
+
+<form method="get" class="card card-body mb-3">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <label class="form-label">Ngày</label>
+      <input type="date" name="date" value="{{ work_date }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Đơn vị</label>
+      <select name="unit" class="form-select form-select-sm">
+        {% for u in units_qs %}
+          <option value="{{ u.id }}"{% if unit_id|stringformat:"s" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3 d-flex align-items-end gap-2">
+      <button class="btn btn-primary btn-sm">Xem</button>
+      <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:day_adjust_bulk' %}">Điều chỉnh mốc (bulk)</a>
+    </div>
+  </div>
+  <div class="row g-2 mt-2">
+    <div class="col-md-3">
+      <label class="form-label">Lọc nhanh (Mã/Tên)</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="NV mã/tên">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Tổ</label>
+      <select name="team" class="form-select form-select-sm">
+        <option value="">— Tất cả —</option>
+        {% for t in teams %}
+          <option value="{{ t.id }}"{% if team_id|default:'' == t.id|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Ngưỡng phút</label>
+      <input type="number" name="threshold" value="{{ threshold_min }}" class="form-control form-control-sm" min="0" step="1">
+      <div class="form-text">Ví dụ 5 hoặc 10 phút.</div>
+    </div>
+    <div class="col-md-4 d-flex align-items-end gap-2">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="only_late" value="1" id="onlyLate" {% if only_late %}checked{% endif %}>
+        <label class="form-check-label" for="onlyLate">Chỉ đi muộn</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="only_early" value="1" id="onlyEarly" {% if only_early %}checked{% endif %}>
+        <label class="form-check-label" for="onlyEarly">Chỉ ra sớm</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="only_missing" value="1" id="onlyMissing" {% if only_missing %}checked{% endif %}>
+        <label class="form-check-label" for="onlyMissing">Chỉ thiếu mốc</label>
+      </div>
+      <select name="sort" class="form-select form-select-sm" style="width: 220px;">
+        <option value="severity_desc"{% if sort_by == 'severity_desc' %} selected{% endif %}>Sắp xếp: Mức độ sai lệch giảm dần</option>
+        <option value="am_late_desc"{% if sort_by == 'am_late_desc' %} selected{% endif %}>Muộn sáng giảm dần</option>
+        <option value="am_early_desc"{% if sort_by == 'am_early_desc' %} selected{% endif %}>Ra sớm trưa giảm dần</option>
+        <option value="pm_late_desc"{% if sort_by == 'pm_late_desc' %} selected{% endif %}>Muộn chiều giảm dần</option>
+        <option value="pm_early_desc"{% if sort_by == 'pm_early_desc' %} selected{% endif %}>Ra sớm chiều giảm dần</option>
+        <option value="name_asc"{% if sort_by == 'name_asc' %} selected{% endif %}>Tên A→Z</option>
+        <option value="team_asc"{% if sort_by == 'team_asc' %} selected{% endif %}>Tổ A→Z</option>
+        <option value="code_asc"{% if sort_by == 'code_asc' %} selected{% endif %}>Mã chế độ A→Z</option>
+      </select>
+      <button class="btn btn-outline-secondary btn-sm" type="submit">Áp lọc</button>
+    </div>
+  </div>
+</form>
+
+{% if items %}
+<div class="table-responsive">
+  <table class="table table-sm table-striped align-middle">
+    <thead>
+      <tr>
+        <th style="width:10%">Mã NV</th>
+        <th style="width:18%">Họ tên</th>
+        <th style="width:12%">Tổ</th>
+        <th style="width:10%">Mã chế độ</th>
+        <th style="width:20%">Công đã chốt</th>
+        <th style="width:20%">Giờ máy (effective)</th>
+        <th style="width:10%">Sai lệch (phút)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in items %}
+      <tr class="{% if r.missing_am_in_out or r.missing_pm_in_out %}table-warning{% endif %}">
+        <td>{{ r.employee_code }}</td>
+        <td class="text-truncate" style="max-width: 220px;">{{ r.employee_name }}</td>
+        <td>{{ r.team_name|default:"—" }}</td>
+        <td>{{ r.code }}</td>
+        <td>
+          IN1: <strong>{{ r.committed_in1|default:"—" }}</strong>,
+          OUT1: <strong>{{ r.committed_out1|default:"—" }}</strong><br>
+          IN2: <strong>{{ r.committed_in2|default:"—" }}</strong>,
+          OUT2: <strong>{{ r.committed_out2|default:"—" }}</strong>
+        </td>
+        <td>
+          {# AM #}
+          IN1:
+          {% if r.am_late_min > 0 %}
+            <span class="chip chip-red">{{ r.eff_in1|default:"—" }}</span>
+          {% else %}
+            <span class="chip chip-green">{{ r.eff_in1|default:"—" }}</span>
+          {% endif %}
+          ,
+          OUT1:
+          {% if r.am_early_min > 0 %}
+            <span class="chip chip-red">{{ r.eff_out1|default:"—" }}</span>
+          {% else %}
+            <span class="chip chip-green">{{ r.eff_out1|default:"—" }}</span>
+          {% endif %}
+          <br>
+          {# PM #}
+          IN2:
+          {% if r.pm_late_min > 0 %}
+            <span class="chip chip-red">{{ r.eff_in2|default:"—" }}</span>
+          {% else %}
+            <span class="chip chip-green">{{ r.eff_in2|default:"—" }}</span>
+          {% endif %}
+          ,
+          OUT2:
+          {% if r.pm_early_min > 0 %}
+            <span class="chip chip-red">{{ r.eff_out2|default:"—" }}</span>
+          {% else %}
+            <span class="chip chip-green">{{ r.eff_out2|default:"—" }}</span>
+          {% endif %}
+        </td>
+        <td>
+          AM.muộn: <strong class="text-danger">{{ r.am_late_min }}</strong><br>
+          AM.ra sớm: <strong class="text-danger">{{ r.am_early_min }}</strong><br>
+          PM.muộn: <strong class="text-danger">{{ r.pm_late_min }}</strong><br>
+          PM.ra sớm: <strong class="text-danger">{{ r.pm_early_min }}</strong>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-info">Không có dữ liệu hoặc chưa áp bộ lọc.</div>
+{% endif %}
+{% endblock %}

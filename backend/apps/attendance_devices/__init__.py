@@ -1,0 +1,1 @@
+default_app_config = "apps.attendance_devices.apps.AttendanceDevicesConfig"

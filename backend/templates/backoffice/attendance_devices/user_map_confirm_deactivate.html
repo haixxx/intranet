@@ -1,0 +1,12 @@
+{% extends "backoffice/base.html" %}
+{% block content %}
+<h5 class="mb-3">Vô hiệu hóa mapping</h5>
+<div class="alert alert-warning">
+  Vô hiệu hóa mapping UID <strong>{{ obj.device_user_id }}</strong> → <strong>{{ obj.employee.full_name }}</strong> ({{ obj.employee.employee_code }})?
+</div>
+<form method="post" class="d-flex gap-2">
+  {% csrf_token %}
+  <button class="btn btn-danger btn-sm" type="submit">Vô hiệu hóa</button>
+  <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:user_map_list' device.id %}">Hủy</a>
+</form>
+{% endblock %}

@@ -1,0 +1,253 @@
+{% extends "backoffice/base.html" %}
+{% block content %}
+<h4 class="mb-3">Điều chỉnh mốc ngày (nhiều nhân sự)</h4>
+
+<form method="get" class="card card-body mb-3">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <label class="form-label">Ngày</label>
+      <input type="date" name="date" value="{{ work_date }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Đơn vị</label>
+      <select name="unit" class="form-select form-select-sm">
+        {% for u in units_qs %}
+          <option value="{{ u.id }}"{% if unit_id|stringformat:"s" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.name }}</option>
+        {% empty %}
+          <option value="">— Chưa có đơn vị —</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3 d-flex align-items-end gap-2">
+      <button class="btn btn-primary btn-sm">Xem</button>
+      <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:day_adjust_select' %}">Điều chỉnh theo từng nhân sự</a>
+      <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:dayfacts_import' %}">Import CSV/XLSX</a>
+    </div>
+  </div>
+  <div class="row g-2 mt-2">
+    <div class="col-md-3">
+      <label class="form-label">Lọc nhanh (Mã/Tên)</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="NV mã/tên">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Tổ</label>
+      <select name="team" class="form-select form-select-sm">
+        <option value="">— Tất cả —</option>
+        {% for t in teams %}
+          <option value="{{ t.id }}"{% if team_id|default:'' == t.id|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</form>
+
+{% if work_date and unit_id %}
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <input type="hidden" name="date" value="{{ work_date }}">
+  <input type="hidden" name="unit" value="{{ unit_id }}">
+  <input type="hidden" name="q" value="{{ q }}">
+  <input type="hidden" name="team" value="{{ team_id }}">
+
+  <!-- Áp dụng hàng loạt -->
+  <div class="card mb-3">
+    <div class="card-header py-2"><strong>Áp dụng hàng loạt</strong></div>
+    <div class="card-body">
+      <div class="row g-2">
+        <div class="col-md-6">
+          <div class="row g-2">
+            <div class="col-3">
+              <label class="form-label mb-1">IN1</label>
+              <input type="time" class="form-control form-control-sm" id="bulkIn1" step="60">
+            </div>
+            <div class="col-3">
+              <label class="form-label mb-1">OUT1</label>
+              <input type="time" class="form-control form-control-sm" id="bulkOut1" step="60">
+            </div>
+            <div class="col-3">
+              <label class="form-label mb-1">IN2</label>
+              <input type="time" class="form-control form-control-sm" id="bulkIn2" step="60">
+            </div>
+            <div class="col-3">
+              <label class="form-label mb-1">OUT2</label>
+              <input type="time" class="form-control form-control-sm" id="bulkOut2" step="60">
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label mb-1">Lý do</label>
+              <select id="bulkReason" class="form-select form-select-sm">
+                <option value="">— Lý do —</option>
+                <option value="POWER_OUTAGE">Mất điện</option>
+                <option value="NETWORK_ISSUE">Sự cố mạng</option>
+                <option value="MACHINE_ERROR">Lỗi máy chấm công</option>
+                <option value="FORGOT_CHECK">Quên chấm công</option>
+                <option value="WRONG_CHECK">Chấm nhầm</option>
+                <option value="CARD_REISSUED">Đổi/cấp lại thẻ</option>
+                <option value="BUSINESS_TRIP">Công tác ngoài</option>
+                <option value="TRAINING_OFFSITE">Đào tạo ngoài</option>
+                <option value="OTHER">Khác</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-1">Ghi chú</label>
+              <input type="text" id="bulkNote" class="form-control form-control-sm" placeholder="Ghi chú (tuỳ chọn)">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-3 mt-2">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="bulkFillOnlyEmpty" checked>
+          <label class="form-check-label" for="bulkFillOnlyEmpty">Chỉ bù ô trống</label>
+        </div>
+        <button type="button" class="btn btn-warning btn-sm" id="btnBulkApply">Áp dụng hàng loạt</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle">
+      <thead>
+        <tr>
+          <th style="width:8%">Mã NV</th>
+          <th style="width:14%">Họ tên</th>
+          <th style="width:10%">Tổ</th>
+          <th style="width:20%">Mốc từ máy</th>
+          <th style="width:20%">Mốc hiệu lực + nguồn</th>
+          <th style="width:28%">Chỉnh mốc (nhập HH:MM)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+          <tr>
+            <td>{{ it.emp.employee_code }}</td>
+            <td class="text-truncate" style="max-width: 200px">{{ it.emp.full_name }}</td>
+            <td>{% if it.emp.team %}{{ it.emp.team.name }}{% else %}—{% endif %}</td>
+            <td>
+              IN1: <strong>{{ it.in1|default:"—" }}</strong>,
+              OUT1: <strong>{{ it.out1|default:"—" }}</strong>,
+              IN2: <strong>{{ it.in2|default:"—" }}</strong>,
+              OUT2: <strong>{{ it.out2|default:"—" }}</strong>
+            </td>
+            <td>
+              IN1: <strong>{{ it.eff_in1|default:"—" }}</strong> <span class="badge bg-secondary">{{ it.src_in1|default:"" }}</span><br>
+              OUT1: <strong>{{ it.eff_out1|default:"—" }}</strong> <span class="badge bg-secondary">{{ it.src_out1|default:"" }}</span><br>
+              IN2: <strong>{{ it.eff_in2|default:"—" }}</strong> <span class="badge bg-secondary">{{ it.src_in2|default:"" }}</span><br>
+              OUT2: <strong>{{ it.eff_out2|default:"—" }}</strong> <span class="badge bg-secondary">{{ it.src_out2|default:"" }}</span>
+            </td>
+            <td>
+              <div class="row g-1">
+                <div class="col-3">
+                  <input type="time" name="in1_{{ it.emp.id }}" class="form-control form-control-sm row-in1" data-emp="{{ it.emp.id }}" step="60" placeholder="IN1">
+                </div>
+                <div class="col-3">
+                  <input type="time" name="out1_{{ it.emp.id }}" class="form-control form-control-sm row-out1" data-emp="{{ it.emp.id }}" step="60" placeholder="OUT1">
+                </div>
+                <div class="col-3">
+                  <input type="time" name="in2_{{ it.emp.id }}" class="form-control form-control-sm row-in2" data-emp="{{ it.emp.id }}" step="60" placeholder="IN2">
+                </div>
+                <div class="col-3">
+                  <input type="time" name="out2_{{ it.emp.id }}" class="form-control form-control-sm row-out2" data-emp="{{ it.emp.id }}" step="60" placeholder="OUT2">
+                </div>
+              </div>
+              <div class="row g-1 mt-1">
+                <div class="col-6">
+                  <select name="reason_{{ it.emp.id }}" class="form-select form-select-sm row-reason" data-emp="{{ it.emp.id }}">
+                    <option value="">— Lý do —</option>
+                    <option value="POWER_OUTAGE">Mất điện</option>
+                    <option value="NETWORK_ISSUE">Sự cố mạng</option>
+                    <option value="MACHINE_ERROR">Lỗi máy chấm công</option>
+                    <option value="FORGOT_CHECK">Quên chấm công</option>
+                    <option value="WRONG_CHECK">Chấm nhầm</option>
+                    <option value="CARD_REISSUED">Đổi/cấp lại thẻ</option>
+                    <option value="BUSINESS_TRIP">Công tác ngoài</option>
+                    <option value="TRAINING_OFFSITE">Đào tạo ngoài</option>
+                    <option value="OTHER">Khác</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <input type="text" name="note_{{ it.emp.id }}" class="form-control form-control-sm row-note" data-emp="{{ it.emp.id }}" placeholder="Ghi chú (tuỳ chọn)">
+                </div>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-muted">Chưa có danh sách nhân sự cho bộ lọc hiện tại.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-2">
+    <div class="text-muted">Tổng {{ items|length }} nhân sự trong danh sách</div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary btn-sm" type="submit">Áp điều chỉnh</button>
+      <a class="btn btn-secondary btn-sm" href="?date={{ work_date }}&unit={{ unit_id }}">Xóa lọc</a>
+    </div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function(){
+    const btn = document.getElementById('btnBulkApply');
+    if (!btn) return;
+    btn.addEventListener('click', function(){
+      const fillOnlyEmpty = document.getElementById('bulkFillOnlyEmpty')?.checked ?? true;
+
+      const bIn1  = document.getElementById('bulkIn1')?.value || '';
+      const bOut1 = document.getElementById('bulkOut1')?.value || '';
+      const bIn2  = document.getElementById('bulkIn2')?.value || '';
+      const bOut2 = document.getElementById('bulkOut2')?.value || '';
+
+      const bReason = document.getElementById('bulkReason')?.value || '';
+      const bNote   = document.getElementById('bulkNote')?.value || '';
+
+      // Áp thời gian
+      document.querySelectorAll('.row-in1').forEach(function(el){
+        if (!bIn1) return;
+        if (fillOnlyEmpty && el.value) return;
+        el.value = bIn1;
+      });
+      document.querySelectorAll('.row-out1').forEach(function(el){
+        if (!bOut1) return;
+        if (fillOnlyEmpty && el.value) return;
+        el.value = bOut1;
+      });
+      document.querySelectorAll('.row-in2').forEach(function(el){
+        if (!bIn2) return;
+        if (fillOnlyEmpty && el.value) return;
+        el.value = bIn2;
+      });
+      document.querySelectorAll('.row-out2').forEach(function(el){
+        if (!bOut2) return;
+        if (fillOnlyEmpty && el.value) return;
+        el.value = bOut2;
+      });
+
+      // Áp lý do
+      if (bReason) {
+        document.querySelectorAll('.row-reason').forEach(function(sel){
+          if (fillOnlyEmpty && sel.value) return;
+          sel.value = bReason;
+        });
+      }
+      // Áp ghi chú
+      if (bNote) {
+        document.querySelectorAll('.row-note').forEach(function(inp){
+          if (fillOnlyEmpty && inp.value) return;
+          inp.value = bNote;
+        });
+      }
+
+      // Đánh dấu có thay đổi để người dùng biết cần bấm Áp điều chỉnh
+      window.unsavedChanges = true;
+    });
+  })();
+</script>
+{% endblock %}

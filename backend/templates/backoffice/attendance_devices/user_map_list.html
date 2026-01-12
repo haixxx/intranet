@@ -1,0 +1,64 @@
+{% extends "backoffice/base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4>Mapping UID → Nhân viên: {{ device.name }} ({{ device.host }}:{{ device.port }})</h4>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices:user_map_create' device.id %}">Thêm mapping</a>
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices:user_map_bulk_import' device.id %}">Bulk import CSV</a>
+    <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:backoffice_device_list' %}">Quay lại thiết bị</a>
+  </div>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm theo UID / Mã nhân sự / Tên">
+  </div>
+  <div class="col-md-3">
+    <select name="status" class="form-select form-select-sm">
+      <option value="">— Trạng thái —</option>
+      <option value="active" {% if status == "active" %}selected{% endif %}>Active</option>
+      <option value="inactive" {% if status == "inactive" %}selected{% endif %}>Inactive</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-outline-secondary btn-sm">Lọc</button>
+    <a class="btn btn-link btn-sm" href="{% url 'attendance_devices:user_map_list' device.id %}">Xóa lọc</a>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm table-striped align-middle">
+    <thead>
+      <tr>
+        <th>UID máy</th>
+        <th>Mã nhân sự</th>
+        <th>Nhân viên</th>
+        <th>Active</th>
+        <th>Ghi chú</th>
+        <th>Linked at</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.device_user_id }}</td>
+        <td>{{ it.employee.employee_code|default:"—" }}</td>
+        <td>{{ it.employee.full_name|default:"—" }}</td>
+        <td>{% if it.is_active %}<span class="badge bg-success">On</span>{% else %}<span class="badge bg-secondary">Off</span>{% endif %}</td>
+        <td class="text-truncate" style="max-width: 240px;">{{ it.notes|default:"—" }}</td>
+        <td>{{ it.linked_at }}</td>
+        <td class="text-end">
+          <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices:user_map_edit' device.id it.id %}">Sửa</a>
+          {% if it.is_active %}
+          <a class="btn btn-outline-danger btn-sm" href="{% url 'attendance_devices:user_map_deactivate' device.id it.id %}">Vô hiệu hóa</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="text-muted">Chưa có mapping.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

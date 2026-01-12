@@ -1,0 +1,111 @@
+{% extends "backoffice/base.html" %}
+{% load attdev_tags %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4>Thiết bị chấm công</h4>
+  <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices:backoffice_device_new' %}">Thêm thiết bị</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm theo tên, IP, model, serial">
+  </div>
+  <div class="col-md-2">
+    <select name="active" class="form-select form-select-sm">
+      <option value="">— Active? —</option>
+      <option value="1" {% if active == "1" %}selected{% endif %}>Active</option>
+      <option value="0" {% if active == "0" %}selected{% endif %}>Inactive</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <select name="status" class="form-select form-select-sm">
+      <option value="">— Trạng thái —</option>
+      <option value="ONLINE" {% if status == "ONLINE" %}selected{% endif %}>ONLINE</option>
+      <option value="OFFLINE" {% if status == "OFFLINE" %}selected{% endif %}>OFFLINE</option>
+      <option value="UNKNOWN" {% if status == "UNKNOWN" %}selected{% endif %}>UNKNOWN</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-outline-secondary btn-sm">Lọc</button>
+    <a class="btn btn-link btn-sm" href="{% url 'attendance_devices:backoffice_device_list' %}">Xóa lọc</a>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm table-striped align-middle">
+    <thead>
+      <tr>
+        <th>Tên</th>
+        <th>IP:Port</th>
+        <th>Brand/Model</th>
+        <th>Active</th>
+        <th>Status</th>
+        <th>Last pull</th>
+        <th>Unresolved</th>
+        <th>Lỗi gần nhất</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.name }}</td>
+        <td>{{ it.host }}:{{ it.port }}</td>
+        <td>{{ it.brand }}{% if it.model %} / {{ it.model }}{% endif %}</td>
+        <td>{% if it.is_active %}<span class="badge bg-success">On</span>{% else %}<span class="badge bg-secondary">Off</span>{% endif %}</td>
+        <td>
+          {% if it.status == "ONLINE" %}<span class="badge bg-success">ONLINE</span>
+          {% elif it.status == "OFFLINE" %}<span class="badge bg-danger">OFFLINE</span>
+          {% else %}<span class="badge bg-secondary">UNKNOWN</span>{% endif %}
+        </td>
+        <td>{{ it.last_pull_at|default:"—" }}</td>
+        <td>
+          {% with cnt=unresolved_by_device|get_item:it.id %}
+            {% if cnt and cnt > 0 %}
+              <span class="badge bg-warning text-dark">{{ cnt }}</span>
+            {% else %}
+              <span class="badge bg-secondary">0</span>
+            {% endif %}
+          {% endwith %}
+        </td>
+        <td class="text-truncate" style="max-width: 240px;">
+          {% with lg=log_by_device|get_item:it.id %}
+            {% if lg and not lg.success and lg.error_message %}{{ lg.error_message }}{% else %}—{% endif %}
+          {% endwith %}
+        </td>
+        <td class="text-end">
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices:backoffice_device_logs' it.id %}">Logs</a>
+          <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices:user_map_list' it.id %}">Mapping</a>
+          <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices:backoffice_device_edit' it.id %}">Sửa</a>
+          <a class="btn btn-outline-danger btn-sm" href="{% url 'attendance_devices:backoffice_device_delete' it.id %}">Xóa</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="text-muted">Chưa có thiết bị.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page_obj and paginator %}
+<nav>
+  <ul class="pagination pagination-sm">
+    {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page=1&q={{ q }}&active={{ active }}&status={{ status }}">&laquo;</a></li>
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&active={{ active }}&status={{ status }}">Trước</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+      <li class="page-item disabled"><span class="page-link">Trước</span></li>
+    {% endif %}
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+    {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q }}&active={{ active }}&status={{ status }}">Sau</a></li>
+      <li class="page-item"><a class="page-link" href="?page={{ paginator.num_pages }}&q={{ q }}&active={{ active }}&status={{ status }}">&raquo;</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Sau</span></li>
+      <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}

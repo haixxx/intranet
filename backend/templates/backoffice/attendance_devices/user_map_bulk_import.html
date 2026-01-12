@@ -1,0 +1,68 @@
+{% extends "backoffice/base.html" %}
+{% block content %}
+<h4 class="mb-3">Bulk import mapping — {{ device.name }} ({{ device.host }}:{{ device.port }})</h4>
+
+<form method="post" enctype="multipart/form-data" class="card card-body mb-3">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">CSV file</label>
+      {{ form.csv_file }}
+      <div class="form-text">Định dạng: device_user_id,employee_code</div>
+    </div>
+    <div class="col-md-6 d-flex align-items-center">
+      <div class="form-check mt-4">
+        {{ form.deactivate_existing }} <label class="form-check-label">Tự vô hiệu hóa mapping active cũ nếu trùng UID</label>
+      </div>
+    </div>
+  </div>
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary btn-sm" type="submit">Xem trước</button>
+    <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:user_map_list' device.id %}">Hủy</a>
+  </div>
+</form>
+
+{% if preview_rows %}
+<div class="card">
+  <div class="card-header py-2">
+    <strong>Xem trước</strong> (tối đa 2000 dòng hiển thị)
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle mb-0">
+      <thead>
+        <tr>
+          <th>UID máy</th>
+          <th>Mã nhân sự</th>
+          <th>Nhân viên</th>
+          <th>Hợp lệ?</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in preview_rows %}
+        <tr>
+          <td>{{ r.device_user_id }}</td>
+          <td>{{ r.employee_code }}</td>
+          <td>{{ r.employee_name|default:"—" }}</td>
+          <td>{% if r.valid %}<span class="badge bg-success">OK</span>{% else %}<span class="badge bg-danger">Lỗi</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="apply" value="1">
+      <input type="hidden" name="deactivate_existing" value="{{ form.deactivate_existing.value|default_if_none:'' }}">
+      <input type="hidden" name="csv_file" value="">
+      <div class="alert alert-warning mb-2">Nhấn "Áp dụng" để ghi vào hệ thống. Hành động này không thể hoàn tác.</div>
+      <button class="btn btn-primary btn-sm" type="submit">Áp dụng import</button>
+      <a class="btn btn-secondary btn-sm" href="{% url 'attendance_devices:user_map_bulk_import' device.id %}">Tải lại file khác</a>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

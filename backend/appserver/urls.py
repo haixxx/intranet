@@ -11,5 +11,9 @@ urlpatterns = [
     path('auth/', include(('apps.core.urls', 'core'), namespace='core')),
     path('backoffice/', include(('apps.backoffice.urls', 'backoffice'), namespace='backoffice')),
 
+    # NEW: Ingest API for attendance devices (Windows client pushes batches here)
+    path('', include(('apps.attendance_devices.urls', 'attendance_devices'), namespace='attendance_devices')),
+
+    # Default redirect to dashboard
     path('', RedirectView.as_view(pattern_name='backoffice:dashboard', permanent=False)),
 ]
