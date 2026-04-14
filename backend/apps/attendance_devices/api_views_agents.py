@@ -11,13 +11,15 @@ from .models_agents import AttendanceDeviceAgent, DeviceAPIKey
 
 
 def _auth_agent(request) -> AttendanceDeviceAgent | None:
-    auth = request.META.get("HTTP_AUTHORIZATION", "")
+    # Prefer request.headers (Django >= 2.2), fallback to META
+    auth = request.headers.get("Authorization", "") or request.META.get("HTTP_AUTHORIZATION", "")
     if auth.lower().startswith("bearer "):
         token = auth.split(" ", 1)[1].strip()
     else:
         token = ""
     if not token:
         return None
+
     key = DeviceAPIKey.objects.filter(key=token, is_active=True).select_related("agent").first()
     if not key:
         return None
@@ -112,6 +114,7 @@ def device_cursor_update(request, device_id: int):
     Cập nhật tiến độ đọc cho thiết bị.
     Auth: Bearer token
     Body: {last_cursor_json: {...}}
+    (Note: agent plan: KHÔNG dùng endpoint này nữa, cursor commit qua ingest)
     """
     agent = _auth_agent(request)
     if not agent:

@@ -56,16 +56,30 @@ WSGI_APPLICATION = 'appserver.wsgi.application'
 ASGI_APPLICATION = 'appserver.asgi.application'
 
 if os.getenv("USE_POSTGRES", "False") == "True":
-    DATABASES = {'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv("DB_NAME", "appdb"),
-        'USER': os.getenv("DB_USER", "appuser"),
-        'PASSWORD': os.getenv("DB_PASSWORD", "app_pass"),
-        'HOST': os.getenv("DB_HOST", "localhost"),
-        'PORT': os.getenv("DB_PORT", "5432"),
-    }}
+   DATABASES = {'default': {
+      'ENGINE': 'django.db.backends.postgresql',
+       'NAME': os.getenv("DB_NAME", "django_db"),
+       'USER': os.getenv("DB_USER", "django_user"),
+       'PASSWORD': os.getenv("DB_PASSWORD", "StrongPasswordHere"),
+       'HOST': os.getenv("DB_HOST", "localhost"),
+       'PORT': os.getenv("DB_PORT", "5432"),
+       'CONN_MAX_AGE': int(os.getenv("DB_CONN_MAX_AGE", "60")),
+       'OPTIONS': {},
+   }}
 else:
-    DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3'}}
+   DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3'}}
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'django_db',
+#         'USER': 'django_user',
+#         'PASSWORD': 'StrongPasswordHere',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#         'CONN_MAX_AGE': 60,
+#     }
+# }
 
 LANGUAGE_CODE = 'vi'
 LANGUAGES = [('vi','Tiếng Việt'),('en','English')]
