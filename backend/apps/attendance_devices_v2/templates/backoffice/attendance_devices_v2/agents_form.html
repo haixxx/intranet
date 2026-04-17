@@ -1,0 +1,113 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}
+  {% if create %}{% trans "Thêm agent (v2)" %}{% else %}{% trans "Sửa agent (v2)" %}{% endif %}
+{% endblock %}
+
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">
+      {% if create %}{% trans "Thêm agent (v2)" %}{% else %}{% trans "Sửa agent (v2)" %}{% endif %}
+    </h2>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:agent_list' %}">
+      {% trans "Quay lại" %}
+    </a>
+  </div>
+
+  <form method="post" class="card card-body mb-3">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">{{ form.name.label }}</label>
+        {{ form.name }}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ form.status.label }}</label>
+        {{ form.status }}
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">{{ form.hostname.label }}</label>
+        {{ form.hostname }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ form.ip_address.label }}</label>
+        {{ form.ip_address }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ form.version.label }}</label>
+        {{ form.version }}
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">{{ form.org_unit.label }}</label>
+        {{ form.org_unit }}
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">{{ form.notes.label }}</label>
+        {{ form.notes }}
+      </div>
+    </div>
+
+    <div class="mt-3 d-flex gap-2">
+      <button class="btn btn-primary btn-sm" type="submit">{% trans "Lưu" %}</button>
+    </div>
+  </form>
+
+  {% if not create %}
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">{% trans "API keys" %}</h3>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'attendance_devices_v2:agent_create_key' obj.id %}" class="mb-3">
+          {% csrf_token %}
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label">{{ key_form.expires_at.label }}</label>
+              {{ key_form.expires_at }}
+            </div>
+            <div class="col-md-3">
+              <div class="form-check mt-4">
+                {{ key_form.is_active }} <label class="form-check-label">{{ key_form.is_active.label }}</label>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-outline-primary btn-sm" type="submit">{% trans "Tạo key" %}</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-vcenter table-striped">
+            <thead>
+              <tr>
+                <th>{% trans "Key" %}</th>
+                <th>{% trans "Hiệu lực" %}</th>
+                <th>{% trans "Hết hạn" %}</th>
+                <th>{% trans "Tạo lúc" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for k in keys %}
+                <tr>
+                  <td><code style="user-select: all;">{{ k.key }}</code></td>
+                  <td>{% if k.is_active %}{% trans "Có" %}{% else %}{% trans "Không" %}{% endif %}</td>
+                  <td>{% if k.expires_at %}{{ k.expires_at }}{% else %}-{% endif %}</td>
+                  <td>{{ k.created_at }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">{% trans "Chưa có key." %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

@@ -13,7 +13,8 @@ urlpatterns = [
 
     # NEW: Ingest API for attendance devices (Windows client pushes batches here)
     path('', include(('apps.attendance_devices.urls', 'attendance_devices'), namespace='attendance_devices')),
+    path("", include(("apps.attendance_devices_v2.urls", "attendance_devices_v2"), namespace="attendance_devices_v2")),
 
     # Default redirect to dashboard
-    path('', RedirectView.as_view(pattern_name='backoffice:dashboard', permanent=False)),
+    path('', RedirectView.as_view(pattern_name='backoffice:dashboard', permanent=False)),    
 ]

@@ -1,0 +1,60 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Agents máy chấm công (v2)" %}{% endblock %}
+
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">{% trans "Agents máy chấm công (v2)" %}</h2>
+    <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices_v2:agent_create' %}">
+      {% trans "Thêm agent" %}
+    </a>
+  </div>
+
+  <form class="card card-body mb-3" method="get">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label">{% trans "Tìm kiếm" %}</label>
+        <input name="q" value="{{ q }}" class="form-control" placeholder="{% trans 'Tên/hostname/IP' %}">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-secondary w-100" type="submit">{% trans "Lọc" %}</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-vcenter table-striped">
+        <thead>
+          <tr>
+            <th>{% trans "Tên" %}</th>
+            <th>{% trans "Hostname" %}</th>
+            <th>{% trans "IP" %}</th>
+            <th>{% trans "Trạng thái" %}</th>
+            <th>{% trans "Đơn vị" %}</th>
+            <th class="text-end">{% trans "Hành động" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for x in items %}
+            <tr>
+              <td>{{ x.name }}</td>
+              <td>{{ x.hostname }}</td>
+              <td>{{ x.ip_address }}</td>
+              <td>{{ x.get_status_display }}</td>
+              <td>{% if x.org_unit %}{{ x.org_unit }}{% else %}-{% endif %}</td>
+              <td class="text-end">
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices_v2:agent_edit' x.id %}">
+                  {% trans "Sửa" %}
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="text-muted">{% trans "Chưa có agent." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

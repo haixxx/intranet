@@ -1,0 +1,85 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}
+  {% if create %}{% trans "Thêm thiết bị (v2)" %}{% else %}{% trans "Sửa thiết bị (v2)" %}{% endif %}
+{% endblock %}
+
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">
+      {% if create %}{% trans "Thêm thiết bị (v2)" %}{% else %}{% trans "Sửa thiết bị (v2)" %}{% endif %}
+    </h2>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}">
+      {% trans "Quay lại" %}
+    </a>
+  </div>
+
+  <form method="post" class="card card-body">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">{{ form.name.label }}</label>
+        {{ form.name }}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ form.brand.label }}</label>
+        {{ form.brand }}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ form.connect_mode.label }}</label>
+        {{ form.connect_mode }}
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">{{ form.model.label }}</label>
+        {{ form.model }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ form.serial_no.label }}</label>
+        {{ form.serial_no }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ form.timezone.label }}</label>
+        {{ form.timezone }}
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">{{ form.host.label }}</label>
+        {{ form.host }}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ form.port.label }}</label>
+        {{ form.port }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ form.org_unit.label }}</label>
+        {{ form.org_unit }}
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">{{ form.assigned_agent.label }}</label>
+        {{ form.assigned_agent }}
+      </div>
+
+      <div class="col-md-2 d-flex align-items-center">
+        <div class="form-check mt-4">
+          {{ form.is_active }} <label class="form-check-label">{{ form.is_active.label }}</label>
+        </div>
+      </div>
+
+      <div class="col-md-12">
+        <label class="form-label">{{ form.notes.label }}</label>
+        {{ form.notes }}
+      </div>
+    </div>
+
+    <div class="mt-3 d-flex gap-2">
+      <button class="btn btn-primary btn-sm" type="submit">{% trans "Lưu" %}</button>
+    </div>
+  </form>
+{% endblock %}

@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'apps.core','apps.backoffice','apps.audit','apps.organization',
     'apps.hr','apps.attendance','apps.approvals','apps.notifications',
     'apps.attendance_devices',
+    'apps.attendance_devices_v2',
 ]
 
 MIDDLEWARE = [

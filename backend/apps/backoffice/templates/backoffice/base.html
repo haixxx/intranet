@@ -109,43 +109,31 @@
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_monthly_view' %}active{% endif %}"
                      href="{% url 'backoffice:attendance_monthly_view' %}">
                     <i class="ti ti-calendar-stats me-2"></i> {% trans "Xem công theo tháng" %}</a>
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'compare_committed_day' %}active{% endif %}"
-                     href="{% url 'attendance_devices:compare_committed_day' %}">
-                    <i class="ti ti-compare me-2"></i> So sánh giờ máy vs công đã chốt
-                  </a>
                   {% endif %}
                   {% endif %}
 
-                  {# Thiết bị chấm công + Điều chỉnh/Import mốc ngày #}
-                  {% if perms.attendance_devices.view_attendancedevice or perms.attendance_devices.add_attendancemanualadjustment or perms.attendance_devices.add_attendanceimportbatch %}
+                  {# Thiết bị chấm công (V2) #}
+                  {% if perms.attendance_devices_v2.view_attendancedevicev2 or perms.attendance_devices_v2.view_attendancedeviceagentv2 or perms.attendance_devices_v2.view_attendancerawpunchv2 or perms.attendance_devices_v2.view_attendancenormalizedpunchv2 or perms.attendance_devices_v2.view_attendancepunchmatchv2 %}
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Thiết bị chấm công" %}</div>
-                  {% if perms.attendance_devices.view_attendancedevice %}
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices' and request.resolver_match.url_name == 'backoffice_device_list' %}active{% endif %}"
-                     href="{% url 'attendance_devices:backoffice_device_list' %}">
-                    <i class="ti ti-devices me-2"></i> {% trans "Thiết bị chấm công" %}
+
+                  {% if perms.attendance_devices_v2.view_attendancedevicev2 %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name in 'device_list device_create device_edit' %}active{% endif %}"
+                     href="{% url 'attendance_devices_v2:device_list' %}">
+                    <i class="ti ti-devices me-2"></i> {% trans "Thiết bị" %}
                   </a>
                   {% endif %}
-                  {% if perms.attendance_devices.add_attendancemanualadjustment %}
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'day_adjust_bulk' %}active{% endif %}"
-                     href="{% url 'attendance_devices:day_adjust_bulk' %}">
-                    <i class="ti ti-adjustments-alt me-2"></i> Điều chỉnh mốc ngày (nhiều nhân sự)
-                  </a>
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'day_adjust_select' %}active{% endif %}"
-                     href="{% url 'attendance_devices:day_adjust_select' %}">
-                    <i class="ti ti-edit-circle me-2"></i> Điều chỉnh mốc ngày (theo nhân sự)
-                  </a>
-                  {% endif %}
-                  {% if perms.attendance_devices.add_attendanceimportbatch %}
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'dayfacts_import' %}active{% endif %}"
-                     href="{% url 'attendance_devices:dayfacts_import' %}">
-                    <i class="ti ti-file-import me-2"></i> Import mốc ngày (CSV/XLSX)
+
+                  {% if perms.attendance_devices_v2.view_attendancedeviceagentv2 %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name in 'agent_list agent_create agent_edit' %}active{% endif %}"
+                     href="{% url 'attendance_devices_v2:agent_list' %}">
+                    <i class="ti ti-server me-2"></i> {% trans "Agent" %}
                   </a>
                   {% endif %}
                   {% endif %}
 
-                  {# Cấu hình hệ thống: di chuyển Mã chế độ + Cấu hình đối chiếu xuống đây #}
+                  {# Cấu hình hệ thống: Mã chế độ + Cấu hình đối chiếu #}
                   {% if perms.attendance.view_attendancecode or perms.attendance.change_attendancesettings %}
-                  <div class="text-uppercase text-muted small mt-3 mb-1">Cấu hình hệ thống</div>
+                  <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Cấu hình hệ thống" %}</div>
                   {% if perms.attendance.view_attendancecode %}
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name in 'attendance_code_list attendance_code_create attendance_code_edit attendance_code_delete' %}active{% endif %}"
                      href="{% url 'backoffice:attendance_code_list' %}">
@@ -166,14 +154,14 @@
                   </a>
                   <a class="list-group-item list-group-item-action {% if 'approval_flow_' in request.resolver_match.url_name %}active{% endif %}"
                     href="{% url 'backoffice:approval_flow_list' %}">
-                    <i class="ti ti-adjustments-alt me-2"></i> Quản trị luồng phê duyệt
+                    <i class="ti ti-adjustments-alt me-2"></i> {% trans "Quản trị luồng phê duyệt" %}
                   </a>
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'approvals_my_requests' %}active{% endif %}"
                      href="{% url 'backoffice:approvals_my_requests' %}">
                     <i class="ti ti-file-description me-2"></i> {% trans "Yêu cầu của tôi" %}</a>
                   <a class="list-group-item list-group-item-action {% if 'role_title_mapping_' in request.resolver_match.url_name %}active{% endif %}"
                     href="{% url 'backoffice:role_title_mapping_list' %}">
-                    <i class="ti ti-adjustments-alt me-2"></i> Cấu hình Role Mapping
+                    <i class="ti ti-adjustments-alt me-2"></i> {% trans "Cấu hình Role Mapping" %}
                   </a>
 
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Quản trị hệ thống" %}</div>

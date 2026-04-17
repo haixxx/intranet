@@ -1,0 +1,82 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Thiết bị chấm công (v2)" %}{% endblock %}
+
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">{% trans "Thiết bị chấm công (v2)" %}</h2>
+    <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices_v2:device_create' %}">
+      {% trans "Thêm thiết bị" %}
+    </a>
+  </div>
+
+  <form class="card card-body mb-3" method="get">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">{% trans "Tìm kiếm" %}</label>
+        <input name="q" value="{{ q }}" class="form-control" placeholder="{% trans 'Tên/host/model/serial' %}">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">{% trans "Agent" %}</label>
+        <select name="agent" class="form-select">
+          <option value="">{% trans "Tất cả" %}</option>
+          {% for a in agents %}
+            <option value="{{ a.id }}"{% if agent|add:'' == a.id|add:'' %} selected{% endif %}>{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label">{% trans "Active" %}</label>
+        <select name="active" class="form-select">
+          <option value="">{% trans "Tất cả" %}</option>
+          <option value="1"{% if active == "1" %} selected{% endif %}>{% trans "Có" %}</option>
+          <option value="0"{% if active == "0" %} selected{% endif %}>{% trans "Không" %}</option>
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <button class="btn btn-outline-secondary w-100" type="submit">{% trans "Lọc" %}</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-vcenter table-striped">
+        <thead>
+          <tr>
+            <th>{% trans "Tên" %}</th>
+            <th>{% trans "Host" %}</th>
+            <th>{% trans "Port" %}</th>
+            <th>{% trans "Hãng" %}</th>
+            <th>{% trans "Agent phụ trách" %}</th>
+            <th>{% trans "Đơn vị" %}</th>
+            <th class="text-end">{% trans "Hành động" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for x in items %}
+            <tr>
+              <td>{{ x.name }}</td>
+              <td>{{ x.host }}</td>
+              <td>{{ x.port }}</td>
+              <td>{{ x.brand }}</td>
+              <td>{% if x.assigned_agent %}{{ x.assigned_agent.name }}{% else %}-{% endif %}</td>
+              <td>{% if x.org_unit %}{{ x.org_unit }}{% else %}-{% endif %}</td>
+              <td class="text-end">
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices_v2:device_edit' x.id %}">
+                  {% trans "Sửa" %}
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="text-muted">{% trans "Chưa có thiết bị." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
