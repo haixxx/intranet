@@ -5,7 +5,6 @@ import secrets
 
 from django.db import models
 from django.utils import timezone as dj_timezone
-from .models_daily_audit import AttendanceDailyDeviceAuditV2  # noqa: F401,E402
 from django.utils.translation import gettext_lazy as _
 
 
@@ -246,7 +245,7 @@ class AttendanceRawPunchV2(models.Model):
 
     meta_json = models.JSONField(blank=True, null=True, verbose_name=_("Metadata (JSON)"))
     ingested_at = models.DateTimeField(default=dj_timezone.now, verbose_name=_("Nhận lúc"))
-        
+
     # Đánh dấu raw đã được chuẩn hoá hay chưa (để normalize idempotent)
     normalized_punch = models.ForeignKey(
         "attendance_devices_v2.AttendanceNormalizedPunchV2",
@@ -351,7 +350,6 @@ class AttendanceNormalizedPunchV2(models.Model):
 class AttendancePunchMatchV2(models.Model):
     """
     Audit đối chiếu punch -> mốc đăng ký.
-    Bảng này cực quan trọng để làm dashboard và truy vết.
 
     Mỗi lần compute/recompute tạo record mới với compute_run_id/compute_version.
     """
