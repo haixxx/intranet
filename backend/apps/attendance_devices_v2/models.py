@@ -5,6 +5,7 @@ import secrets
 
 from django.db import models
 from django.utils import timezone as dj_timezone
+from .models_daily_audit import AttendanceDailyDeviceAuditV2  # noqa: F401,E402
 from django.utils.translation import gettext_lazy as _
 
 
@@ -369,6 +370,7 @@ class AttendancePunchMatchV2(models.Model):
         ONLY_ONE_PUNCH = "ONLY_ONE_PUNCH", _("Chỉ có 1 lần chấm")
         PUNCH_WHILE_NONWORK = "PUNCH_WHILE_NONWORK", _("Có chấm nhưng chế độ không đi làm")
         SHIFT_MISMATCH_SUSPECTED = "SHIFT_MISMATCH_SUSPECTED", _("Nghi sai ca/đăng ký")
+        EXEMPT = "EXEMPT", _("Đặc cách (không yêu cầu chấm máy)")
 
     work_date = models.DateField(verbose_name=_("Ngày làm việc"))
     employee = models.ForeignKey("hr.Employee", on_delete=models.CASCADE, related_name="punch_matches_v2", verbose_name=_("Nhân viên"))

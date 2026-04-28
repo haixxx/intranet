@@ -1,0 +1,217 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Đối chiếu chấm công (v2)" %}{% endblock %}
+
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">{% trans "Đối chiếu chấm công" %}</h2>
+    <div class="text-muted small">
+      {% if has_commit %}
+        {% trans "Nguồn: công đã chốt (Commit)" %}
+      {% else %}
+        {% trans "Chưa có công đã chốt cho đơn vị/ngày này." %}
+      {% endif %}
+    </div>
+  </div>
+
+  <form class="card card-body mb-3" method="get">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-2">
+        <label class="form-label">{% trans "Ngày" %}</label>
+        <input class="form-control form-control-sm" type="date" name="date" value="{{ work_date }}">
+      </div>
+
+      <div class="col-12 col-md-4">
+        <label class="form-label">{% trans "Đơn vị" %}</label>
+        <select class="form-select form-select-sm" name="unit">
+          <option value="">{% trans "— Chọn —" %}</option>
+          {% for u in units_qs %}
+            <option value="{{ u.id }}"{% if unit_id_int == u.id %} selected{% endif %}>
+              {{ u.symbol }} — {{ u.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-2">
+        <label class="form-label">{% trans "Trạng thái" %}</label>
+        <select class="form-select form-select-sm" name="status">
+          <option value="">{% trans "Tất cả" %}</option>
+          <option value="MISSING"{% if status == "MISSING" %} selected{% endif %}>{% trans "Thiếu" %}</option>
+          <option value="MATCHED"{% if status == "MATCHED" %} selected{% endif %}>{% trans "Khớp" %}</option>
+          <option value="EXEMPT"{% if status == "EXEMPT" %} selected{% endif %}>{% trans "Đặc cách" %}</option>
+        </select>
+      </div>
+
+      <div class="col-12 col-md-2">
+        <label class="form-label">{% trans "Tìm NV" %}</label>
+        <input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="{% trans 'Mã / Tên' %}">
+      </div>
+
+      <div class="col-6 col-md-1">
+        <label class="form-label">&nbsp;</label>
+        <button class="btn btn-primary btn-sm w-100" type="submit">{% trans "Xem" %}</button>
+      </div>
+
+      <div class="col-6 col-md-1">
+        <label class="form-label">&nbsp;</label>
+        <a class="btn btn-outline-secondary btn-sm w-100" href="{% url 'attendance_devices_v2:audit_matches' %}">{% trans "Xóa" %}</a>
+      </div>
+    </div>
+  </form>
+
+  {% if not rows %}
+    <div class="text-muted">{% trans "Chưa có dữ liệu đối chiếu. Hãy chạy compute trước." %}</div>
+  {% else %}
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-vcenter table-striped table-sm">
+          <thead>
+            <tr>
+              <th>{% trans "Mã NV" %}</th>
+              <th>{% trans "Họ tên" %}</th>
+              <th>{% trans "IN1" %}</th>
+              <th>{% trans "OUT1" %}</th>
+              <th>{% trans "IN2" %}</th>
+              <th>{% trans "OUT2" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td>{{ r.employee.employee_code }}</td>
+                <td>{{ r.employee.full_name }}</td>
+
+                {# IN1 #}
+                <td>
+                  {% with m=r.IN1 %}
+                    {% if not m %}
+                      <span class="text-muted">—</span>
+                    {% else %}
+                      <div class="small">
+                        <div><strong>Target:</strong> {{ m.target_time_local|date:"H:i" }}</div>
+                        <div>
+                          {% if m.status == "MATCHED" %}
+                            <span class="badge bg-success">{% trans "Khớp" %}</span>
+                          {% elif m.status == "MISSING" %}
+                            <span class="badge bg-danger">{% trans "Thiếu" %}</span>
+                          {% elif m.status == "EXEMPT" %}
+                            <span class="badge bg-secondary">{% trans "Đặc cách" %}</span>
+                          {% else %}
+                            <span class="badge bg-warning">{{ m.status }}</span>
+                          {% endif %}
+                        </div>
+                        {% if m.matched_time_local %}
+                          <div><strong>Máy:</strong> {{ m.matched_time_local|date:"H:i" }}</div>
+                          <div class="text-muted">
+                            {% if m.delta_seconds %}Δ={{ m.delta_seconds }}s{% endif %}
+                            {% if m.matched_punch and m.matched_punch.best_device %}| {{ m.matched_punch.best_device.name }}{% endif %}
+                          </div>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+
+                {# OUT1 #}
+                <td>
+                  {% with m=r.OUT1 %}
+                    {% if not m %}
+                      <span class="text-muted">—</span>
+                    {% else %}
+                      <div class="small">
+                        <div><strong>Target:</strong> {{ m.target_time_local|date:"H:i" }}</div>
+                        <div>
+                          {% if m.status == "MATCHED" %}
+                            <span class="badge bg-success">{% trans "Khớp" %}</span>
+                          {% elif m.status == "MISSING" %}
+                            <span class="badge bg-danger">{% trans "Thiếu" %}</span>
+                          {% elif m.status == "EXEMPT" %}
+                            <span class="badge bg-secondary">{% trans "Đặc cách" %}</span>
+                          {% else %}
+                            <span class="badge bg-warning">{{ m.status }}</span>
+                          {% endif %}
+                        </div>
+                        {% if m.matched_time_local %}
+                          <div><strong>Máy:</strong> {{ m.matched_time_local|date:"H:i" }}</div>
+                          <div class="text-muted">
+                            {% if m.delta_seconds %}Δ={{ m.delta_seconds }}s{% endif %}
+                            {% if m.matched_punch and m.matched_punch.best_device %}| {{ m.matched_punch.best_device.name }}{% endif %}
+                          </div>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+
+                {# IN2 #}
+                <td>
+                  {% with m=r.IN2 %}
+                    {% if not m %}
+                      <span class="text-muted">—</span>
+                    {% else %}
+                      <div class="small">
+                        <div><strong>Target:</strong> {{ m.target_time_local|date:"H:i" }}</div>
+                        <div>
+                          {% if m.status == "MATCHED" %}
+                            <span class="badge bg-success">{% trans "Khớp" %}</span>
+                          {% elif m.status == "MISSING" %}
+                            <span class="badge bg-danger">{% trans "Thiếu" %}</span>
+                          {% elif m.status == "EXEMPT" %}
+                            <span class="badge bg-secondary">{% trans "Đặc cách" %}</span>
+                          {% else %}
+                            <span class="badge bg-warning">{{ m.status }}</span>
+                          {% endif %}
+                        </div>
+                        {% if m.matched_time_local %}
+                          <div><strong>Máy:</strong> {{ m.matched_time_local|date:"H:i" }}</div>
+                          <div class="text-muted">
+                            {% if m.delta_seconds %}Δ={{ m.delta_seconds }}s{% endif %}
+                            {% if m.matched_punch and m.matched_punch.best_device %}| {{ m.matched_punch.best_device.name }}{% endif %}
+                          </div>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+
+                {# OUT2 #}
+                <td>
+                  {% with m=r.OUT2 %}
+                    {% if not m %}
+                      <span class="text-muted">—</span>
+                    {% else %}
+                      <div class="small">
+                        <div><strong>Target:</strong> {{ m.target_time_local|date:"H:i" }}</div>
+                        <div>
+                          {% if m.status == "MATCHED" %}
+                            <span class="badge bg-success">{% trans "Khớp" %}</span>
+                          {% elif m.status == "MISSING" %}
+                            <span class="badge bg-danger">{% trans "Thiếu" %}</span>
+                          {% elif m.status == "EXEMPT" %}
+                            <span class="badge bg-secondary">{% trans "Đặc cách" %}</span>
+                          {% else %}
+                            <span class="badge bg-warning">{{ m.status }}</span>
+                          {% endif %}
+                        </div>
+                        {% if m.matched_time_local %}
+                          <div><strong>Máy:</strong> {{ m.matched_time_local|date:"H:i" }}</div>
+                          <div class="text-muted">
+                            {% if m.delta_seconds %}Δ={{ m.delta_seconds }}s{% endif %}
+                            {% if m.matched_punch and m.matched_punch.best_device %}| {{ m.matched_punch.best_device.name }}{% endif %}
+                          </div>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

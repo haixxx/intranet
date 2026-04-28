@@ -9,6 +9,10 @@ class EmployeeForm(forms.ModelForm):
             'full_name', 'workforce_type', 'job_title',
             'unit', 'team',
             'employee_code', 'card_id',
+
+            # NEW: đặc cách không cần đối chiếu chấm công máy
+            'skip_device_attendance',
+
             'citizen_id', 'tax_code',
             'bank_account', 'bank_name',
             'email', 'phone',
@@ -22,6 +26,10 @@ class EmployeeForm(forms.ModelForm):
             'team': 'Tổ',
             'employee_code': 'Mã nhân sự',
             'card_id': 'Mã chấm công',
+
+            # NEW
+            'skip_device_attendance': 'Đặc cách (không cần chấm công máy)',
+
             'citizen_id': 'CCCD',
             'tax_code': 'MST',
             'bank_account': 'Số tài khoản',
@@ -40,6 +48,10 @@ class EmployeeForm(forms.ModelForm):
             'team': forms.Select(attrs={'class': 'form-select'}),
             'employee_code': forms.TextInput(attrs={'class': 'form-control'}),
             'card_id': forms.TextInput(attrs={'class': 'form-control'}),
+
+            # NEW
+            'skip_device_attendance': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+
             'citizen_id': forms.TextInput(attrs={'class': 'form-control'}),
             'tax_code': forms.TextInput(attrs={'class': 'form-control'}),
             'bank_account': forms.TextInput(attrs={'class': 'form-control'}),
@@ -61,6 +73,11 @@ class EmployeeForm(forms.ModelForm):
                 # readonly chỉ để người dùng thấy rõ, disabled mới ngăn submit
                 f.widget.attrs['readonly'] = True
                 f.help_text = "Mã nhân sự cố định, không thể thay đổi."
+
+        # Help text cho cờ đặc cách để người dùng hiểu tác động
+        f_ex = self.fields.get('skip_device_attendance')
+        if f_ex:
+            f_ex.help_text = "Nếu bật: hệ thống đối chiếu v2 sẽ luôn đánh dấu EXEMPT, không báo thiếu mốc chấm máy."
 
     def clean_employee_code(self):
         """

@@ -66,6 +66,15 @@
                     <i class="ti ti-home me-2"></i> {% trans "Bảng điều khiển" %}
                   </a>
 
+                  {# Dashboard (Bảng điều khiển) có thể chứa nhiều module.
+                     Chấm công (v2) chỉ là 1 mục bên trong. #}
+                  {% if perms.attendance.view_attendancecommit %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'report_dashboard' %}active{% endif %}"
+                     href="{% url 'attendance_devices_v2:report_dashboard' %}">
+                    <i class="ti ti-dashboard me-2"></i> {% trans "Dashboard chấm công (v2)" %}
+                  </a>
+                  {% endif %}
+
                   {% if perms.organization.view_orgunit or perms.organization.view_jobtitle or perms.organization.view_shifttemplate %}
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Tổ chức" %}</div>
                   {% if perms.organization.view_orgunit %}
@@ -116,6 +125,14 @@
                   {% if perms.attendance_devices_v2.view_attendancedevicev2 or perms.attendance_devices_v2.view_attendancedeviceagentv2 or perms.attendance_devices_v2.view_attendancerawpunchv2 or perms.attendance_devices_v2.view_attendancenormalizedpunchv2 or perms.attendance_devices_v2.view_attendancepunchmatchv2 %}
                   <div class="text-uppercase text-muted small mt-3 mb-1">{% trans "Thiết bị chấm công" %}</div>
 
+                  {# NEW: Báo cáo chi tiết theo đơn vị (v2) - nằm trong menu thiết bị chấm công #}
+                  {% if perms.attendance.view_attendancecommit %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'report_units' %}active{% endif %}"
+                     href="{% url 'attendance_devices_v2:report_units' %}">
+                    <i class="ti ti-report-analytics me-2"></i> {% trans "Báo cáo theo đơn vị (v2)" %}
+                  </a>
+                  {% endif %}
+
                   {% if perms.attendance_devices_v2.view_attendancedevicev2 %}
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name in 'device_list device_create device_edit' %}active{% endif %}"
                      href="{% url 'attendance_devices_v2:device_list' %}">
@@ -129,6 +146,21 @@
                     <i class="ti ti-server me-2"></i> {% trans "Agent" %}
                   </a>
                   {% endif %}
+
+                  {# Đối chiếu v2 #}
+                  {% if perms.attendance_devices_v2.view_attendancepunchmatchv2 %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'audit_matches' %}active{% endif %}"
+                     href="{% url 'attendance_devices_v2:audit_matches' %}">
+                    <i class="ti ti-checkup-list me-2"></i> {% trans "Đối chiếu" %}
+                  </a>
+
+                  {# Tổng hợp thiếu mốc #}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'audit_summary' %}active{% endif %}"
+                     href="{% url 'attendance_devices_v2:audit_summary' %}">
+                    <i class="ti ti-alert-triangle me-2"></i> {% trans "Tổng hợp thiếu mốc" %}
+                  </a>
+                  {% endif %}
+
                   {% endif %}
 
                   {# Cấu hình hệ thống: Mã chế độ + Cấu hình đối chiếu #}

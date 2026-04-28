@@ -3,8 +3,17 @@ from .models import Employee, AccessControl, TempAssignment
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('employee_code', 'full_name', 'job_title', 'unit', 'team', 'workforce_type', 'status', 'card_id')
-    list_filter = ('workforce_type', 'status', 'job_title', 'unit')
+    list_display = (
+        'employee_code', 'full_name', 'job_title', 'unit', 'team',
+        'workforce_type', 'status', 'card_id',
+        # NEW
+        'skip_device_attendance',
+    )
+    list_filter = (
+        'workforce_type', 'status', 'job_title', 'unit',
+        # NEW
+        'skip_device_attendance',
+    )
     search_fields = ('employee_code', 'full_name', 'card_id', 'citizen_id', 'tax_code', 'email', 'phone')
 
 @admin.register(AccessControl)

@@ -20,6 +20,7 @@ class Employee(models.Model):
     unit = models.ForeignKey('organization.OrgUnit', on_delete=models.PROTECT, related_name='unit_employees', db_index=True)
     team = models.ForeignKey('organization.OrgUnit', on_delete=models.PROTECT, related_name='team_employees', null=True, blank=True, db_index=True)
     card_id = models.CharField(max_length=32, unique=True)
+    skip_device_attendance = models.BooleanField(default=False,db_index=True,help_text="Đặc cách: không yêu cầu đối chiếu chấm công máy (v2).")
     citizen_id = models.CharField(max_length=20, unique=True, null=True, blank=True)
     tax_code = models.CharField(max_length=20, unique=True, null=True, blank=True)
     bank_account = models.CharField(max_length=34, null=True, blank=True)
