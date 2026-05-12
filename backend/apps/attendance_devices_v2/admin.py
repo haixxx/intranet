@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from .models import (
@@ -10,6 +11,7 @@ from .models import (
     AttendanceNormalizedPunchV2,
     AttendancePunchMatchV2,
 )
+from .models_master_list import AttendanceDeviceMasterListV2
 
 
 @admin.register(AttendanceDeviceAgentV2)
@@ -66,3 +68,36 @@ class AttendancePunchMatchV2Admin(admin.ModelAdmin):
     list_filter = ("status", "target_field", "compute_version")
     search_fields = ("employee__employee_code", "employee__full_name", "employee__card_id", "compute_run_id")
     readonly_fields = ("created_at",)
+
+
+@admin.register(AttendanceDeviceMasterListV2)
+class AttendanceDeviceMasterListV2Admin(admin.ModelAdmin):
+    list_display = (
+        "work_date",
+        "unit",
+        "employee",
+        "compute_state",
+        "missing_marks",
+        "is_exempt",
+        "actual_in1_local",
+        "actual_out1_local",
+        "actual_in2_local",
+        "actual_out2_local",
+        "override_status",
+        "compute_run_id",
+        "computed_at",
+    )
+    list_filter = ("work_date", "unit", "compute_state", "is_exempt", "missing_marks")
+    search_fields = ("employee__employee_code", "employee__full_name", "employee__card_id")
+    readonly_fields = ("computed_at",)
+    date_hierarchy = "work_date"
+
+    # NOTE: bỏ "commit" khỏi autocomplete_fields để tránh lỗi admin.E039
+    autocomplete_fields = ("unit", "employee", "override_by")
+
+    def override_status(self, obj: AttendanceDeviceMasterListV2):
+        if obj.override_at:
+            return format_html('<span style="color:#0d6efd;font-weight:600;">YES</span>')
+        return "NO"
+
+    override_status.short_description = _("Override?")

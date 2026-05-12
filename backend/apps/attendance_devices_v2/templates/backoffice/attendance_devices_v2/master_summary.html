@@ -1,0 +1,89 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Master List - Tổng hợp (v2)" %}{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">{% trans "Master List - Tổng hợp (v2)" %}</h2>
+
+<form class="card card-body mb-3" method="get">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-2">
+      <label class="form-label">{% trans "Từ ngày" %}</label>
+      <input class="form-control form-control-sm" type="date" name="from" value="{{ from_date }}">
+    </div>
+    <div class="col-12 col-md-2">
+      <label class="form-label">{% trans "Đến ngày" %}</label>
+      <input class="form-control form-control-sm" type="date" name="to" value="{{ to_date }}">
+    </div>
+    <div class="col-12 col-md-2">
+      <label class="form-label">{% trans "Ngưỡng (phút)" %}</label>
+      <select class="form-select form-select-sm" name="threshold">
+        <option value="5"{% if threshold_min == 5 %} selected{% endif %}>5</option>
+        <option value="10"{% if threshold_min == 10 %} selected{% endif %}>10</option>
+        <option value="15"{% if threshold_min == 15 %} selected{% endif %}>15</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label">&nbsp;</label>
+      <button class="btn btn-primary btn-sm w-100" type="submit">{% trans "Xem" %}</button>
+    </div>
+  </div>
+</form>
+
+{% if not rows %}
+  <div class="text-muted">{% trans "Chưa có dữ liệu (hãy chọn khoảng ngày và đảm bảo đã compute)." %}</div>
+{% else %}
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-striped table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>{% trans "Đơn vị" %}</th>
+            <th class="text-end">{% trans "Mẫu số" %}</th>
+            <th class="text-end">{% trans "Đủ mốc" %}</th>
+            <th class="text-end">{% trans "% đủ" %}</th>
+            <th class="text-end">{% trans "Thiếu (người)" %}</th>
+            <th class="text-end">{% trans "Thiếu (mốc)" %}</th>
+            <th class="text-end">{% trans "Đi muộn" %}</th>
+            <th class="text-end">{% trans "Về sớm" %}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td><strong>{{ r.unit_symbol }}</strong> — {{ r.unit_name }}</td>
+              <td class="text-end">{{ r.headcount }}</td>
+              <td class="text-end">{{ r.ok_people }}</td>
+              <td class="text-end">{{ r.ok_rate|floatformat:1 }}%</td>
+              <td class="text-end"><span class="badge bg-danger">{{ r.missing_people }}</span></td>
+              <td class="text-end">{{ r.missing_marks }}</td>
+              <td class="text-end"><span class="badge bg-warning">{{ r.late_people }}</span></td>
+              <td class="text-end"><span class="badge bg-info">{{ r.early_people }}</span></td>
+              <td class="text-nowrap">
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{% url 'attendance_devices_v2:master_list' %}?from={{ from_date }}&to={{ to_date }}&unit={{ r.unit_id }}">
+                  {% trans "Xem DS" %}
+                </a>
+                <a class="btn btn-sm btn-outline-danger"
+                   href="{% url 'attendance_devices_v2:master_list' %}?from={{ from_date }}&to={{ to_date }}&unit={{ r.unit_id }}&filter=missing">
+                  {% trans "Thiếu" %}
+                </a>
+                <a class="btn btn-sm btn-outline-warning"
+                   href="{% url 'attendance_devices_v2:master_list' %}?from={{ from_date }}&to={{ to_date }}&unit={{ r.unit_id }}&filter=late&threshold={{ threshold_min }}">
+                  {% trans "Muộn" %}
+                </a>
+                <a class="btn btn-sm btn-outline-info"
+                   href="{% url 'attendance_devices_v2:master_list' %}?from={{ from_date }}&to={{ to_date }}&unit={{ r.unit_id }}&filter=early&threshold={{ threshold_min }}">
+                  {% trans "Sớm" %}
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

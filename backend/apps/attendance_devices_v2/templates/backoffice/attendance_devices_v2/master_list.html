@@ -1,0 +1,126 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Master List - Danh sách (v2)" %}{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">{% trans "Master List - Danh sách (v2)" %}</h2>
+
+<form class="card card-body mb-3" method="get">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-2">
+      <label class="form-label">{% trans "Từ ngày" %}</label>
+      <input class="form-control form-control-sm" type="date" name="from" value="{{ from_date }}">
+    </div>
+    <div class="col-12 col-md-2">
+      <label class="form-label">{% trans "Đến ngày" %}</label>
+      <input class="form-control form-control-sm" type="date" name="to" value="{{ to_date }}">
+    </div>
+    <div class="col-12 col-md-3">
+      <label class="form-label">{% trans "Đơn vị" %}</label>
+      <select class="form-select form-select-sm" name="unit">
+        <option value="">{% trans "--Tất cả--" %}</option>
+        {% for u in units %}
+          <option value="{{ u.id }}"{% if unit|add:"" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.symbol }} — {{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-2">
+      <label class="form-label">{% trans "Bộ lọc" %}</label>
+      <select class="form-select form-select-sm" name="filter">
+        <option value="">{% trans "--Tất cả--" %}</option>
+        <option value="missing"{% if filter == "missing" %} selected{% endif %}>{% trans "Thiếu mốc" %}</option>
+        <option value="late"{% if filter == "late" %} selected{% endif %}>{% trans "Đi muộn" %}</option>
+        <option value="early"{% if filter == "early" %} selected{% endif %}>{% trans "Về sớm" %}</option>
+        <option value="stale"{% if filter == "stale" %} selected{% endif %}>{% trans "STALE" %}</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-1">
+      <label class="form-label">{% trans "Ngưỡng" %}</label>
+      <select class="form-select form-select-sm" name="threshold">
+        <option value="5"{% if threshold_min == 5 %} selected{% endif %}>5</option>
+        <option value="10"{% if threshold_min == 10 %} selected{% endif %}>10</option>
+        <option value="15"{% if threshold_min == 15 %} selected{% endif %}>15</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-2">
+      <label class="form-label">{% trans "Tìm" %}</label>
+      <input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Mã NV / Tên / Card ID">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label">&nbsp;</label>
+      <button class="btn btn-primary btn-sm w-100" type="submit">{% trans "Xem" %}</button>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label">&nbsp;</label>
+      <a class="btn btn-outline-secondary btn-sm w-100" href="{% url 'attendance_devices_v2:master_list' %}">{% trans "Xóa" %}</a>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>{% trans "Ngày" %}</th>
+          <th>{% trans "Đơn vị" %}</th>
+          <th>{% trans "Nhân sự" %}</th>
+          <th class="text-end">{% trans "Thiếu" %}</th>
+          <th>{% trans "Target" %}</th>
+          <th>{% trans "Actual" %}</th>
+          <th>{% trans "Override" %}</th>
+          <th class="text-nowrap"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td class="text-nowrap">{{ r.work_date }}</td>
+            <td class="text-nowrap"><strong>{{ r.unit.symbol }}</strong></td>
+            <td class="text-nowrap">
+              <div><strong>{{ r.employee.employee_code }}</strong> — {{ r.employee.full_name }}</div>
+              {% if r.is_exempt %}<span class="badge bg-secondary">EXEMPT</span>{% endif %}
+              {% if r.compute_state == "STALE" %}<span class="badge bg-warning">STALE</span>{% endif %}
+            </td>
+            <td class="text-end">
+              {% if r.is_exempt %}
+                -
+              {% else %}
+                <span class="badge {% if r.missing_marks > 0 %}bg-danger{% else %}bg-success{% endif %}">{{ r.missing_marks }}</span>
+              {% endif %}
+            </td>
+            <td class="small text-nowrap">
+              {% if r.target_in1_local %}IN1 {{ r.target_in1_local|date:"H:i" }}<br>{% endif %}
+              {% if r.target_out1_local %}OUT1 {{ r.target_out1_local|date:"H:i" }}<br>{% endif %}
+              {% if r.target_in2_local %}IN2 {{ r.target_in2_local|date:"H:i" }}<br>{% endif %}
+              {% if r.target_out2_local %}OUT2 {{ r.target_out2_local|date:"H:i" }}{% endif %}
+            </td>
+            <td class="small text-nowrap">
+              {% if r.actual_in1_local %}IN1 {{ r.actual_in1_local|date:"H:i" }} ({{ r.delta_in1_seconds|default:"" }})<br>{% endif %}
+              {% if r.actual_out1_local %}OUT1 {{ r.actual_out1_local|date:"H:i" }} ({{ r.delta_out1_seconds|default:"" }})<br>{% endif %}
+              {% if r.actual_in2_local %}IN2 {{ r.actual_in2_local|date:"H:i" }} ({{ r.delta_in2_seconds|default:"" }})<br>{% endif %}
+              {% if r.actual_out2_local %}OUT2 {{ r.actual_out2_local|date:"H:i" }} ({{ r.delta_out2_seconds|default:"" }}){% endif %}
+            </td>
+            <td class="small text-nowrap">
+              {% if r.override_in1_local %}IN1 {{ r.override_in1_local|date:"H:i" }}<br>{% endif %}
+              {% if r.override_out1_local %}OUT1 {{ r.override_out1_local|date:"H:i" }}<br>{% endif %}
+              {% if r.override_in2_local %}IN2 {{ r.override_in2_local|date:"H:i" }}<br>{% endif %}
+              {% if r.override_out2_local %}OUT2 {{ r.override_out2_local|date:"H:i" }}{% endif %}
+              {% if r.override_at %}<div class="text-muted">edited</div>{% endif %}
+            </td>
+            <td class="text-nowrap">
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{% url 'attendance_devices_v2:audit_matches' %}?date={{ r.work_date }}&unit={{ r.unit_id }}&employee={{ r.employee_id }}">
+                {% trans "Audit" %}
+              </a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8" class="text-muted">{% trans "Không có dữ liệu." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,322 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}Thống kê chấm công{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Zebra nhẹ cho dễ nhìn (thay table-striped để không xung đột highlight) */
+  .bang-thong-ke tbody tr:nth-child(even) td { background: #f6f8fa; }
+
+  /* Giúp nền highlight phủ trọn ô */
+  .bang-thong-ke td { background-clip: padding-box; }
+
+  /* Highlight ô theo trạng thái (nền nhạt + chữ đậm để tương phản dễ đọc) */
+  .cell-thieu { background: #f8d7da !important; color: #842029 !important; font-weight: 700; }
+  .cell-muon  { background: #fff3cd !important; color: #664d03 !important; font-weight: 700; }
+  .cell-som   { background: #fff3cd !important; color: #664d03 !important; font-weight: 700; }
+
+  /* Bộ lọc: rút gọn select đơn vị */
+  .don-vi-select option { max-width: 1px; } /* chỉ để browser không cố nới rộng */
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">Thống kê chấm công</h2>
+
+<form class="card card-body mb-3" method="get">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-2">
+      <label class="form-label">Ngày</label>
+      <input class="form-control form-control-sm" type="date" name="date" value="{{ work_date }}">
+    </div>
+
+    <div class="col-12 col-md-3">
+      <label class="form-label">Đơn vị</label>
+      <select class="form-select form-select-sm don-vi-select" name="unit">
+        <option value="">--Tất cả--</option>
+        {% for u in units %}
+          {# Hiển thị ngắn: chỉ symbol. Tên đầy đủ ở title để hover xem. #}
+          <option value="{{ u.id }}"
+                  title="{{ u.symbol }} — {{ u.name }}"
+                  {% if unit|add:"" == u.id|stringformat:"s" %}selected{% endif %}>
+            {{ u.symbol }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-12 col-md-3">
+      <label class="form-label">Tìm</label>
+      <input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Tên / Card ID">
+    </div>
+
+    <div class="col-6 col-md-1">
+      <label class="form-label">Ngưỡng</label>
+      <select class="form-select form-select-sm" name="nguong">
+        <option value="5"{% if nguong == 5 %} selected{% endif %}>5</option>
+        <option value="10"{% if nguong == 10 %} selected{% endif %}>10</option>
+        <option value="15"{% if nguong == 15 %} selected{% endif %}>15</option>
+      </select>
+    </div>
+
+    <div class="col-6 col-md-1">
+      <label class="form-label">Trang</label>
+      <select class="form-select form-select-sm" name="page_size" onchange="this.form.submit()">
+        <option value="50"{% if page_size == 50 %} selected{% endif %}>50</option>
+        <option value="100"{% if page_size == 100 %} selected{% endif %}>100</option>
+        <option value="200"{% if page_size == 200 %} selected{% endif %}>200</option>
+      </select>
+      <input type="hidden" name="page" value="1">
+    </div>
+
+    <div class="col-12 col-md-2">
+      <label class="form-label">&nbsp;</label>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm w-100" type="submit">Xem</button>
+        <a class="btn btn-outline-secondary btn-sm w-100" href="{% url 'attendance_devices_v2:thong_ke' %}">Xóa</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card card-body mb-3">
+  <div><strong>Ghi chú</strong></div>
+  <ul class="mb-0">
+    <li>Cột <strong>Đã sửa</strong> chỉ nhập <strong>giờ</strong> (HH:MM). Riêng <strong>OUT2</strong> có thể qua ngày (nếu giờ nhỏ hơn <strong>04:00</strong>).</li>
+    <li><span class="badge" style="background:#f8d7da;color:#842029;">Đỏ nhạt</span>: thiếu mốc (ô máy bị thiếu).</li>
+    <li><span class="badge" style="background:#fff3cd;color:#664d03;">Vàng nhạt</span>: đi muộn / về sớm (chỉ tính khi <strong>đủ mốc</strong>).</li>
+  </ul>
+</div>
+
+<form method="post" action="{% url 'attendance_devices_v2:luu_du_lieu' %}">
+  {% csrf_token %}
+  <input type="hidden" name="date" value="{{ work_date }}">
+  <input type="hidden" name="unit" value="{{ unit }}">
+  <input type="hidden" name="q" value="{{ q }}">
+  <input type="hidden" name="nguong" value="{{ nguong }}">
+  <input type="hidden" name="page" value="{{ page_obj.number }}">
+  <input type="hidden" name="page_size" value="{{ page_size }}">
+
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="text-muted small">
+      Trang {{ page_obj.number }} / {{ paginator.num_pages }} — Tổng {{ paginator.count }} dòng
+    </div>
+    {% if co_quyen_sua %}
+      <button class="btn btn-success btn-sm" type="submit">Lưu dữ liệu</button>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0 bang-thong-ke">
+        <thead>
+          <tr>
+            <th rowspan="2">Nhân sự</th>
+
+            <th colspan="4" class="text-center">Đăng ký</th>
+            <th colspan="4" class="text-center">Từ máy</th>
+            <th colspan="4" class="text-center">Đã sửa</th>
+
+            <th rowspan="2">Ghi chú</th>
+            <th rowspan="2">Yêu cầu sửa</th>
+            <th rowspan="2"></th>
+          </tr>
+          <tr>
+            <th>IN1</th><th>OUT1</th><th>IN2</th><th>OUT2</th>
+            <th>IN1</th><th>OUT1</th><th>IN2</th><th>OUT2</th>
+            <th>IN1</th><th>OUT1</th><th>IN2</th><th>OUT2</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for r in rows %}
+            {% with obj=r.obj st=r.trang_thai_o_may %}
+            <input type="hidden" name="row_ids" value="{{ obj.id }}">
+
+            <tr>
+              <td style="min-width:220px;">
+                <div><strong>{{ obj.employee.full_name }}</strong></div>
+                <div class="text-muted small">{{ obj.unit.symbol }} — {{ obj.unit.name }}</div>
+                {% if obj.is_exempt %}<span class="badge bg-secondary">Đặc cách</span>{% endif %}
+              </td>
+
+              <!-- Đăng ký -->
+              <td class="text-nowrap">{% if obj.target_in1_local %}{{ obj.target_in1_local|date:"H:i" }}{% else %}-{% endif %}</td>
+              <td class="text-nowrap">{% if obj.target_out1_local %}{{ obj.target_out1_local|date:"H:i" }}{% else %}-{% endif %}</td>
+              <td class="text-nowrap">{% if obj.target_in2_local %}{{ obj.target_in2_local|date:"H:i" }}{% else %}-{% endif %}</td>
+              <td class="text-nowrap">{% if obj.target_out2_local %}{{ obj.target_out2_local|date:"H:i" }}{% else %}-{% endif %}</td>
+
+              <!-- Từ máy (highlight) -->
+              <td class="text-nowrap {% if st.in1 == 'THIEU' %}cell-thieu{% elif st.in1 == 'MUON' %}cell-muon{% endif %}">
+                {% if obj.actual_in1_local %}{{ obj.actual_in1_local|date:"H:i" }}{% else %}-{% endif %}
+              </td>
+              <td class="text-nowrap {% if st.out1 == 'THIEU' %}cell-thieu{% elif st.out1 == 'SOM' %}cell-som{% endif %}">
+                {% if obj.actual_out1_local %}{{ obj.actual_out1_local|date:"H:i" }}{% else %}-{% endif %}
+              </td>
+              <td class="text-nowrap {% if st.in2 == 'THIEU' %}cell-thieu{% elif st.in2 == 'MUON' %}cell-muon{% endif %}">
+                {% if obj.actual_in2_local %}{{ obj.actual_in2_local|date:"H:i" }}{% else %}-{% endif %}
+              </td>
+              <td class="text-nowrap {% if st.out2 == 'THIEU' %}cell-thieu{% elif st.out2 == 'SOM' %}cell-som{% endif %}">
+                {% if obj.actual_out2_local %}{{ obj.actual_out2_local|date:"H:i" }}{% else %}-{% endif %}
+              </td>
+
+              <!-- Đã sửa: nhập GIỜ -->
+              <td class="text-nowrap">
+                <input class="form-control form-control-sm"
+                       type="time"
+                       name="row_{{ obj.id }}_override_in1"
+                       value="{% if obj.override_in1_local %}{{ obj.override_in1_local|date:'H:i' }}{% endif %}"
+                       {% if not co_quyen_sua %}disabled{% endif %}>
+              </td>
+              <td class="text-nowrap">
+                <input class="form-control form-control-sm"
+                       type="time"
+                       name="row_{{ obj.id }}_override_out1"
+                       value="{% if obj.override_out1_local %}{{ obj.override_out1_local|date:'H:i' }}{% endif %}"
+                       {% if not co_quyen_sua %}disabled{% endif %}>
+              </td>
+              <td class="text-nowrap">
+                <input class="form-control form-control-sm"
+                       type="time"
+                       name="row_{{ obj.id }}_override_in2"
+                       value="{% if obj.override_in2_local %}{{ obj.override_in2_local|date:'H:i' }}{% endif %}"
+                       {% if not co_quyen_sua %}disabled{% endif %}>
+              </td>
+              <td class="text-nowrap">
+                <input class="form-control form-control-sm"
+                       type="time"
+                       name="row_{{ obj.id }}_override_out2"
+                       value="{% if obj.override_out2_local %}{{ obj.override_out2_local|date:'H:i' }}{% endif %}"
+                       {% if not co_quyen_sua %}disabled{% endif %}>
+              </td>
+
+              <td style="min-width:200px;">
+                {% if co_quyen_sua %}
+                  <input class="form-control form-control-sm"
+                         name="row_{{ obj.id }}_override_note"
+                         value="{{ obj.override_note }}"
+                         placeholder="Ghi chú...">
+                {% else %}
+                  <div class="small">{{ obj.override_note|default:"" }}</div>
+                {% endif %}
+              </td>
+
+              <td class="text-nowrap">
+                {% if obj.yeu_cau_sua_trang_thai == "DA_YEU_CAU" %}
+                  <span class="badge bg-danger">Đã yêu cầu</span>
+                {% elif obj.yeu_cau_sua_trang_thai == "DANG_XU_LY" %}
+                  <span class="badge bg-warning">Đang xử lý</span>
+                {% elif obj.yeu_cau_sua_trang_thai == "DA_XU_LY" %}
+                  <span class="badge bg-success">Đã xử lý</span>
+                {% elif obj.yeu_cau_sua_trang_thai == "TU_CHOI" %}
+                  <span class="badge bg-secondary">Từ chối</span>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+
+              <td class="text-nowrap">
+                <button class="btn btn-sm btn-outline-danger"
+                        type="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modalYeuCauSua"
+                        data-row-id="{{ obj.id }}"
+                        data-emp="{{ obj.employee.full_name }}"
+                        data-unit="{{ obj.unit.symbol }}"
+                        data-date="{{ obj.work_date }}">
+                  Yêu cầu sửa
+                </button>
+              </td>
+            </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="16" class="text-muted">Không có dữ liệu.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-2">
+    <div class="text-muted small">
+      Trang {{ page_obj.number }} / {{ paginator.num_pages }}
+    </div>
+    {% if co_quyen_sua %}
+      <button class="btn btn-success btn-sm" type="submit">Lưu dữ liệu</button>
+    {% endif %}
+  </div>
+</form>
+
+<!-- Phân trang an toàn -->
+<nav class="mt-3">
+  <ul class="pagination pagination-sm mb-0">
+    {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link"
+           href="?date={{ work_date }}&unit={{ unit }}&q={{ q }}&nguong={{ nguong }}&page_size={{ page_size }}&page={{ page_obj.previous_page_number }}">
+          Trước
+        </a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Trước</span></li>
+    {% endif %}
+
+    <li class="page-item disabled">
+      <span class="page-link">Trang {{ page_obj.number }} / {{ paginator.num_pages }}</span>
+    </li>
+
+    {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link"
+           href="?date={{ work_date }}&unit={{ unit }}&q={{ q }}&nguong={{ nguong }}&page_size={{ page_size }}&page={{ page_obj.next_page_number }}">
+          Sau
+        </a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Sau</span></li>
+    {% endif %}
+  </ul>
+</nav>
+
+<!-- Modal yêu cầu sửa -->
+<div class="modal fade" id="modalYeuCauSua" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" action="{% url 'attendance_devices_v2:tao_yeu_cau_sua' %}" class="modal-content">
+      {% csrf_token %}
+      <input type="hidden" name="row_id" id="modal_row_id">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div class="modal-header">
+        <h5 class="modal-title">Yêu cầu sửa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-muted small mb-2" id="modal_title"></div>
+        <label class="form-label">Nội dung</label>
+        <textarea class="form-control" rows="4" name="noi_dung" placeholder="Nhập nội dung yêu cầu sửa..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+        <button type="submit" class="btn btn-danger">Gửi yêu cầu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const modal = document.getElementById('modalYeuCauSua');
+  modal.addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    const rowId = button.getAttribute('data-row-id');
+    const emp = button.getAttribute('data-emp');
+    const unit = button.getAttribute('data-unit');
+    const date = button.getAttribute('data-date');
+
+    document.getElementById('modal_row_id').value = rowId;
+    document.getElementById('modal_title').innerText = emp + " | " + unit + " | " + date;
+  });
+</script>
+{% endblock %}

@@ -6,6 +6,8 @@ import secrets
 from django.db import models
 from django.utils import timezone as dj_timezone
 from django.utils.translation import gettext_lazy as _
+from .models_master_list import AttendanceDeviceMasterListV2  # noqa: F401,E402
+from .models_manual_punch import AttendanceManualPunch  # noqa: F401,E402
 
 
 class AttendanceDeviceAgentV2(models.Model):
@@ -408,3 +410,4 @@ class AttendancePunchMatchV2(models.Model):
 
     def __str__(self) -> str:
         return f"{self.work_date} emp={self.employee_id} {self.target_field} {self.status}"
+    
