@@ -4,107 +4,368 @@
 
 {% block title %}Báo cáo{% endblock %}
 
+{% block extra_head %}
+<style>
+  .sticky-filter { position: sticky; top: 0; z-index: 1020; background: #fff; }
+
+  .kpi-card { border: 1px solid rgba(0,0,0,.08); border-radius: 10px; padding: 12px 14px; background: #fff; height: 100%; }
+  .kpi-label { color: #6c757d; font-size: 12px; }
+  .kpi-value { font-size: 22px; font-weight: 700; line-height: 1.1; }
+  .kpi-sub { color: #6c757d; font-size: 12px; }
+  .kpi-link { text-decoration: none; color: inherit; display:block; }
+  .kpi-link:hover .kpi-card { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+
+  /* Row charts: make equal height */
+  .chart-card { height: 100%; display: flex; flex-direction: column; }
+  .chart-card .card-body { flex: 1 1 auto; }
+</style>
+{% endblock %}
+
 {% block content %}
 <h2 class="mb-3">Báo cáo</h2>
 
-<form class="card card-body mb-3" method="get">
+{# Link thống kê chuẩn #}
+{% url 'attendance_devices_v2:thong_ke' as thong_ke_url %}
+
+<form class="card card-body mb-3 sticky-filter" method="get">
   <div class="row g-2 align-items-end">
-    <div class="col-12 col-md-2">
-      <label class="form-label">Từ ngày</label>
-      <input class="form-control form-control-sm" type="date" name="from" value="{{ from_date }}">
-    </div>
-    <div class="col-12 col-md-2">
-      <label class="form-label">Đến ngày</label>
-      <input class="form-control form-control-sm" type="date" name="to" value="{{ to_date }}">
-    </div>
     <div class="col-12 col-md-3">
       <label class="form-label">Đơn vị</label>
       <select class="form-select form-select-sm" name="unit">
-        <option value="">--Tất cả--</option>
+        <option value="">Toàn nhà máy</option>
         {% for u in units %}
           <option value="{{ u.id }}"{% if unit|add:"" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.symbol }} — {{ u.name }}</option>
         {% endfor %}
       </select>
     </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label">Từ ngày</label>
+      <input class="form-control form-control-sm" type="date" name="from" value="{{ from_date }}">
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label">Đến ngày</label>
+      <input class="form-control form-control-sm" type="date" name="to" value="{{ to_date }}">
+    </div>
+
     <div class="col-12 col-md-2">
-      <label class="form-label">Chọn dữ liệu</label>
+      <label class="form-label">Nguồn dữ liệu</label>
       <select class="form-select form-select-sm" name="chon_du_lieu">
-        <option value="DA_SUA"{% if chon_du_lieu == "DA_SUA" %} selected{% endif %}>Dữ liệu đã sửa</option>
         <option value="THUC_TE"{% if chon_du_lieu == "THUC_TE" %} selected{% endif %}>Dữ liệu thực tế</option>
+        <option value="DA_SUA"{% if chon_du_lieu == "DA_SUA" %} selected{% endif %}>Dữ liệu đã sửa</option>
       </select>
     </div>
-    <div class="col-12 col-md-1">
-      <label class="form-label">Ngưỡng</label>
+
+    <div class="col-6 col-md-1">
+      <label class="form-label">Ngưỡng (phút)</label>
       <select class="form-select form-select-sm" name="nguong">
         <option value="5"{% if nguong == 5 %} selected{% endif %}>5</option>
         <option value="10"{% if nguong == 10 %} selected{% endif %}>10</option>
         <option value="15"{% if nguong == 15 %} selected{% endif %}>15</option>
       </select>
     </div>
+
     <div class="col-6 col-md-2">
       <label class="form-label">&nbsp;</label>
-      <button class="btn btn-primary btn-sm w-100" type="submit">Xem</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm w-100" type="submit">Xem</button>
+        <a class="btn btn-outline-secondary btn-sm w-100" href="?">Reset</a>
+      </div>
     </div>
+  </div>
+
+  <div class="text-muted small mt-2">
+    {% if is_daily_mode %}
+      Chế độ: <strong>Vận hành (Ngày {{ to_date }})</strong>
+    {% else %}
+      Chế độ: <strong>Tổng kết (Từ {{ from_date }} đến {{ to_date }})</strong>
+    {% endif %}
   </div>
 </form>
 
 <div class="row g-3 mb-3">
-  <div class="col-12 col-lg-6">
-    <div class="card">
-      <div class="card-header">
-        <strong>Thông số tổng</strong>
-        <div class="text-muted small">Từ ngày {{ from_date }} đến ngày {{ to_date }}</div>
-      </div>
-      <div class="card-body">
-        <div class="row g-2">
-          <div class="col-7">Tổng quân số</div>
-          <div class="col-5 text-end"><strong>{{ kpi.tong_quan_so }}</strong></div>
-
-          <div class="col-7">Số người có mặt</div>
-          <div class="col-5 text-end"><strong>{{ kpi.so_nguoi_co_mat }}</strong> ({{ kpi.pct_co_mat|floatformat:1 }}%)</div>
-
-          <div class="col-7">Số người không có mặt</div>
-          <div class="col-5 text-end"><strong>{{ kpi.so_nguoi_khong_co_mat }}</strong> ({{ kpi.pct_khong_co_mat|floatformat:1 }}%)</div>
-
-          <div class="col-7">Số người thiếu mốc</div>
-          <div class="col-5 text-end"><strong>{{ kpi.so_nguoi_thieu_moc }}</strong> ({{ kpi.pct_thieu_moc|floatformat:1 }}%)</div>
-
-          <div class="col-7">Có mặt nhưng thiếu mốc</div>
-          <div class="col-5 text-end"><strong>{{ kpi.so_nguoi_co_mat_nhung_thieu_moc }}</strong></div>
-
-          <div class="col-7">Số người đi muộn (đủ mốc)</div>
-          <div class="col-5 text-end"><strong>{{ kpi.so_nguoi_di_muon }}</strong> ({{ kpi.pct_di_muon|floatformat:1 }}%)</div>
-
-          <div class="col-7">Số người về sớm (đủ mốc)</div>
-          <div class="col-5 text-end"><strong>{{ kpi.so_nguoi_ve_som }}</strong> ({{ kpi.pct_ve_som|floatformat:1 }}%)</div>
-
-          <div class="col-7">Tỷ lệ đủ mốc</div>
-          <div class="col-5 text-end"><strong>{{ kpi.ty_le_du_moc|floatformat:1 }}%</strong></div>
-
-          <div class="col-7">Tổng phút vi phạm</div>
-          <div class="col-5 text-end"><strong>{{ kpi.tong_phut_vi_pham }}</strong></div>
-
-          <div class="col-7">Yêu cầu sửa đang mở</div>
-          <div class="col-5 text-end"><strong>{{ kpi.yeu_cau_sua_dang_mo }}</strong></div>
-        </div>
-      </div>
-      <div class="card-footer">
-        <a class="btn btn-sm btn-outline-primary"
-           href="{% url 'attendance_devices_v2:thong_ke' %}?date={{ to_date }}&unit={{ unit }}">
-          Xem thống kê ngày
-        </a>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">{% if is_daily_mode %}Quân số đăng ký{% else %}Tổng lượt đăng ký{% endif %}</div>
+      <div class="kpi-value">{{ kpi.tong_luot_dang_ky }}</div>
+      <div class="kpi-sub">
+        {% if is_daily_mode %}
+          expected_marks &gt; 0
+        {% else %}
+          {{ kpi.so_ngay }} ngày • TB {{ kpi.trung_binh_luot_moi_ngay }} lượt/ngày
+        {% endif %}
       </div>
     </div>
   </div>
 
-  <div class="col-12 col-lg-6">
-    <div class="card">
-      <div class="card-header"><strong>Biểu đồ cơ cấu</strong></div>
-      <div class="card-body">
-        <canvas id="chartDonutPresence" height="180"></canvas>
+  <div class="col-6 col-lg-3">
+    <a class="kpi-link" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=CO_MAT">
+      <div class="kpi-card">
+        <div class="kpi-label">{% if is_daily_mode %}Có mặt{% else %}Tổng lượt có mặt{% endif %}</div>
+        <div class="kpi-value">{{ kpi.so_luot_co_mat }}</div>
+        <div class="kpi-sub">{{ kpi.pct_co_mat|floatformat:1 }}% trên tổng lượt</div>
       </div>
-      <div class="card-footer text-muted small">
-        Cơ cấu “Có mặt / Không có mặt” theo khoảng ngày đã chọn.
+    </a>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <a class="kpi-link" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VANG">
+      <div class="kpi-card">
+        <div class="kpi-label">{% if is_daily_mode %}Vắng{% else %}Tổng lượt vắng{% endif %}</div>
+        <div class="kpi-value">{{ kpi.so_luot_vang }}</div>
+        <div class="kpi-sub">{{ kpi.pct_vang|floatformat:1 }}% trên tổng lượt</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <a class="kpi-link" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=THIEU_MOC">
+      <div class="kpi-card">
+        <div class="kpi-label">{% if is_daily_mode %}Thiếu mốc (cần xử lý){% else %}Tổng lượt thiếu mốc{% endif %}</div>
+        <div class="kpi-value">{{ kpi.so_luot_thieu_moc }}</div>
+        <div class="kpi-sub">{{ kpi.pct_thieu_moc|floatformat:1 }}% trên tổng lượt</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <a class="kpi-link" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VI_PHAM">
+      <div class="kpi-card">
+        <div class="kpi-label">Vi phạm (muộn/sớm)</div>
+        <div class="kpi-value">{{ kpi.so_luot_vi_pham }}</div>
+        <div class="kpi-sub">{{ kpi.pct_vi_pham|floatformat:1 }}% trên tổng lượt</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Tổng phút vi phạm</div>
+      <div class="kpi-value">{{ kpi.tong_phut_vi_pham }}</div>
+      <div class="kpi-sub">Muộn + Sớm (lượt đủ mốc)</div>
+    </div>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Tổng phút đi muộn</div>
+      <div class="kpi-value">{{ kpi.tong_phut_di_muon }}</div>
+      <div class="kpi-sub">Theo nguồn dữ liệu</div>
+    </div>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Yêu cầu sửa đang mở</div>
+      <div class="kpi-value">{{ kpi.yeu_cau_sua_dang_mo }}</div>
+      <div class="kpi-sub">Từ trước đến nay</div>
+    </div>
+  </div>
+</div>
+
+{# ===== Charts + incidents ===== #}
+<div class="row g-3 mb-3 align-items-stretch">
+  <div class="col-12 col-lg-4 d-flex">
+    <div class="card chart-card w-100">
+      <div class="card-header"><strong>Cơ cấu trạng thái</strong></div>
+      <div class="card-body">
+        <canvas id="chartDonutStatus" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8 d-flex">
+    <div class="card chart-card w-100">
+      <div class="card-header">
+        <strong>
+          {% if is_daily_mode %}
+            Danh sách sự cố trong ngày
+          {% else %}
+            Biến động theo ngày (% trên quân số mỗi ngày)
+          {% endif %}
+        </strong>
+      </div>
+
+      <div class="card-body">
+        {% if is_daily_mode %}
+          {% if inc_total == 0 %}
+            <div class="text-muted">Không có sự cố.</div>
+          {% else %}
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="text-muted small">Tổng {{ inc_total }} dòng • Trang {{ inc_page }}/{{ inc_pages }}</div>
+              <a class="btn btn-sm btn-outline-primary" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=ALL">Mở thống kê</a>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Nhân sự</th>
+                    <th>Đơn vị</th>
+                    <th class="text-end">Thiếu mốc</th>
+                    <th class="text-end">Muộn</th>
+                    <th class="text-end">Sớm</th>
+                    <th class="text-end">Tổng</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for it in incidents %}
+                  <tr>
+                    <td class="text-nowrap"><strong>{{ it.employee_code }}</strong> — {{ it.employee_name }}</td>
+                    <td class="text-nowrap"><strong>{{ it.unit_symbol }}</strong> — {{ it.unit_name }}</td>
+                    <td class="text-end">{{ it.missing_marks }}</td>
+                    <td class="text-end">{{ it.late_min }}</td>
+                    <td class="text-end">{{ it.early_min }}</td>
+                    <td class="text-end"><strong>{{ it.violation_min }}</strong></td>
+                    <td class="text-end">
+                      <a class="btn btn-sm btn-outline-danger"
+                         href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status={{ it.suggest_status }}">
+                        Xử lý
+                      </a>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <nav class="mt-2">
+              <ul class="pagination pagination-sm mb-0">
+                {% if inc_page > 1 %}
+                  <li class="page-item">
+                    <a class="page-link" href="?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&chon_du_lieu={{ chon_du_lieu }}&nguong={{ nguong }}&inc_page={{ inc_page|add:"-1" }}">Trước</a>
+                  </li>
+                {% else %}
+                  <li class="page-item disabled"><span class="page-link">Trước</span></li>
+                {% endif %}
+
+                <li class="page-item disabled"><span class="page-link">Trang {{ inc_page }}/{{ inc_pages }}</span></li>
+
+                {% if inc_page < inc_pages %}
+                  <li class="page-item">
+                    <a class="page-link" href="?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&chon_du_lieu={{ chon_du_lieu }}&nguong={{ nguong }}&inc_page={{ inc_page|add:"1" }}">Sau</a>
+                  </li>
+                {% else %}
+                  <li class="page-item disabled"><span class="page-link">Sau</span></li>
+                {% endif %}
+              </ul>
+            </nav>
+          {% endif %}
+        {% else %}
+          <canvas id="chartDailyStack100" height="120"></canvas>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ===== 3 columns TOP 5 under charts ===== #}
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header"><strong>Top 5 đơn vị muộn/sớm nhiều nhất</strong></div>
+      <div class="card-body">
+        {% if not top_units_vio %}
+          <div class="text-muted">Chưa có dữ liệu.</div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Đơn vị</th>
+                  <th class="text-end">Rate</th>
+                  <th class="text-end">Phút</th>
+                  <th class="text-end">Lượt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in top_units_vio %}
+                <tr>
+                  <td class="text-nowrap"><strong>{{ r.unit_symbol }}</strong> — {{ r.unit_name }}</td>
+                  <td class="text-end"><strong>{{ r.rate }}</strong></td>
+                  <td class="text-end">{{ r.violation_minutes }}</td>
+                  <td class="text-end">{{ r.total_rows }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="text-muted small mt-2">Rate = phút vi phạm / 100 lượt đăng ký.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header"><strong>Top 5 cá nhân muộn/sớm nhiều nhất</strong></div>
+      <div class="card-body">
+        {% if not top_employees_vio %}
+          <div class="text-muted">Chưa có dữ liệu.</div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Nhân sự</th>
+                  <th class="text-end">Rate</th>
+                  <th class="text-end">Phút</th>
+                  <th class="text-end">Lượt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in top_employees_vio %}
+                <tr>
+                  <td class="text-nowrap"><strong>{{ r.employee_code }}</strong> — {{ r.employee_name }}</td>
+                  <td class="text-end"><strong>{{ r.rate }}</strong></td>
+                  <td class="text-end">{{ r.violation_minutes }}</td>
+                  <td class="text-end">{{ r.total_rows }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="text-muted small mt-2">Rate = phút vi phạm / 100 lượt đăng ký.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header"><strong>Top 5 đơn vị thiếu mốc nhiều nhất</strong></div>
+      <div class="card-body">
+        {% if not top_units_missing %}
+          <div class="text-muted">Chưa có dữ liệu.</div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Đơn vị</th>
+                  <th class="text-end">Rate</th>
+                  <th class="text-end">Thiếu</th>
+                  <th class="text-end">Lượt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in top_units_missing %}
+                <tr>
+                  <td class="text-nowrap"><strong>{{ r.unit_symbol }}</strong> — {{ r.unit_name }}</td>
+                  <td class="text-end"><strong>{{ r.rate }}</strong>%</td>
+                  <td class="text-end">{{ r.missing_rows }}</td>
+                  <td class="text-end">{{ r.total_rows }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="text-muted small mt-2">Rate = % lượt thiếu mốc trên tổng lượt đăng ký.</div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -112,20 +373,6 @@
 
 <div class="row g-3 mb-3">
   <div class="col-12">
-    <div class="card">
-      <div class="card-header"><strong>Biến động theo ngày (% trên quân số mỗi ngày)</strong></div>
-      <div class="card-body">
-        <canvas id="chartDailyStackPct" height="120"></canvas>
-      </div>
-      <div class="card-footer text-muted small">
-        Mỗi ngày là 1 cột 100% (stacked), gồm: Có mặt / Thiếu mốc / Đi muộn / Về sớm.
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="row g-3 mb-3">
-  <div class="col-12 col-lg-6">
     <div class="card">
       <div class="card-header"><strong>Việc cần HR xử lý (từ trước đến nay)</strong></div>
       <div class="card-body">
@@ -156,43 +403,9 @@
       </div>
       <div class="card-footer">
         <a class="btn btn-sm btn-outline-danger"
-           href="{% url 'attendance_devices_v2:thong_ke' %}?date={{ to_date }}&unit={{ unit }}">
+           href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=YEU_CAU_SUA">
           Mở thống kê để xử lý
         </a>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-12 col-lg-6">
-    <div class="card">
-      <div class="card-header"><strong>Top 5 đơn vị đi muộn nhiều nhất (%)</strong></div>
-      <div class="card-body">
-        {% if not top_late %}
-          <div class="text-muted">Chưa có dữ liệu đủ mốc để thống kê.</div>
-        {% else %}
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Đơn vị</th>
-                  <th class="text-end">Đủ mốc</th>
-                  <th class="text-end">Đi muộn</th>
-                  <th class="text-end">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for r in top_late %}
-                <tr>
-                  <td class="text-nowrap"><strong>{{ r.unit_symbol }}</strong> — {{ r.unit_name }}</td>
-                  <td class="text-end">{{ r.ok_people }}</td>
-                  <td class="text-end">{{ r.late_people }}</td>
-                  <td class="text-end"><strong>{{ r.late_rate|floatformat:1 }}%</strong></td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% endif %}
       </div>
     </div>
   </div>
@@ -202,80 +415,64 @@
 
 {% block extra_js %}
 <script src="{% static 'vendor/chart.umd.min.js' %}"></script>
-
-{# JSON chuẩn + an toàn: truyền trực tiếp list/dict Python, KHÔNG json.dumps #}
-{{ daily|json_script:"daily-data" }}
-{{ kpi_chart|json_script:"kpi-chart-data" }}
+{{ chart_payload|json_script:"chart-payload" }}
 
 <script>
-  (function () {
-    if (typeof Chart === 'undefined') {
-      console.warn('Chart.js chưa được load. Kiểm tra /static/vendor/chart.umd.min.js');
-      return;
-    }
+(function () {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js chưa được load. Kiểm tra /static/vendor/chart.umd.min.js');
+    return;
+  }
 
-    const donutEl = document.getElementById('chartDonutPresence');
-    const dailyEl = document.getElementById('chartDailyStackPct');
-    const dailyScript = document.getElementById('daily-data');
-    const kpiScript = document.getElementById('kpi-chart-data');
+  const payload = JSON.parse(document.getElementById('chart-payload').textContent);
 
-    if (!donutEl || !dailyEl || !dailyScript || !kpiScript) {
-      console.warn('Thiếu element để vẽ chart.');
-      return;
-    }
-
-    const kpiChart = JSON.parse(kpiScript.textContent);
-    const dailyData = JSON.parse(dailyScript.textContent);
-
-    // --- Donut: Có mặt / Không có mặt ---
+  const donutEl = document.getElementById('chartDonutStatus');
+  if (donutEl) {
+    const d = payload.donut || {absent:0, missing:0, violation:0, normal:0};
     new Chart(donutEl, {
       type: 'doughnut',
       data: {
-        labels: ['Có mặt', 'Không có mặt'],
+        labels: ['Vắng', 'Thiếu mốc', 'Vi phạm', 'Bình thường'],
         datasets: [{
-          data: [kpiChart.so_nguoi_co_mat, kpiChart.so_nguoi_khong_co_mat],
-          backgroundColor: ['#198754', '#adb5bd'],
+          data: [d.absent, d.missing, d.violation, d.normal],
+          backgroundColor: ['#adb5bd', '#dc3545', '#ffc107', '#198754'],
           borderWidth: 1
         }]
       },
-      options: {
-        responsive: true,
-        plugins: { legend: { position: 'bottom' } }
-      }
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
     });
+  }
 
-    // --- Daily stacked 100% ---
-    const labels = dailyData.map(x => x.date);
-    const presentPct = dailyData.map(x => x.present_pct);
-    const missingPct = dailyData.map(x => x.missing_pct);
-    const latePct = dailyData.map(x => x.late_pct);
-    const earlyPct = dailyData.map(x => x.early_pct);
+  const dailyEl = document.getElementById('chartDailyStack100');
+  if (dailyEl) {
+    const rows = payload.daily_series || [];
+    const labels = rows.map(x => x.date);
+    const normal = rows.map(x => x.normal_pct);
+    const violation = rows.map(x => x.violation_pct);
+    const missing = rows.map(x => x.missing_pct);
+    const absent = rows.map(x => x.absent_pct);
 
     new Chart(dailyEl, {
       type: 'bar',
       data: {
-        labels: labels,
+        labels,
         datasets: [
-          { label: 'Có mặt (%)', data: presentPct, backgroundColor: '#198754' },
-          { label: 'Thiếu mốc (%)', data: missingPct, backgroundColor: '#dc3545' },
-          { label: 'Đi muộn (%)', data: latePct, backgroundColor: '#ffc107' },
-          { label: 'Về sớm (%)', data: earlyPct, backgroundColor: '#0dcaf0' }
+          { label: 'Bình thường (%)', data: normal, backgroundColor: '#198754' },
+          { label: 'Vi phạm (%)', data: violation, backgroundColor: '#ffc107' },
+          { label: 'Thiếu mốc (%)', data: missing, backgroundColor: '#dc3545' },
+          { label: 'Vắng (%)', data: absent, backgroundColor: '#adb5bd' },
         ]
       },
       options: {
         responsive: true,
         scales: {
-          x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 15 } },
-          y: {
-            stacked: true,
-            beginAtZero: true,
-            max: 100,
-            ticks: { callback: (v) => v + '%' }
-          }
+          x: { stacked: true, ticks: { autoSkip: true, maxTicksLimit: 15, maxRotation: 0 } },
+          y: { stacked: true, beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%' } }
         },
         plugins: { legend: { position: 'bottom' } }
       }
     });
-  })();
+  }
+})();
 </script>
 {% endblock %}

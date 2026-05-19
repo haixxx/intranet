@@ -36,13 +36,32 @@
       <select class="form-select form-select-sm don-vi-select" name="unit">
         <option value="">--Tất cả--</option>
         {% for u in units %}
-          {# Hiển thị ngắn: chỉ symbol. Tên đầy đủ ở title để hover xem. #}
           <option value="{{ u.id }}"
                   title="{{ u.symbol }} — {{ u.name }}"
                   {% if unit|add:"" == u.id|stringformat:"s" %}selected{% endif %}>
             {{ u.symbol }}
           </option>
         {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-12 col-md-2">
+      <label class="form-label">Nguồn dữ liệu</label>
+      <select class="form-select form-select-sm" name="source">
+        <option value="DA_SUA"{% if source == "DA_SUA" %} selected{% endif %}>Dữ liệu đã sửa</option>
+        <option value="THUC_TE"{% if source == "THUC_TE" %} selected{% endif %}>Dữ liệu thực tế</option>
+      </select>
+    </div>
+
+    <div class="col-12 col-md-2">
+      <label class="form-label">Trạng thái</label>
+      <select class="form-select form-select-sm" name="status">
+        <option value="ALL"{% if status == "ALL" %} selected{% endif %}>Tất cả</option>
+        <option value="CO_MAT"{% if status == "CO_MAT" %} selected{% endif %}>Có mặt</option>
+        <option value="VANG"{% if status == "VANG" %} selected{% endif %}>Vắng (không có mốc)</option>
+        <option value="THIEU_MOC"{% if status == "THIEU_MOC" %} selected{% endif %}>Thiếu mốc</option>
+        <option value="VI_PHAM"{% if status == "VI_PHAM" %} selected{% endif %}>Vi phạm (muộn/sớm)</option>
+        <option value="YEU_CAU_SUA"{% if status == "YEU_CAU_SUA" %} selected{% endif %}>Yêu cầu sửa đang mở</option>
       </select>
     </div>
 
@@ -84,8 +103,9 @@
   <div><strong>Ghi chú</strong></div>
   <ul class="mb-0">
     <li>Cột <strong>Đã sửa</strong> chỉ nhập <strong>giờ</strong> (HH:MM). Riêng <strong>OUT2</strong> có thể qua ngày (nếu giờ nhỏ hơn <strong>04:00</strong>).</li>
-    <li><span class="badge" style="background:#f8d7da;color:#842029;">Đỏ nhạt</span>: thiếu mốc (ô máy bị thiếu).</li>
-    <li><span class="badge" style="background:#fff3cd;color:#664d03;">Vàng nhạt</span>: đi muộn / về sớm (chỉ tính khi <strong>đủ mốc</strong>).</li>
+    <li><span class="badge" style="background:#f8d7da;color:#842029;">Đỏ nhạt</span>: thiếu mốc (tính theo <strong>nguồn dữ liệu</strong>).</li>
+    <li><span class="badge" style="background:#fff3cd;color:#664d03;">Vàng nhạt</span>: đi muộn / về sớm (chỉ tính khi <strong>đủ mốc theo nguồn dữ liệu</strong>).</li>
+    <li>Cột <strong>Từ máy</strong> luôn hiển thị dữ liệu thực tế từ máy (actual).</li>
   </ul>
 </div>
 
@@ -95,6 +115,8 @@
   <input type="hidden" name="unit" value="{{ unit }}">
   <input type="hidden" name="q" value="{{ q }}">
   <input type="hidden" name="nguong" value="{{ nguong }}">
+  <input type="hidden" name="source" value="{{ source }}">
+  <input type="hidden" name="status" value="{{ status }}">
   <input type="hidden" name="page" value="{{ page_obj.number }}">
   <input type="hidden" name="page_size" value="{{ page_size }}">
 
@@ -147,7 +169,7 @@
               <td class="text-nowrap">{% if obj.target_in2_local %}{{ obj.target_in2_local|date:"H:i" }}{% else %}-{% endif %}</td>
               <td class="text-nowrap">{% if obj.target_out2_local %}{{ obj.target_out2_local|date:"H:i" }}{% else %}-{% endif %}</td>
 
-              <!-- Từ máy (highlight) -->
+              <!-- Từ máy (always actual, highlight theo status tính theo source) -->
               <td class="text-nowrap {% if st.in1 == 'THIEU' %}cell-thieu{% elif st.in1 == 'MUON' %}cell-muon{% endif %}">
                 {% if obj.actual_in1_local %}{{ obj.actual_in1_local|date:"H:i" }}{% else %}-{% endif %}
               </td>
@@ -248,13 +270,12 @@
   </div>
 </form>
 
-<!-- Phân trang an toàn -->
 <nav class="mt-3">
   <ul class="pagination pagination-sm mb-0">
     {% if page_obj.has_previous %}
       <li class="page-item">
         <a class="page-link"
-           href="?date={{ work_date }}&unit={{ unit }}&q={{ q }}&nguong={{ nguong }}&page_size={{ page_size }}&page={{ page_obj.previous_page_number }}">
+           href="?date={{ work_date }}&unit={{ unit }}&source={{ source }}&status={{ status }}&q={{ q }}&nguong={{ nguong }}&page_size={{ page_size }}&page={{ page_obj.previous_page_number }}">
           Trước
         </a>
       </li>
@@ -269,7 +290,7 @@
     {% if page_obj.has_next %}
       <li class="page-item">
         <a class="page-link"
-           href="?date={{ work_date }}&unit={{ unit }}&q={{ q }}&nguong={{ nguong }}&page_size={{ page_size }}&page={{ page_obj.next_page_number }}">
+           href="?date={{ work_date }}&unit={{ unit }}&source={{ source }}&status={{ status }}&q={{ q }}&nguong={{ nguong }}&page_size={{ page_size }}&page={{ page_obj.next_page_number }}">
           Sau
         </a>
       </li>
@@ -279,7 +300,6 @@
   </ul>
 </nav>
 
-<!-- Modal yêu cầu sửa -->
 <div class="modal fade" id="modalYeuCauSua" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form method="post" action="{% url 'attendance_devices_v2:tao_yeu_cau_sua' %}" class="modal-content">
