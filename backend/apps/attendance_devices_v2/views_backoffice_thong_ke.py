@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, date as date_cls, time as dt_time, timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -65,6 +66,31 @@ def _chon_trang_thai(raw: str) -> str:
     if v not in ("", "ALL", "CO_MAT", "VANG", "THIEU_MOC", "VI_PHAM", "YEU_CAU_SUA"):
         v = "ALL"
     return v or "ALL"
+
+
+def _resolve_date_range(request) -> tuple[date_cls, date_cls]:
+    """
+    Tương thích cả link cũ và link mới:
+    - Link mới từ báo cáo: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+    - Link cũ: ?date=YYYY-MM-DD
+    - Nếu không có gì: hôm nay
+    """
+    today = dj_timezone.localdate()
+    date_single = _parse_date(request.GET.get("date"))
+    from_date = _parse_date(request.GET.get("from"))
+    to_date = _parse_date(request.GET.get("to"))
+
+    if from_date or to_date:
+        from_date = from_date or to_date or today
+        to_date = to_date or from_date
+    else:
+        from_date = date_single or today
+        to_date = date_single or today
+
+    if from_date > to_date:
+        from_date, to_date = to_date, from_date
+
+    return from_date, to_date
 
 
 def _build_local_datetime_from_time(work_date: date_cls, t: dt_time, *, next_day: bool) -> datetime:
@@ -134,14 +160,13 @@ def _compute_trang_thai_o_may(
     """
     Trạng thái để highlight các ô "Từ máy" (actual):
     - Nhưng việc tô highlight dựa trên TRẠNG THÁI theo `source`.
-    - Cột hiển thị vẫn là actual (theo lựa chọn #1).
+    - Cột hiển thị vẫn là actual.
     """
     status = {"in1": "", "out1": "", "in2": "", "out2": ""}
 
     if row.is_exempt or row.expected_marks <= 0:
         return status
 
-    # Thiếu mốc theo source: tô đỏ những ô actual bị thiếu tương ứng (hiển thị máy)
     miss = _missing_marks_by_source(row, source)
     if miss > 0:
         if row.expected_in1 and _get_effective_dt(row, "in1", source) is None:
@@ -154,7 +179,6 @@ def _compute_trang_thai_o_may(
             status["out2"] = "THIEU"
         return status
 
-    # Đủ mốc theo source: tính muộn/sớm theo effective_dt so với target
     def check_muon(target_dt, eff_dt):
         if target_dt and eff_dt:
             return int((eff_dt - target_dt).total_seconds()) > threshold_sec
@@ -178,6 +202,132 @@ def _compute_trang_thai_o_may(
     return status
 
 
+def _compute_late_early_seconds(row: AttendanceDeviceMasterListV2, *, source: str, threshold_sec: int) -> tuple[int, int]:
+    """
+    Trả về (muộn_seconds, sớm_seconds), đều là số dương.
+    Chỉ tính khi đủ các mốc expected theo source.
+    """
+    if row.is_exempt or row.expected_marks <= 0:
+        return 0, 0
+    if _missing_marks_by_source(row, source) != 0:
+        return 0, 0
+
+    late_sec = 0
+    early_sec = 0
+
+    def add_late(target_dt, eff_dt):
+        nonlocal late_sec
+        if target_dt and eff_dt:
+            delta = int((eff_dt - target_dt).total_seconds())
+            if delta > threshold_sec:
+                late_sec += delta
+
+    def add_early(target_dt, eff_dt):
+        nonlocal early_sec
+        if target_dt and eff_dt:
+            delta = int((eff_dt - target_dt).total_seconds())
+            if delta < -threshold_sec:
+                early_sec += -delta
+
+    if row.expected_in1:
+        add_late(row.target_in1_local, _get_effective_dt(row, "in1", source))
+    if row.expected_in2:
+        add_late(row.target_in2_local, _get_effective_dt(row, "in2", source))
+    if row.expected_out1:
+        add_early(row.target_out1_local, _get_effective_dt(row, "out1", source))
+    if row.expected_out2:
+        add_early(row.target_out2_local, _get_effective_dt(row, "out2", source))
+
+    return late_sec, early_sec
+
+
+def _has_violation_by_source(row: AttendanceDeviceMasterListV2, *, source: str, threshold_sec: int) -> bool:
+    """
+    Vi phạm = đủ các mốc expected theo source và có ít nhất một mốc:
+    - IN đi muộn quá ngưỡng
+    - OUT về sớm quá ngưỡng
+
+    Không bắt buộc đủ 4 mốc; chỉ bắt buộc đủ các mốc expected của dòng đó.
+    Vì vậy người làm nửa ngày vẫn được lọc VI_PHAM chính xác.
+    """
+    late_sec, early_sec = _compute_late_early_seconds(row, source=source, threshold_sec=threshold_sec)
+    return late_sec > 0 or early_sec > 0
+
+
+def _match_status_filter(
+    row: AttendanceDeviceMasterListV2,
+    *,
+    source: str,
+    status: str,
+    threshold_sec: int,
+) -> bool:
+    """
+    Lọc trạng thái chính xác theo source + expected_*.
+
+    Quy ước đồng bộ với báo cáo:
+    - CO_MAT: có ít nhất 1 mốc expected có dữ liệu theo source
+    - VANG: không có mốc expected nào có dữ liệu theo source
+    - THIEU_MOC: có mặt nhưng thiếu ít nhất 1 mốc expected
+    - VI_PHAM: đủ mốc expected và có đi muộn/về sớm quá ngưỡng
+    """
+    if status in ("", "ALL"):
+        return True
+
+    if status == "CO_MAT":
+        return _is_present_by_source(row, source)
+
+    if status == "VANG":
+        return not _is_present_by_source(row, source)
+
+    if status == "THIEU_MOC":
+        return _is_present_by_source(row, source) and _missing_marks_by_source(row, source) > 0
+
+    if status == "VI_PHAM":
+        return _has_violation_by_source(row, source=source, threshold_sec=threshold_sec)
+
+    return True
+
+
+def _row_status_label(row: AttendanceDeviceMasterListV2, *, source: str, threshold_sec: int) -> str:
+    if not _is_present_by_source(row, source):
+        return "Vắng"
+    if _missing_marks_by_source(row, source) > 0:
+        return "Thiếu mốc"
+    if _has_violation_by_source(row, source=source, threshold_sec=threshold_sec):
+        return "Vi phạm"
+    return "Bình thường"
+
+
+def _thong_ke_url(params: dict) -> str:
+    return "/backoffice/attendance-devices-v2/thong-ke/?" + urlencode(params)
+
+
+def _redirect_thong_ke_url(
+    *,
+    from_date: date_cls,
+    to_date: date_cls,
+    unit: str,
+    q: str,
+    nguong: str,
+    source: str,
+    status: str,
+    page: str = "1",
+    page_size: str = "100",
+) -> str:
+    params = {
+        "from": f"{from_date:%Y-%m-%d}",
+        "to": f"{to_date:%Y-%m-%d}",
+        "unit": unit,
+        "q": q,
+        "nguong": nguong,
+        "source": source,
+        "status": status,
+        "page": page,
+        "page_size": page_size,
+    }
+    return _thong_ke_url(params)
+
+
 @login_required
 def thong_ke_view(request):
     if not request.user.has_perm("attendance.view_attendancecommit"):
@@ -186,18 +336,20 @@ def thong_ke_view(request):
             "title": "Bạn chưa được cấp quyền xem thống kê chấm công"
         }, status=403)
 
-    work_date = _parse_date(request.GET.get("date")) or dj_timezone.localdate()
+    from_date, to_date = _resolve_date_range(request)
+    is_range_mode = from_date != to_date
+    allow_inline_edit = not is_range_mode
+    work_date = from_date
+
     unit_raw = (request.GET.get("unit") or "").strip()
     q = (request.GET.get("q") or "").strip()
 
     nguong = _threshold_min(request.GET.get("nguong") or "5")
     threshold_sec = nguong * 60
 
-    # Nhận cả source (mới) lẫn chon_du_lieu (cũ) cho tương thích
     source = _chon_du_lieu(request.GET.get("source") or request.GET.get("chon_du_lieu") or "DA_SUA")
     status = _chon_trang_thai(request.GET.get("status") or "ALL")
 
-    # Phân trang (chặn page <= 0 để tránh EmptyPage)
     try:
         page = int(request.GET.get("page") or 1)
     except Exception:
@@ -213,7 +365,8 @@ def thong_ke_view(request):
         page_size = 100
 
     qs = AttendanceDeviceMasterListV2.objects.select_related("employee", "unit").filter(
-        work_date=work_date,
+        work_date__gte=from_date,
+        work_date__lte=to_date,
         expected_marks__gt=0,
     )
 
@@ -223,88 +376,72 @@ def thong_ke_view(request):
     if q:
         qs = qs.filter(
             Q(employee__full_name__icontains=q) |
-            Q(employee__card_id__icontains=q)
+            Q(employee__card_id__icontains=q) |
+            Q(employee__employee_code__icontains=q)
         )
 
-    # status filter (lọc theo source)
     if status == "YEU_CAU_SUA":
         qs = qs.filter(yeu_cau_sua_trang_thai__in=[
             AttendanceDeviceMasterListV2.YeuCauSuaTrangThai.DA_YEU_CAU,
             AttendanceDeviceMasterListV2.YeuCauSuaTrangThai.DANG_XU_LY,
         ])
-    elif status in ("CO_MAT", "VANG", "THIEU_MOC", "VI_PHAM"):
-        # lọc bằng python sau paginate sẽ sai (mất bản ghi), nên ta lọc trước:
-        # -> dùng Q conditions theo fields để lọc thô:
-        #
-        # present_by_source: any expected mark has effective_dt not null
-        # missing_by_source: any expected mark has effective_dt null
-        # violation_by_source: đủ mốc + (late or early)
-        #
-        # Vì expected flags là boolean từng row, filter SQL "any expected" sẽ hơi dài.
-        # Ta làm xấp xỉ an toàn bằng cách:
-        # - CO_MAT: effective any not null (dựa trên actual/override fields)
-        # - VANG: all effective null (4 fields null)
-        # - THIEU_MOC: any effective null AND any effective not null (để loại VANG) OR (any effective null with expected marks>0)
-        #   -> vì expected flags khác nhau, cách này gần đúng; phần chính xác vẫn là tô màu + người dùng xem.
-        #
-        # Để chính xác 100% theo expected flags, cần annotate theo expected_*; sẽ làm phase sau nếu cần.
-        if source == "THUC_TE":
-            f_in1, f_out1, f_in2, f_out2 = "actual_in1_local", "actual_out1_local", "actual_in2_local", "actual_out2_local"
-        else:
-            f_in1, f_out1, f_in2, f_out2 = "override_in1_local", "override_out1_local", "override_in2_local", "override_out2_local"
 
-        any_present = Q(**{f"{f_in1}__isnull": False}) | Q(**{f"{f_out1}__isnull": False}) | Q(**{f"{f_in2}__isnull": False}) | Q(**{f"{f_out2}__isnull": False})
-        all_missing = Q(**{f"{f_in1}__isnull": True}) & Q(**{f"{f_out1}__isnull": True}) & Q(**{f"{f_in2}__isnull": True}) & Q(**{f"{f_out2}__isnull": True})
-        any_missing = Q(**{f"{f_in1}__isnull": True}) | Q(**{f"{f_out1}__isnull": True}) | Q(**{f"{f_in2}__isnull": True}) | Q(**{f"{f_out2}__isnull": True})
+    qs = qs.order_by("work_date", "unit_id", "employee__full_name", "employee_id")
 
-        if status == "CO_MAT":
-            qs = qs.filter(any_present)
-        elif status == "VANG":
-            qs = qs.filter(all_missing)
-        elif status == "THIEU_MOC":
-            qs = qs.filter(any_missing).exclude(all_missing)
-        elif status == "VI_PHAM":
-            # Vi phạm cần "đủ mốc theo source" + muộn/sớm.
-            # Ở SQL khó chuẩn theo expected flags, nên ta lọc thô "có đủ 4 mốc" để giảm tập,
-            # rồi check chính xác bằng python khi build rows (vẫn đúng).
-            qs = qs.filter(
-                Q(**{f"{f_in1}__isnull": False}),
-                Q(**{f"{f_out1}__isnull": False}),
-                Q(**{f"{f_in2}__isnull": False}),
-                Q(**{f"{f_out2}__isnull": False}),
-            )
+    # Các trạng thái CO_MAT/VANG/THIEU_MOC/VI_PHAM phải lọc theo expected_* từng dòng.
+    # Nếu lọc SQL đơn giản theo 4 cột actual/override sẽ sai với ca nửa ngày/chỉ sáng/chỉ chiều.
+    # Với quy mô ~1000 người/ngày, 1 tháng ~30k dòng: lọc Python trước paginate vẫn phù hợp
+    # và giúp paginator.count đúng với số dòng thực sự khớp bộ lọc.
+    if status in ("CO_MAT", "VANG", "THIEU_MOC", "VI_PHAM"):
+        object_list = [
+            r for r in qs
+            if _match_status_filter(r, source=source, status=status, threshold_sec=threshold_sec)
+        ]
+        paginator = Paginator(object_list, page_size)
+    else:
+        paginator = Paginator(qs, page_size)
 
-    qs = qs.order_by("unit_id", "employee__full_name")
-
-    paginator = Paginator(qs, page_size)
     page_obj = paginator.get_page(page)
 
     rows = []
     for r in page_obj.object_list:
-        trang_thai_o_may = _compute_trang_thai_o_may(r, threshold_sec=threshold_sec, source=source)
-
-        # Nếu status=VI_PHAM, cần lọc chính xác 100% bằng python (để tránh false positive do expected flags)
-        if status == "VI_PHAM":
-            miss = _missing_marks_by_source(r, source)
-            if miss != 0:
-                continue
-            # compute violation
-            vio = False
-            if trang_thai_o_may["in1"] == "MUON" or trang_thai_o_may["in2"] == "MUON" or trang_thai_o_may["out1"] == "SOM" or trang_thai_o_may["out2"] == "SOM":
-                vio = True
-            if not vio:
-                continue
-
+        late_sec, early_sec = _compute_late_early_seconds(r, source=source, threshold_sec=threshold_sec)
+        open_day_url = _thong_ke_url({
+            "from": f"{r.work_date:%Y-%m-%d}",
+            "to": f"{r.work_date:%Y-%m-%d}",
+            "unit": unit_raw,
+            "q": q,
+            "nguong": nguong,
+            "source": source,
+            "status": status,
+            "page_size": page_size,
+            "page": 1,
+        })
         rows.append({
             "obj": r,
-            "trang_thai_o_may": trang_thai_o_may,
+            "trang_thai_o_may": _compute_trang_thai_o_may(
+                r,
+                threshold_sec=threshold_sec,
+                source=source,
+            ),
+            "is_present": _is_present_by_source(r, source),
+            "missing_marks_by_source": _missing_marks_by_source(r, source),
+            "is_violation": late_sec > 0 or early_sec > 0,
+            "late_min": int(late_sec // 60),
+            "early_min": int(early_sec // 60),
+            "status_label": _row_status_label(r, source=source, threshold_sec=threshold_sec),
+            "open_day_url": open_day_url,
         })
 
     units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
     co_quyen_sua = request.user.has_perm("attendance_devices_v2.change_attendancedevicemasterlistv2")
 
     return render(request, "backoffice/attendance_devices_v2/thong_ke.html", {
-        "work_date": work_date.strftime("%Y-%m-%d"),
+        "work_date": work_date.strftime("%Y-%m-%d"),  # giữ tương thích template/POST cũ
+        "from_date": from_date.strftime("%Y-%m-%d"),
+        "to_date": to_date.strftime("%Y-%m-%d"),
+        "is_range_mode": is_range_mode,
+        "allow_inline_edit": allow_inline_edit,
         "unit": unit_raw,
         "q": q,
         "nguong": nguong,
@@ -314,7 +451,6 @@ def thong_ke_view(request):
         "co_quyen_sua": co_quyen_sua,
         "page_obj": page_obj,
         "paginator": paginator,
-
         "source": source,
         "status": status,
     })
@@ -331,12 +467,28 @@ def luu_du_lieu_view(request):
             "title": "Bạn chưa được cấp quyền lưu dữ liệu đã sửa"
         }, status=403)
 
-    work_date = _parse_date(request.POST.get("date")) or dj_timezone.localdate()
+    # Lưu inline chỉ dành cho chế độ 1 ngày.
+    work_date = _parse_date(request.POST.get("date")) or _parse_date(request.POST.get("from")) or dj_timezone.localdate()
+    from_date = _parse_date(request.POST.get("from")) or work_date
+    to_date = _parse_date(request.POST.get("to")) or work_date
+    if from_date != to_date:
+        messages.error(request, "Chế độ khoảng ngày chỉ dùng để xem. Muốn sửa dữ liệu, hãy mở đúng ngày cần xử lý.")
+        return redirect(_redirect_thong_ke_url(
+            from_date=from_date,
+            to_date=to_date,
+            unit=(request.POST.get("unit") or "").strip(),
+            q=(request.POST.get("q") or "").strip(),
+            nguong=(request.POST.get("nguong") or "5").strip(),
+            source=_chon_du_lieu(request.POST.get("source") or request.POST.get("chon_du_lieu") or "DA_SUA"),
+            status=_chon_trang_thai(request.POST.get("status") or "ALL"),
+            page=(request.POST.get("page") or "1").strip(),
+            page_size=(request.POST.get("page_size") or "100").strip(),
+        ))
+
     unit_raw = (request.POST.get("unit") or "").strip()
     q = (request.POST.get("q") or "").strip()
     nguong = (request.POST.get("nguong") or "5").strip()
 
-    # gi��� lại filter mới để redirect không mất state
     source = _chon_du_lieu(request.POST.get("source") or request.POST.get("chon_du_lieu") or "DA_SUA")
     status = _chon_trang_thai(request.POST.get("status") or "ALL")
 
@@ -349,10 +501,17 @@ def luu_du_lieu_view(request):
     row_ids = [int(x) for x in row_ids if (x or "").isdigit()]
     if not row_ids:
         messages.info(request, "Không có dòng nào để lưu.")
-        return redirect(
-            f"/backoffice/attendance-devices-v2/thong-ke/"
-            f"?date={work_date:%Y-%m-%d}&unit={unit_raw}&q={q}&nguong={nguong}&source={source}&status={status}&page={page}&page_size={page_size}"
-        )
+        return redirect(_redirect_thong_ke_url(
+            from_date=work_date,
+            to_date=work_date,
+            unit=unit_raw,
+            q=q,
+            nguong=nguong,
+            source=source,
+            status=status,
+            page=page,
+            page_size=page_size,
+        ))
 
     qs = AttendanceDeviceMasterListV2.objects.filter(id__in=row_ids, work_date=work_date)
 
@@ -416,10 +575,17 @@ def luu_du_lieu_view(request):
             updated += 1
 
     messages.success(request, f"Đã lưu dữ liệu: {updated} dòng thay đổi.")
-    return redirect(
-        f"/backoffice/attendance-devices-v2/thong-ke/"
-        f"?date={work_date:%Y-%m-%d}&unit={unit_raw}&q={q}&nguong={nguong}&source={source}&status={status}&page={page}&page_size={page_size}"
-    )
+    return redirect(_redirect_thong_ke_url(
+        from_date=work_date,
+        to_date=work_date,
+        unit=unit_raw,
+        q=q,
+        nguong=nguong,
+        source=source,
+        status=status,
+        page=page,
+        page_size=page_size,
+    ))
 
 
 @login_required

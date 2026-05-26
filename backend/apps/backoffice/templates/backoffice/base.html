@@ -138,6 +138,14 @@
                   {% endif %}
 
                   {# Các mục vận hành: giữ lại #}
+
+                  {% if perms.attendance_devices_v2.view_attendancedevicev2 %}
+                  <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'giam_sat_thiet_bi' %}active{% endif %}"
+                     href="{% url 'attendance_devices_v2:giam_sat_thiet_bi' %}">
+                    <i class="ti ti-activity-heartbeat me-2"></i> {% trans "Giám sát thiết bị" %}
+                  </a>
+                  {% endif %}
+
                   {% if perms.attendance_devices_v2.view_attendancedevicev2 %}
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name in 'device_list device_create device_edit' %}active{% endif %}"
                      href="{% url 'attendance_devices_v2:device_list' %}">

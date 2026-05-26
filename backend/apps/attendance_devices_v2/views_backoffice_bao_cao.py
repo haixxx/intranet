@@ -143,6 +143,56 @@ def _compute_late_early_seconds(row: AttendanceDeviceMasterListV2, source: str, 
     return muon_sec, som_sec
 
 
+def _compute_late_early_actual_seconds(row: AttendanceDeviceMasterListV2, source: str) -> tuple[int, int]:
+    """
+    Trả về tổng giây đi muộn/về sớm thực tế, không áp ngưỡng.
+
+    Khác với _compute_late_early_seconds():
+    - Hàm này dùng cho KPI tổng phút đi muộn/về sớm thực tế.
+    - Chỉ tính khi đủ mốc theo source.
+    - Ví dụ ngưỡng 5 phút, vào 13:04 thì vẫn cộng 4 phút vào tổng phút đi muộn,
+      nhưng không tính là lượt vi phạm.
+    """
+    if row.is_exempt or row.expected_marks <= 0:
+        return 0, 0
+
+    if _missing_marks_by_source(row, source) != 0:
+        return 0, 0
+
+    muon_sec = 0
+    som_sec = 0
+
+    def add_muon(target_attr: str, eff_field: str):
+        nonlocal muon_sec
+        target = getattr(row, target_attr)
+        eff = _get_effective_dt(row, eff_field, source)
+        if target and eff:
+            delta = int((eff - target).total_seconds())
+            if delta > 0:
+                muon_sec += delta
+
+    def add_som(target_attr: str, eff_field: str):
+        nonlocal som_sec
+        target = getattr(row, target_attr)
+        eff = _get_effective_dt(row, eff_field, source)
+        if target and eff:
+            delta = int((eff - target).total_seconds())
+            if delta < 0:
+                som_sec += (-delta)
+
+    if row.expected_in1:
+        add_muon("target_in1_local", "in1")
+    if row.expected_in2:
+        add_muon("target_in2_local", "in2")
+
+    if row.expected_out1:
+        add_som("target_out1_local", "out1")
+    if row.expected_out2:
+        add_som("target_out2_local", "out2")
+
+    return muon_sec, som_sec
+
+
 def _pct(n: int, d: int) -> float:
     if not d:
         return 0.0
@@ -254,8 +304,13 @@ def bao_cao_view(request):
 
     late = 0
     early = 0
-    total_late_sec = 0
-    total_early_sec = 0
+    # Tổng phút vi phạm: chỉ cộng các lượt vượt ngưỡng.
+    total_late_violation_sec = 0
+    total_early_violation_sec = 0
+
+    # Tổng phút đi muộn/về sớm thực tế: cộng mọi phút lệch, kể cả dưới ngưỡng.
+    total_late_actual_sec = 0
+    total_early_actual_sec = 0
 
     # incidents daily
     incidents_all: list[dict] = []
@@ -282,11 +337,15 @@ def bao_cao_view(request):
     for r in rows_iter:
         is_present = _is_present(r, source)
         miss = _missing_marks_by_source(r, source)
-        muon_sec, som_sec = _compute_late_early_seconds(r, source, threshold_sec)
+        # Vi phạm: áp ngưỡng.
+        muon_vio_sec, som_vio_sec = _compute_late_early_seconds(r, source, threshold_sec)
 
-        vio_min = int((muon_sec + som_sec) // 60)
-        late_min = int(muon_sec // 60) if muon_sec > 0 else 0
-        early_min = int(som_sec // 60) if som_sec > 0 else 0
+        # Tổng phút thực tế: không áp ngưỡng.
+        muon_actual_sec, som_actual_sec = _compute_late_early_actual_seconds(r, source)
+
+        vio_min = int((muon_vio_sec + som_vio_sec) // 60)
+        late_min = int(muon_vio_sec // 60) if muon_vio_sec > 0 else 0
+        early_min = int(som_vio_sec // 60) if som_vio_sec > 0 else 0
 
         if is_present:
             present += 1
@@ -302,12 +361,17 @@ def bao_cao_view(request):
         elif b == "NORMAL":
             normal += 1
 
-        if muon_sec > 0:
+        # Số lượt đi muộn/về sớm vẫn là số lượt VI PHẠM, tức là có áp ngưỡng.
+        if muon_vio_sec > 0:
             late += 1
-            total_late_sec += muon_sec
-        if som_sec > 0:
+            total_late_violation_sec += muon_vio_sec
+        if som_vio_sec > 0:
             early += 1
-            total_early_sec += som_sec
+            total_early_violation_sec += som_vio_sec
+
+        # Tổng phút đi muộn/về sớm là tổng lệch thực tế, không áp ngưỡng.
+        total_late_actual_sec += muon_actual_sec
+        total_early_actual_sec += som_actual_sec
 
         # incidents for daily
         if is_daily_mode and (miss > 0 or vio_min > 0):
@@ -350,9 +414,12 @@ def bao_cao_view(request):
 
         "so_luot_di_muon": late,
         "so_luot_ve_som": early,
-        "tong_phut_di_muon": int(total_late_sec // 60),
-        "tong_phut_ve_som": int(total_early_sec // 60),
-        "tong_phut_vi_pham": int((total_late_sec + total_early_sec) // 60),
+        # Tổng phút thực tế, không áp ngưỡng. Ví dụ vào 13:04 với ngưỡng 5 phút vẫn cộng 4 phút.
+        "tong_phut_di_muon": int(total_late_actual_sec // 60),
+        "tong_phut_ve_som": int(total_early_actual_sec // 60),
+
+        # Tổng phút vi phạm chỉ cộng các lượt vượt ngưỡng.
+        "tong_phut_vi_pham": int((total_late_violation_sec + total_early_violation_sec) // 60),
 
         "yeu_cau_sua_dang_mo": qs_yeu_cau.count(),
 

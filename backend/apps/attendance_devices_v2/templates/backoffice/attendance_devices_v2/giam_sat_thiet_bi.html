@@ -1,0 +1,295 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}Giám sát thiết bị chấm công{% endblock %}
+
+{% block extra_head %}
+<style>
+  .monitor-page h2 { font-size: 1.35rem; }
+  .monitor-filter {
+    display: grid;
+    grid-template-columns: 135px minmax(160px, 1fr) 150px 130px 95px 90px 118px;
+    gap: .4rem;
+    align-items: end;
+  }
+  .monitor-filter .form-label { font-size: 12px; color: #6c757d; margin-bottom: 2px; }
+  .monitor-filter .form-control-sm,
+  .monitor-filter .form-select-sm,
+  .monitor-filter .btn-sm { font-size: 12px; min-height: 30px; padding-top: .18rem; padding-bottom: .18rem; }
+  .monitor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(9, minmax(105px, 1fr)); gap: .5rem; }
+  .kpi-card { border: 1px solid rgba(0,0,0,.08); border-radius: 10px; padding: .55rem .65rem; background: #fff; }
+  .kpi-title { font-size: 11px; color: #6c757d; line-height: 1.1; }
+  .kpi-value { font-size: 1.25rem; font-weight: 700; line-height: 1.25; }
+
+  .table-monitor { font-size: 12px; }
+  .table-monitor th,
+  .table-monitor td { padding: .38rem .45rem; vertical-align: middle; }
+  .table-monitor thead th { white-space: nowrap; }
+  .cell-compact { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .uid-list { font-size: 11px; line-height: 1.25; text-align: left; }
+  .uid-pill { display:inline-block; margin:1px 2px 1px 0; padding:1px 4px; border-radius:4px; background:#f8d7da; color:#842029; font-weight:600; }
+  .badge-status { font-size: 10.5px; min-width: 78px; }
+  .small-muted { font-size: 11px; color: #6c757d; }
+  .status-tabs .btn { font-size: 12px; padding: .2rem .5rem; }
+
+  .badge-soft-success { background: #d1e7dd; color: #0f5132; }
+  .badge-soft-warning { background: #fff3cd; color: #664d03; }
+  .badge-soft-danger { background: #f8d7da; color: #842029; }
+  .badge-soft-secondary { background: #e9ecef; color: #343a40; }
+  .badge-soft-dark { background: #dee2e6; color: #212529; }
+
+  @media (max-width: 1200px) {
+    .monitor-filter { grid-template-columns: repeat(4, minmax(120px, 1fr)); }
+    .kpi-grid { grid-template-columns: repeat(4, minmax(110px, 1fr)); }
+  }
+  @media (max-width: 768px) {
+    .monitor-filter { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    .kpi-grid { grid-template-columns: repeat(2, minmax(110px, 1fr)); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="monitor-page">
+  <div class="d-flex justify-content-between align-items-start mb-2">
+    <div>
+      <h2 class="mb-1">Giám sát thiết bị chấm công</h2>
+      <div class="text-muted small">
+        Theo dõi trạng thái máy, agent, số log nhận được, raw chưa chuẩn hoá và UID chưa map nhân sự.
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+      <form method="post" action="{% url 'attendance_devices_v2:normalize_lai' %}" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="limit" value="5000">
+        <button class="btn btn-success btn-sm" type="submit" onclick="return confirm('Chạy normalize lại raw chưa xử lý?');">
+          <i class="ti ti-refresh me-1"></i> Normalize lại
+        </button>
+      </form>
+      <form method="post" action="{% url 'attendance_devices_v2:tinh_lai_masterlist' %}" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="date" value="{{ work_date }}">
+        <input type="hidden" name="unit" value="{{ unit }}">
+        <button class="btn btn-primary btn-sm" type="submit" onclick="return confirm('Tính lại MasterList cho ngày {{ work_date }}{% if unit %} và đơn vị đang lọc{% else %} cho tất cả đơn vị có công chốt{% endif %}?');">
+          <i class="ti ti-calculator me-1"></i> Tính lại MasterList
+        </button>
+      </form>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}">
+        <i class="ti ti-devices me-1"></i> Thiết bị
+      </a>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:agent_list' %}">
+        <i class="ti ti-server me-1"></i> Agent
+      </a>
+    </div>
+  </div>
+
+  <form class="card card-body mb-2 py-2" method="get">
+    <div class="monitor-filter">
+      <div>
+        <label class="form-label">Ngày log</label>
+        <input class="form-control form-control-sm" type="date" name="date" value="{{ work_date }}">
+      </div>
+      <div>
+        <label class="form-label">Tìm</label>
+        <input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Tên máy / IP / serial / đơn vị">
+      </div>
+      <div>
+        <label class="form-label">Agent</label>
+        <select class="form-select form-select-sm" name="agent">
+          <option value="">Tất cả</option>
+          {% for a in agents %}
+            <option value="{{ a.id }}"{% if agent|add:'' == a.id|stringformat:'s' %} selected{% endif %}>{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Đơn vị</label>
+        <select class="form-select form-select-sm" name="unit">
+          <option value="">Tất cả</option>
+          {% for u in units %}
+            <option value="{{ u.id }}"{% if unit|add:'' == u.id|stringformat:'s' %} selected{% endif %}>{{ u.symbol }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Active</label>
+        <select class="form-select form-select-sm" name="active">
+          <option value="">Tất cả</option>
+          <option value="1"{% if active == "1" %} selected{% endif %}>Có</option>
+          <option value="0"{% if active == "0" %} selected{% endif %}>Không</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Dòng</label>
+        <select class="form-select form-select-sm" name="page_size" onchange="this.form.submit()">
+          <option value="50"{% if page_size == 50 %} selected{% endif %}>50</option>
+          <option value="100"{% if page_size == 100 %} selected{% endif %}>100</option>
+          <option value="200"{% if page_size == 200 %} selected{% endif %}>200</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">&nbsp;</label>
+        <div class="monitor-actions">
+          <button class="btn btn-primary btn-sm" type="submit">Xem</button>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:giam_sat_thiet_bi' %}">Xóa</a>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="d-flex flex-wrap gap-1 mb-2 status-tabs">
+    {% for s in status_links %}
+      <a class="btn btn-sm {% if s.active %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ s.url }}">{{ s.label }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="kpi-grid mb-2">
+    <div class="kpi-card"><div class="kpi-title">Tổng máy</div><div class="kpi-value">{{ kpi.total }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Online</div><div class="kpi-value text-success">{{ kpi.online }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Chậm dữ liệu</div><div class="kpi-value text-warning">{{ kpi.stale }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Offline</div><div class="kpi-value text-danger">{{ kpi.offline }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Raw hôm nay</div><div class="kpi-value">{{ kpi.raw_today }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Đã chuẩn hoá</div><div class="kpi-value">{{ kpi.normalized_today }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Raw chưa chuẩn hoá</div><div class="kpi-value {% if kpi.raw_pending %}text-warning{% endif %}">{{ kpi.raw_pending }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">UID chưa map</div><div class="kpi-value {% if kpi.unresolved_today %}text-danger{% endif %}">{{ kpi.unresolved_today }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Raw UID chưa map</div><div class="kpi-value {% if kpi.unresolved_raw_today %}text-danger{% endif %}">{{ kpi.unresolved_raw_today }}</div></div>
+  </div>
+
+  <div class="card card-body py-2 mb-2">
+    <div class="small text-muted">
+      Quy ước trạng thái động: <strong>Online</strong> nếu máy có pull trong {{ online_minutes }} phút gần nhất;
+      <strong>Chậm dữ liệu</strong> nếu quá {{ online_minutes }} đến {{ stale_minutes }} phút;
+      <strong>Offline</strong> nếu quá {{ stale_minutes }} phút. Agent online nếu heartbeat trong {{ agent_online_minutes }} phút gần nhất.
+      <br>UID chưa map là các mã thẻ máy gửi lên nhưng chưa khớp với <strong>Employee.card_id</strong>; sau khi cập nhật mã thẻ trong hồ sơ nhân sự, bấm <strong>Normalize lại</strong> để xử lý các raw cũ.
+      <br><strong>Tính lại MasterList</strong> dùng dữ liệu đã chuẩn hoá và dữ liệu nhập bổ sung để cập nhật báo cáo/thống kê. Nếu không chọn đơn vị, hệ thống sẽ tính tất cả đơn vị có công chốt trong ngày; đơn vị gắn trên thiết bị chỉ là vị trí/quản lý máy, không phải phạm vi nhân sự chấm trên máy.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-monitor mb-0">
+        <thead>
+          <tr>
+            <th>Máy</th>
+            <th>Đơn vị</th>
+            <th>Agent</th>
+            <th>Trạng thái</th>
+            <th>Lần pull</th>
+            <th class="text-end">Raw ngày</th>
+            <th class="text-end">Raw 24h</th>
+            <th class="text-end">Norm ngày</th>
+            <th class="text-end">Chưa norm</th>
+            <th class="text-end">UID chưa map</th>
+            <th>Ingest cuối</th>
+            <th>Cursor</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>
+                <div><strong>{{ r.device.name }}</strong></div>
+                <div class="small-muted">{{ r.device.host }}:{{ r.device.port }}{% if r.device.serial_no %} | SN: {{ r.device.serial_no }}{% endif %}</div>
+              </td>
+              <td class="cell-compact" title="{% if r.device.org_unit %}{{ r.device.org_unit.symbol }} — {{ r.device.org_unit.name }}{% endif %}">
+                {% if r.device.org_unit %}{{ r.device.org_unit.symbol }}{% else %}-{% endif %}
+              </td>
+              <td>
+                {% if r.device.assigned_agent %}
+                  <div class="cell-compact" title="{{ r.device.assigned_agent.name }}">{{ r.device.assigned_agent.name }}</div>
+                  <div class="small-muted">{{ r.agent_status_label }} · {{ r.agent_last_seen_ago }}</div>
+                {% else %}
+                  <span class="text-muted">Chưa gán</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge badge-status bg-{{ r.dynamic_status_class }}">{{ r.dynamic_status_label }}</span>
+                <div class="small-muted">DB: {{ r.device.status }}</div>
+              </td>
+              <td class="text-nowrap">
+                {% if r.device.last_pull_at %}
+                  {{ r.device.last_pull_at|date:"Y-m-d H:i" }}
+                  <div class="small-muted">{{ r.last_pull_ago }}</div>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td class="text-end"><strong>{{ r.raw_today }}</strong></td>
+              <td class="text-end">{{ r.raw_24h }}</td>
+              <td class="text-end">{{ r.normalized_today }}</td>
+              <td class="text-end {% if r.raw_pending %}text-warning fw-bold{% endif %}">{{ r.raw_pending }}</td>
+              <td class="text-end {% if r.unresolved_today %}text-danger fw-bold{% endif %}">
+                <div>{{ r.unresolved_today }}</div>
+                {% if r.unresolved_samples %}
+                  <div class="uid-list mt-1">
+                    {% for u in r.unresolved_samples %}
+                      <span class="uid-pill" title="{{ u.cnt }} raw{% if u.last_seen %}, lần cuối {{ u.last_seen|date:'Y-m-d H:i' }}{% endif %}">{{ u.uid }} ({{ u.cnt }})</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </td>
+              <td class="text-nowrap">
+                <span class="badge bg-{{ r.last_log_class }}">{{ r.last_log_status_label }}</span>
+                {% if r.last_log %}
+                  <div class="small-muted">
+                    {{ r.last_log.started_at|date:"Y-m-d H:i" }} · ghi {{ r.last_log.processed }} · trùng {{ r.last_log.duplicates }} · loại {{ r.last_log.rejected }}
+                  </div>
+                  {% if r.last_log.error_message %}
+                    <div class="text-danger small cell-compact" title="{{ r.last_log.error_message }}">{{ r.last_log.error_message }}</div>
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td class="cell-compact" title="{{ r.cursor_text }}">{{ r.cursor_text }}</td>
+              <td class="text-end text-nowrap">
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices_v2:device_edit' r.device.id %}">Sửa</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="13" class="text-muted">Không có thiết bị phù hợp bộ lọc.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if unmapped_uid_details %}
+  <div class="card mt-3">
+    <div class="card-header py-2">
+      <strong>Chi tiết UID/mã thẻ chưa map trong ngày {{ work_date }}</strong>
+      <span class="text-muted small ms-2">Hiển thị tối đa 200 dòng theo bộ lọc hiện tại</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-monitor mb-0">
+        <thead>
+          <tr>
+            <th>Máy</th>
+            <th>Đơn vị</th>
+            <th>UID / mã thẻ trên máy</th>
+            <th class="text-end">Số raw</th>
+            <th>Lần cuối</th>
+            <th>Gợi ý xử lý</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in unmapped_uid_details %}
+            <tr>
+              <td><strong>{{ u.device.name }}</strong></td>
+              <td>{% if u.device.org_unit %}{{ u.device.org_unit.symbol }}{% else %}-{% endif %}</td>
+              <td><span class="uid-pill">{{ u.uid }}</span></td>
+              <td class="text-end"><strong>{{ u.cnt }}</strong></td>
+              <td class="text-nowrap">{% if u.last_seen %}{{ u.last_seen|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+              <td class="small text-muted">Cập nhật mã thẻ này vào hồ sơ nhân sự tương ứng, sau đó chạy lại normalize.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

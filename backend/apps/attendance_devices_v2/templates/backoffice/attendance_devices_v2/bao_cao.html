@@ -100,7 +100,7 @@
   </div>
 
   <div class="col-6 col-lg-3">
-    <a class="kpi-link" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=CO_MAT">
+    <a class="kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=CO_MAT">
       <div class="kpi-card">
         <div class="kpi-label">{% if is_daily_mode %}Có mặt{% else %}Tổng lượt có mặt{% endif %}</div>
         <div class="kpi-value">{{ kpi.so_luot_co_mat }}</div>
@@ -110,7 +110,7 @@
   </div>
 
   <div class="col-6 col-lg-3">
-    <a class="kpi-link" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VANG">
+    <a class="kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VANG">
       <div class="kpi-card">
         <div class="kpi-label">{% if is_daily_mode %}Vắng{% else %}Tổng lượt vắng{% endif %}</div>
         <div class="kpi-value">{{ kpi.so_luot_vang }}</div>
@@ -120,7 +120,7 @@
   </div>
 
   <div class="col-6 col-lg-3">
-    <a class="kpi-link" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=THIEU_MOC">
+    <a class="kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=THIEU_MOC">
       <div class="kpi-card">
         <div class="kpi-label">{% if is_daily_mode %}Thiếu mốc (cần xử lý){% else %}Tổng lượt thiếu mốc{% endif %}</div>
         <div class="kpi-value">{{ kpi.so_luot_thieu_moc }}</div>
@@ -132,7 +132,7 @@
 
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3">
-    <a class="kpi-link" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VI_PHAM">
+    <a class="kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VI_PHAM">
       <div class="kpi-card">
         <div class="kpi-label">Vi phạm (muộn/sớm)</div>
         <div class="kpi-value">{{ kpi.so_luot_vi_pham }}</div>
@@ -196,7 +196,7 @@
           {% else %}
             <div class="d-flex justify-content-between align-items-center mb-2">
               <div class="text-muted small">Tổng {{ inc_total }} dòng • Trang {{ inc_page }}/{{ inc_pages }}</div>
-              <a class="btn btn-sm btn-outline-primary" href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=ALL">Mở thống kê</a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=ALL">Mở thống kê</a>
             </div>
 
             <div class="table-responsive">
@@ -223,7 +223,7 @@
                     <td class="text-end"><strong>{{ it.violation_min }}</strong></td>
                     <td class="text-end">
                       <a class="btn btn-sm btn-outline-danger"
-                         href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status={{ it.suggest_status }}">
+                         href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status={{ it.suggest_status }}">
                         Xử lý
                       </a>
                     </td>
@@ -403,7 +403,7 @@
       </div>
       <div class="card-footer">
         <a class="btn btn-sm btn-outline-danger"
-           href="{{ thong_ke_url }}?date={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=YEU_CAU_SUA">
+           href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=YEU_CAU_SUA">
           Mở thống kê để xử lý
         </a>
       </div>

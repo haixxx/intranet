@@ -1,0 +1,580 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta, time as dt_time, timezone as datetime_timezone
+from urllib.parse import urlencode
+from uuid import uuid4
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, permission_required
+from django.db.models import Count, Max, Q
+from django.shortcuts import render, redirect
+from django.utils import timezone as dj_timezone
+from django.utils.translation import gettext_lazy as _
+
+from apps.organization.models import OrgUnit
+from apps.hr.models import Employee
+from apps.attendance.models_batch import AttendanceCommit
+
+from .services_normalize import normalize_raw_punches
+from .services_master_list_compute import compute_master_list_for_unit_date
+
+from .models import (
+    AttendanceDeviceAgentV2,
+    AttendanceDeviceV2,
+    AttendanceIngestLogV2,
+    AttendanceNormalizedPunchV2,
+    AttendanceRawPunchV2,
+)
+
+
+ONLINE_MINUTES = 10
+STALE_MINUTES = 60
+AGENT_ONLINE_MINUTES = 5
+
+
+@dataclass
+class DeviceMonitorRow:
+    device: AttendanceDeviceV2
+    dynamic_status: str
+    dynamic_status_label: str
+    dynamic_status_class: str
+    last_pull_ago: str
+    agent_status: str
+    agent_status_label: str
+    agent_last_seen_ago: str
+    raw_today: int
+    raw_24h: int
+    raw_pending: int
+    unresolved_today: int
+    unresolved_raw_today: int
+    unresolved_samples: list[dict]
+    normalized_today: int
+    last_log: AttendanceIngestLogV2 | None
+    last_log_status_label: str
+    last_log_class: str
+    cursor_text: str
+
+
+def _parse_date(s: str):
+    s = (s or "").strip()
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+def _safe_int(raw: str, default: int) -> int:
+    try:
+        v = int(raw)
+        return v if v > 0 else default
+    except Exception:
+        return default
+
+
+def _ago(dt) -> str:
+    if not dt:
+        return "-"
+    now = dj_timezone.now()
+    delta = now - dt
+    total_sec = int(delta.total_seconds())
+    if total_sec < 0:
+        total_sec = 0
+    if total_sec < 60:
+        return f"{total_sec} giây trước"
+    minutes = total_sec // 60
+    if minutes < 60:
+        return f"{minutes} phút trước"
+    hours = minutes // 60
+    if hours < 48:
+        return f"{hours} giờ trước"
+    days = hours // 24
+    return f"{days} ngày trước"
+
+
+def _device_status(device: AttendanceDeviceV2, now) -> tuple[str, str, str]:
+    if not device.is_active:
+        return "DISABLED", "Ngừng dùng", "secondary"
+    if not device.last_pull_at:
+        return "UNKNOWN", "Chưa có dữ liệu", "dark"
+    age_min = (now - device.last_pull_at).total_seconds() / 60
+    if age_min <= ONLINE_MINUTES:
+        return "ONLINE", "Online", "success"
+    if age_min <= STALE_MINUTES:
+        return "STALE", "Chậm dữ liệu", "warning"
+    return "OFFLINE", "Offline", "danger"
+
+
+def _agent_status(agent: AttendanceDeviceAgentV2 | None, now) -> tuple[str, str]:
+    if not agent:
+        return "NO_AGENT", "Chưa gán"
+    if agent.status != AttendanceDeviceAgentV2.Status.ACTIVE:
+        return "DISABLED", "Không active"
+    if not agent.last_seen_at:
+        return "UNKNOWN", "Chưa heartbeat"
+    age_min = (now - agent.last_seen_at).total_seconds() / 60
+    if age_min <= AGENT_ONLINE_MINUTES:
+        return "ONLINE", "Agent online"
+    return "OFFLINE", "Agent offline"
+
+
+def _dict_counts(qs, key_name: str) -> dict[int, int]:
+    return {int(x[key_name]): int(x["cnt"]) for x in qs if x[key_name] is not None}
+
+
+def _short_uid_list(items: list[dict], limit: int = 5) -> list[dict]:
+    """Giữ tối đa vài UID để hiển thị gọn trên bảng."""
+    return items[:limit]
+
+
+@login_required
+@permission_required("attendance_devices_v2.view_attendancedevicev2", raise_exception=True)
+def normalize_lai_view(request):
+    """
+    Chạy normalize RawPunch từ giao diện Giám sát thiết bị.
+
+    Lưu ý:
+    - Chỉ xử lý raw có UID đã khớp Employee.card_id hoặc raw không có UID.
+    - Raw có UID chưa map không chặn hàng đợi; sau khi cập nhật card_id có thể bấm lại nút này.
+    """
+    if request.method != "POST":
+        return redirect("attendance_devices_v2:giam_sat_thiet_bi")
+
+    try:
+        limit = int(request.POST.get("limit") or 5000)
+    except Exception:
+        limit = 5000
+    if limit < 100:
+        limit = 100
+    if limit > 20000:
+        limit = 20000
+
+    try:
+        result = normalize_raw_punches(limit=limit)
+        msg = (
+            f"Đã chạy normalize: quét {result.scanned} raw, "
+            f"map được {result.resolved}, chưa map {result.unresolved}, "
+            f"tạo mới {result.created_norm}, gộp vào mốc cũ {result.merged_into_existing}."
+        )
+        pending_hint = getattr(result, "pending_unmapped_hint", 0)
+        if pending_hint:
+            msg += f" Còn khoảng {pending_hint} raw có UID chưa map, không chặn hàng đợi."
+        messages.success(request, msg)
+    except Exception as exc:
+        messages.error(request, f"Chạy normalize bị lỗi: {exc}")
+
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url.startswith("/"):
+        return redirect(next_url)
+    return redirect("attendance_devices_v2:giam_sat_thiet_bi")
+
+
+@login_required
+@permission_required("attendance_devices_v2.view_attendancedevicev2", raise_exception=True)
+def tinh_lai_masterlist_view(request):
+    """
+    Chạy compute MasterList từ màn Giám sát thiết bị.
+
+    Quy tắc đã chốt:
+    - Device.org_unit chỉ là vị trí/đơn vị quản lý thiết bị, KHÔNG phải phạm vi nhân sự chấm trên máy.
+    - Nếu đang lọc 1 đơn vị: chỉ tính lại đơn vị đó, nhưng vẫn kiểm tra đơn vị/ngày có AttendanceCommit hay chưa.
+    - Nếu không lọc đơn vị: tính lại TẤT CẢ đơn vị có AttendanceCommit trong ngày.
+    - Compute vẫn là commit-only: không có AttendanceCommit thì không tạo MasterList.
+    """
+    if request.method != "POST":
+        return redirect("attendance_devices_v2:giam_sat_thiet_bi")
+
+    work_date = _parse_date(request.POST.get("date")) or dj_timezone.localdate()
+    unit_raw = (request.POST.get("unit") or "").strip()
+
+    commit_qs = AttendanceCommit.objects.filter(work_date=work_date)
+
+    if unit_raw.isdigit():
+        requested_unit_id = int(unit_raw)
+        unit_ids = [requested_unit_id]
+        commit_unit_ids = set(
+            commit_qs.filter(unit_id=requested_unit_id).values_list("unit_id", flat=True)
+        )
+    else:
+        unit_ids = list(
+            commit_qs
+            .values_list("unit_id", flat=True)
+            .distinct()
+            .order_by("unit_id")
+        )
+        commit_unit_ids = set(unit_ids)
+
+    if not unit_ids:
+        messages.warning(
+            request,
+            f"Ngày {work_date:%Y-%m-%d} chưa có công chốt của đơn vị nào nên chưa thể tính MasterList."
+        )
+        next_url = (request.POST.get("next") or "").strip()
+        if next_url.startswith("/"):
+            return redirect(next_url)
+        return redirect("attendance_devices_v2:giam_sat_thiet_bi")
+
+    ok = 0
+    no_commit = 0
+    failed = 0
+    rows_upserted = 0
+    detail_notes: list[str] = []
+
+    unit_symbols = dict(
+        OrgUnit.objects.filter(id__in=unit_ids).values_list("id", "symbol")
+    )
+
+    for unit_id in unit_ids:
+        symbol = unit_symbols.get(unit_id) or f"unit {unit_id}"
+        if unit_id not in commit_unit_ids:
+            no_commit += 1
+            detail_notes.append(f"{symbol}: chưa có công chốt")
+            continue
+
+        compute_run_id = f"monitor-{work_date:%Y%m%d}-{unit_id}-{uuid4().hex[:8]}"
+        try:
+            res = compute_master_list_for_unit_date(
+                unit_id=unit_id,
+                work_date=work_date,
+                compute_run_id=compute_run_id,
+                compute_version=1,
+            )
+            if res.commit_id:
+                ok += 1
+                rows_upserted += int(res.master_rows_upserted or 0)
+                if getattr(res, "notes", ""):
+                    detail_notes.append(f"{symbol}: {res.master_rows_upserted} dòng; {res.notes}")
+            else:
+                # Phòng trường hợp commit bị xóa giữa lúc kiểm tra và compute.
+                no_commit += 1
+                detail_notes.append(f"{symbol}: chưa có công chốt")
+        except Exception as exc:
+            failed += 1
+            detail_notes.append(f"{symbol}: lỗi {exc}")
+
+    if unit_raw.isdigit():
+        scope_text = f"đơn vị {unit_symbols.get(int(unit_raw), unit_raw)}"
+    else:
+        scope_text = "tất cả đơn vị có công chốt"
+
+    msg = (
+        f"Đã tính lại MasterList ngày {work_date:%Y-%m-%d} cho {scope_text}: "
+        f"{ok} đơn vị có công chốt, cập nhật {rows_upserted} dòng."
+    )
+    if no_commit:
+        msg += f" {no_commit} đơn vị chưa có công chốt."
+    if failed:
+        msg += f" {failed} đơn vị lỗi."
+    if detail_notes:
+        msg += " Chi tiết: " + " | ".join(detail_notes[:8])
+        if len(detail_notes) > 8:
+            msg += f" | còn {len(detail_notes) - 8} ghi chú khác."
+
+    if failed or no_commit:
+        messages.warning(request, msg)
+    else:
+        messages.success(request, msg)
+
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url.startswith("/"):
+        return redirect(next_url)
+    return redirect("attendance_devices_v2:giam_sat_thiet_bi")
+
+
+@login_required
+@permission_required("attendance_devices_v2.view_attendancedevicev2", raise_exception=True)
+def giam_sat_thiet_bi_view(request):
+    """
+    Dashboard vận hành thiết bị chấm công.
+
+    Mục tiêu:
+    - không thay thế màn CRUD Thiết bị/Agent;
+    - giúp IT/HR Admin thấy máy nào online/offline/chậm dữ liệu;
+    - thấy nhanh raw hôm nay, raw chưa normalize, UID chưa map và ingest log gần nhất.
+    """
+    today = dj_timezone.localdate()
+    work_date = _parse_date(request.GET.get("date")) or today
+
+    q = (request.GET.get("q") or "").strip()
+    agent_raw = (request.GET.get("agent") or "").strip()
+    unit_raw = (request.GET.get("unit") or "").strip()
+    active_raw = (request.GET.get("active") or "1").strip()
+    status_filter = (request.GET.get("status") or "").strip().upper()
+    page_size = _safe_int(request.GET.get("page_size") or "100", 100)
+    if page_size not in (50, 100, 200):
+        page_size = 100
+
+    tz = dj_timezone.get_current_timezone()
+    day_start_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(0, 0, 0)), tz)
+    day_end_local = day_start_local + timedelta(days=1)
+    day_start_utc = day_start_local.astimezone(datetime_timezone.utc)
+    day_end_utc = day_end_local.astimezone(datetime_timezone.utc)
+    since_24h = dj_timezone.now() - timedelta(hours=24)
+
+    devices_qs = AttendanceDeviceV2.objects.select_related("assigned_agent", "org_unit").order_by("name")
+
+    if q:
+        devices_qs = devices_qs.filter(
+            Q(name__icontains=q) |
+            Q(host__icontains=q) |
+            Q(model__icontains=q) |
+            Q(serial_no__icontains=q) |
+            Q(org_unit__symbol__icontains=q) |
+            Q(org_unit__name__icontains=q)
+        )
+    if agent_raw.isdigit():
+        devices_qs = devices_qs.filter(assigned_agent_id=int(agent_raw))
+    if unit_raw.isdigit():
+        devices_qs = devices_qs.filter(org_unit_id=int(unit_raw))
+    if active_raw in {"0", "1"}:
+        devices_qs = devices_qs.filter(is_active=(active_raw == "1"))
+
+    devices = list(devices_qs)
+    device_ids = [d.id for d in devices]
+
+    raw_today_counts = _dict_counts(
+        AttendanceRawPunchV2.objects
+        .filter(device_id__in=device_ids, event_time_local__gte=day_start_local, event_time_local__lt=day_end_local)
+        .values("device_id").annotate(cnt=Count("id")),
+        "device_id",
+    )
+    raw_24h_counts = _dict_counts(
+        AttendanceRawPunchV2.objects
+        .filter(device_id__in=device_ids, ingested_at__gte=since_24h)
+        .values("device_id").annotate(cnt=Count("id")),
+        "device_id",
+    )
+    raw_pending_counts = _dict_counts(
+        AttendanceRawPunchV2.objects
+        .filter(device_id__in=device_ids, normalized_at__isnull=True)
+        .values("device_id").annotate(cnt=Count("id")),
+        "device_id",
+    )
+    known_card_ids = set(
+        Employee.objects
+        .exclude(card_id__isnull=True)
+        .exclude(card_id="")
+        .values_list("card_id", flat=True)
+    )
+
+    unmapped_today_qs = (
+        AttendanceRawPunchV2.objects
+        .filter(
+            device_id__in=device_ids,
+            event_time_local__gte=day_start_local,
+            event_time_local__lt=day_end_local,
+            normalized_at__isnull=True,
+        )
+        .exclude(device_user_id="")
+    )
+    if known_card_ids:
+        unmapped_today_qs = unmapped_today_qs.exclude(device_user_id__in=known_card_ids)
+
+    unresolved_today_counts = _dict_counts(
+        unmapped_today_qs
+        .values("device_id")
+        .annotate(cnt=Count("device_user_id", distinct=True)),
+        "device_id",
+    )
+    unresolved_raw_today_counts = _dict_counts(
+        unmapped_today_qs
+        .values("device_id")
+        .annotate(cnt=Count("id")),
+        "device_id",
+    )
+
+    unresolved_uid_samples_by_device: dict[int, list[dict]] = {}
+    for item in (
+        unmapped_today_qs
+        .values("device_id", "device_user_id")
+        .annotate(cnt=Count("id"), last_seen=Max("event_time_local"))
+        .order_by("device_id", "-cnt", "device_user_id")
+    ):
+        did = item["device_id"]
+        if did is None:
+            continue
+        unresolved_uid_samples_by_device.setdefault(int(did), []).append({
+            "uid": item["device_user_id"],
+            "cnt": item["cnt"],
+            "last_seen": item["last_seen"],
+        })
+    normalized_today_counts = _dict_counts(
+        AttendanceNormalizedPunchV2.objects
+        .filter(best_device_id__in=device_ids, canonical_time_utc__gte=day_start_utc, canonical_time_utc__lt=day_end_utc)
+        .values("best_device_id").annotate(cnt=Count("id")),
+        "best_device_id",
+    )
+
+    latest_logs: dict[int, AttendanceIngestLogV2] = {}
+    for log in (
+        AttendanceIngestLogV2.objects
+        .filter(device_id__in=device_ids)
+        .select_related("agent")
+        .order_by("device_id", "-started_at", "-id")
+    ):
+        if log.device_id not in latest_logs:
+            latest_logs[log.device_id] = log
+
+    now = dj_timezone.now()
+    rows: list[DeviceMonitorRow] = []
+    kpi = {
+        "total": 0,
+        "online": 0,
+        "stale": 0,
+        "offline": 0,
+        "unknown": 0,
+        "disabled": 0,
+        "raw_today": 0,
+        "raw_pending": 0,
+        "unresolved_today": 0,
+        "unresolved_raw_today": 0,
+        "normalized_today": 0,
+        "agent_offline": 0,
+    }
+
+    for d in devices:
+        dyn_status, dyn_label, dyn_class = _device_status(d, now)
+        agent_status, agent_label = _agent_status(d.assigned_agent, now)
+
+        if status_filter and dyn_status != status_filter:
+            continue
+
+        raw_today = raw_today_counts.get(d.id, 0)
+        raw_24h = raw_24h_counts.get(d.id, 0)
+        raw_pending = raw_pending_counts.get(d.id, 0)
+        unresolved_today = unresolved_today_counts.get(d.id, 0)
+        unresolved_raw_today = unresolved_raw_today_counts.get(d.id, 0)
+        unresolved_samples = _short_uid_list(unresolved_uid_samples_by_device.get(d.id, []))
+        normalized_today = normalized_today_counts.get(d.id, 0)
+        last_log = latest_logs.get(d.id)
+
+        if last_log is None:
+            log_label = "Chưa có log"
+            log_class = "secondary"
+        elif last_log.success:
+            log_label = "OK"
+            log_class = "success"
+        else:
+            log_label = "Lỗi"
+            log_class = "danger"
+
+        cursor = d.last_cursor_json or {}
+        cursor_text = ""
+        if isinstance(cursor, dict) and cursor:
+            # Hiển thị gọn vài key đầu, tránh làm vỡ bảng.
+            parts = []
+            for idx, (key, val) in enumerate(cursor.items()):
+                if idx >= 3:
+                    parts.append("...")
+                    break
+                parts.append(f"{key}: {val}")
+            cursor_text = "; ".join(parts)
+        elif cursor:
+            cursor_text = str(cursor)
+        else:
+            cursor_text = "-"
+
+        rows.append(DeviceMonitorRow(
+            device=d,
+            dynamic_status=dyn_status,
+            dynamic_status_label=dyn_label,
+            dynamic_status_class=dyn_class,
+            last_pull_ago=_ago(d.last_pull_at),
+            agent_status=agent_status,
+            agent_status_label=agent_label,
+            agent_last_seen_ago=_ago(d.assigned_agent.last_seen_at) if d.assigned_agent else "-",
+            raw_today=raw_today,
+            raw_24h=raw_24h,
+            raw_pending=raw_pending,
+            unresolved_today=unresolved_today,
+            unresolved_raw_today=unresolved_raw_today,
+            unresolved_samples=unresolved_samples,
+            normalized_today=normalized_today,
+            last_log=last_log,
+            last_log_status_label=log_label,
+            last_log_class=log_class,
+            cursor_text=cursor_text,
+        ))
+
+        kpi["total"] += 1
+        if dyn_status == "ONLINE":
+            kpi["online"] += 1
+        elif dyn_status == "STALE":
+            kpi["stale"] += 1
+        elif dyn_status == "OFFLINE":
+            kpi["offline"] += 1
+        elif dyn_status == "DISABLED":
+            kpi["disabled"] += 1
+        else:
+            kpi["unknown"] += 1
+        if agent_status in {"OFFLINE", "UNKNOWN", "NO_AGENT", "DISABLED"}:
+            kpi["agent_offline"] += 1
+        kpi["raw_today"] += raw_today
+        kpi["raw_pending"] += raw_pending
+        kpi["unresolved_today"] += unresolved_today
+        kpi["unresolved_raw_today"] += unresolved_raw_today
+        kpi["normalized_today"] += normalized_today
+
+    # Với số lượng máy nhỏ, phân trang chưa cần; vẫn giới hạn nếu sau này nhiều thiết bị.
+    rows = rows[:page_size]
+
+    unmapped_uid_details = []
+    for did, samples in unresolved_uid_samples_by_device.items():
+        device = next((x for x in devices if x.id == did), None)
+        if not device:
+            continue
+        for item in samples[:20]:
+            unmapped_uid_details.append({
+                "device": device,
+                "uid": item["uid"],
+                "cnt": item["cnt"],
+                "last_seen": item["last_seen"],
+            })
+    unmapped_uid_details.sort(key=lambda x: (x["device"].name, -x["cnt"], x["uid"]))
+    unmapped_uid_details = unmapped_uid_details[:200]
+
+    agents = AttendanceDeviceAgentV2.objects.order_by("name")
+    units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
+
+    query_base = {
+        "date": f"{work_date:%Y-%m-%d}",
+        "q": q,
+        "agent": agent_raw,
+        "unit": unit_raw,
+        "active": active_raw,
+        "page_size": page_size,
+    }
+    status_links = []
+    for code, label in [
+        ("", "Tất cả"),
+        ("ONLINE", "Online"),
+        ("STALE", "Chậm"),
+        ("OFFLINE", "Offline"),
+        ("UNKNOWN", "Chưa có dữ liệu"),
+        ("DISABLED", "Ngừng dùng"),
+    ]:
+        params = dict(query_base)
+        if code:
+            params["status"] = code
+        status_links.append({"code": code, "label": label, "url": "?" + urlencode(params), "active": status_filter == code})
+
+    return render(request, "backoffice/attendance_devices_v2/giam_sat_thiet_bi.html", {
+        "work_date": work_date.strftime("%Y-%m-%d"),
+        "q": q,
+        "agent": agent_raw,
+        "unit": unit_raw,
+        "active": active_raw,
+        "status": status_filter,
+        "page_size": page_size,
+        "agents": agents,
+        "units": units,
+        "rows": rows,
+        "kpi": kpi,
+        "status_links": status_links,
+        "unmapped_uid_details": unmapped_uid_details,
+        "online_minutes": ONLINE_MINUTES,
+        "stale_minutes": STALE_MINUTES,
+        "agent_online_minutes": AGENT_ONLINE_MINUTES,
+    })

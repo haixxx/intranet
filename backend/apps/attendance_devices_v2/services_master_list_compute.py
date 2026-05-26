@@ -18,6 +18,11 @@ from .models_master_list import AttendanceDeviceMasterListV2
 
 SourceMode = Literal["commit"]
 
+MANUAL_SOURCE_MAY_HONG = "MAY_HONG"
+MANUAL_SOURCE_SUA_DU_LIEU = "SUA_DU_LIEU"
+MANUAL_SOURCE_DEFAULT = MANUAL_SOURCE_MAY_HONG
+
+
 
 @dataclass
 class ComputeMasterResult:
@@ -84,6 +89,38 @@ class _ManualPunchAdapter:
         self._src = src
         self.id = 1_000_000_000 + int(src.id)  # offset lớn để tránh trùng
         self.canonical_time_utc = src.thoi_gian_utc
+
+
+@dataclass
+class _ManualOverrideValue:
+    local_dt: datetime
+    user: object | None
+    at: datetime | None
+    note: str
+
+
+def _manual_source_type(mp: AttendanceManualPunch) -> str:
+    note = (mp.ghi_chu or "").upper()
+    if "SOURCE:SUA_DU_LIEU" in note:
+        return MANUAL_SOURCE_SUA_DU_LIEU
+    if "SOURCE:MAY_HONG" in note:
+        return MANUAL_SOURCE_MAY_HONG
+    # Backward compatible: dữ liệu nhập tay cũ trước khi có SOURCE vẫn giữ hành vi cũ, tức tham gia actual.
+    return MANUAL_SOURCE_DEFAULT
+
+
+def _manual_target_field(mp: AttendanceManualPunch) -> str:
+    note = (mp.ghi_chu or "").strip().upper()
+    for field in ("IN1", "OUT1", "IN2", "OUT2"):
+        if note.startswith(field):
+            return field
+    return ""
+
+
+def _manual_clean_note(mp: AttendanceManualPunch) -> str:
+    note = (mp.ghi_chu or "").strip()
+    # Giữ nguyên để audit, chỉ thêm prefix dễ hiểu khi đưa vào override_note.
+    return note
 
 
 def _pick_nearest_punch(
@@ -175,21 +212,39 @@ def compute_master_list_for_unit_date(
         .order_by("employee_id", "canonical_time_utc")
     )
 
-    # 2) Punch thêm tay (chỉ thêm mới)
+    # 2) Punch thêm tay. Phân 2 loại theo marker trong ghi_chu:
+    # - SOURCE:MAY_HONG: dữ liệu thay thế máy khi máy hỏng/mất log => tham gia actual_* như punch máy.
+    # - SOURCE:SUA_DU_LIEU: dữ liệu HR dùng để sửa kết quả => KHÔNG vào actual_*, chỉ ghi đè override_*.
+    # - Dữ liệu cũ chưa có SOURCE được giữ hành vi cũ: coi như MAY_HONG.
     manual_qs = (
         AttendanceManualPunch.objects
         .filter(employee_id__in=emp_ids, thoi_gian_utc__gte=start_utc, thoi_gian_utc__lte=end_utc)
-        .select_related("employee")
-        .order_by("employee_id", "thoi_gian_utc")
+        .select_related("employee", "tao_boi")
+        .order_by("employee_id", "thoi_gian_utc", "tao_luc")
     )
 
     punches_by_emp: dict[int, list[_PunchLike]] = {}
+    manual_override_by_emp: dict[int, dict[str, _ManualOverrideValue]] = {}
 
     for p in normalized_qs:
         punches_by_emp.setdefault(p.employee_id, []).append(p)
 
     for mp in manual_qs:
-        punches_by_emp.setdefault(mp.employee_id, []).append(_ManualPunchAdapter(mp))
+        source_type = _manual_source_type(mp)
+        if source_type == MANUAL_SOURCE_SUA_DU_LIEU:
+            field = _manual_target_field(mp)
+            if field:
+                current = manual_override_by_emp.setdefault(mp.employee_id, {}).get(field)
+                # Nếu có nhiều mốc sửa cùng field, lấy bản tạo mới nhất.
+                if current is None or (mp.tao_luc and current.at and mp.tao_luc >= current.at):
+                    manual_override_by_emp.setdefault(mp.employee_id, {})[field] = _ManualOverrideValue(
+                        local_dt=mp.thoi_gian_local,
+                        user=getattr(mp, "tao_boi", None),
+                        at=getattr(mp, "tao_luc", None),
+                        note=_manual_clean_note(mp),
+                    )
+        else:
+            punches_by_emp.setdefault(mp.employee_id, []).append(_ManualPunchAdapter(mp))
 
     # Đảm bảo danh sách theo thời gian tăng dần
     for emp_id, arr in punches_by_emp.items():
@@ -252,6 +307,7 @@ def compute_master_list_for_unit_date(
         is_exempt = bool(getattr(emp, "skip_device_attendance", False))
         used: set[int] = set()
         punches = punches_by_emp.get(emp.id, [])
+        manual_overrides = manual_override_by_emp.get(emp.id, {})
 
         # build targets (nullable)
         t_in1 = _make_local_dt(work_date, it.in1) if exp["expected_in1"] and it.in1 else None
@@ -350,14 +406,40 @@ def compute_master_list_for_unit_date(
                 if expected and status == AttendancePunchMatchV2.Status.MISSING:
                     missing_marks += 1
 
-        # preserve overrides if already edited
+        # Override rules:
+        # 1) Manual SOURCE:SUA_DU_LIEU ghi đè override theo từng mốc, kể cả trước đó HR đã sửa.
+        # 2) Nếu không có manual sửa dữ liệu, giữ override cũ nếu đã từng sửa (old.override_at).
+        # 3) Nếu chưa từng sửa, override mặc định = actual mới.
         old = old_rows.get(emp.id)
-        preserve_override = bool(old and old.override_at)
+        old_override_note = getattr(old, "override_note", "") if old else ""
+        old_override_is_manual_sua = bool(old_override_note.startswith("Bổ sung sửa dữ liệu:"))
+        preserve_override = bool(old and old.override_at and not old_override_is_manual_sua)
 
-        def pick_override(old_val, actual_val):
+        def pick_override(field: str, old_val, actual_val):
+            mo = manual_overrides.get(field)
+            if mo:
+                return mo.local_dt
             if preserve_override:
                 return old_val
             return actual_val
+
+        manual_override_values = [v for v in manual_overrides.values() if v]
+        latest_manual_override = None
+        if manual_override_values:
+            latest_manual_override = max(manual_override_values, key=lambda x: x.at or now)
+
+        if latest_manual_override:
+            final_override_by = latest_manual_override.user
+            final_override_at = latest_manual_override.at or now
+            final_override_note = "Bổ sung sửa dữ liệu: " + " ; ".join(v.note for v in manual_override_values if v.note)
+        elif preserve_override:
+            final_override_by = getattr(old, "override_by", None)
+            final_override_at = getattr(old, "override_at", None)
+            final_override_note = getattr(old, "override_note", "")
+        else:
+            final_override_by = None
+            final_override_at = None
+            final_override_note = ""
 
         # preserve "yêu cầu sửa" luôn giữ lại khi recompute (HR xử lý ở UI)
         AttendanceDeviceMasterListV2.objects.create(
@@ -399,13 +481,13 @@ def compute_master_list_for_unit_date(
             delta_in2_seconds=d_in2,
             delta_out2_seconds=d_out2,
 
-            override_in1_local=pick_override(getattr(old, "override_in1_local", None), a_in1),
-            override_out1_local=pick_override(getattr(old, "override_out1_local", None), a_out1),
-            override_in2_local=pick_override(getattr(old, "override_in2_local", None), a_in2),
-            override_out2_local=pick_override(getattr(old, "override_out2_local", None), a_out2),
-            override_by=getattr(old, "override_by", None) if preserve_override else None,
-            override_at=getattr(old, "override_at", None) if preserve_override else None,
-            override_note=getattr(old, "override_note", "") if preserve_override else "",
+            override_in1_local=pick_override("IN1", getattr(old, "override_in1_local", None), a_in1),
+            override_out1_local=pick_override("OUT1", getattr(old, "override_out1_local", None), a_out1),
+            override_in2_local=pick_override("IN2", getattr(old, "override_in2_local", None), a_in2),
+            override_out2_local=pick_override("OUT2", getattr(old, "override_out2_local", None), a_out2),
+            override_by=final_override_by,
+            override_at=final_override_at,
+            override_note=final_override_note,
 
             missing_marks=0 if is_exempt else missing_marks,
 
