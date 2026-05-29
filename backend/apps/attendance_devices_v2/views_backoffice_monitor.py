@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
-from django.db.models import Count, Max, Q
+from django.db.models import Count, Max, OuterRef, Q, Subquery
 from django.shortcuts import render, redirect
 from django.utils import timezone as dj_timezone
 from django.utils.translation import gettext_lazy as _
@@ -331,12 +331,48 @@ def giam_sat_thiet_bi_view(request):
     if active_raw in {"0", "1"}:
         devices_qs = devices_qs.filter(is_active=(active_raw == "1"))
 
+    # Lấy ingest log mới nhất bằng Subquery để tránh quét toàn bộ AttendanceIngestLogV2
+    # rồi loop trong Python. Khi log tăng nhiều, đoạn cũ là một nguyên nhân gây chậm.
+    latest_log_subquery = (
+        AttendanceIngestLogV2.objects
+        .filter(device_id=OuterRef("pk"))
+        .order_by("-started_at", "-id")
+        .values("id")[:1]
+    )
+    devices_qs = devices_qs.annotate(_latest_log_id=Subquery(latest_log_subquery))
+
     devices = list(devices_qs)
     device_ids = [d.id for d in devices]
 
+    if not device_ids:
+        agents = AttendanceDeviceAgentV2.objects.order_by("name")
+        units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
+        return render(request, "backoffice/attendance_devices_v2/giam_sat_thiet_bi.html", {
+            "work_date": work_date.strftime("%Y-%m-%d"),
+            "q": q,
+            "agent": agent_raw,
+            "unit": unit_raw,
+            "active": active_raw,
+            "status": status_filter,
+            "page_size": page_size,
+            "agents": agents,
+            "units": units,
+            "rows": [],
+            "kpi": {
+                "total": 0, "online": 0, "stale": 0, "offline": 0, "unknown": 0, "disabled": 0,
+                "raw_today": 0, "raw_pending": 0, "unresolved_today": 0, "unresolved_raw_today": 0,
+                "normalized_today": 0, "agent_offline": 0,
+            },
+            "status_links": [],
+            "unmapped_uid_details": [],
+            "online_minutes": ONLINE_MINUTES,
+            "stale_minutes": STALE_MINUTES,
+            "agent_online_minutes": AGENT_ONLINE_MINUTES,
+        })
+
     raw_today_counts = _dict_counts(
         AttendanceRawPunchV2.objects
-        .filter(device_id__in=device_ids, event_time_local__gte=day_start_local, event_time_local__lt=day_end_local)
+        .filter(device_id__in=device_ids, event_time_utc__gte=day_start_utc, event_time_utc__lt=day_end_utc)
         .values("device_id").annotate(cnt=Count("id")),
         "device_id",
     )
@@ -352,25 +388,26 @@ def giam_sat_thiet_bi_view(request):
         .values("device_id").annotate(cnt=Count("id")),
         "device_id",
     )
-    known_card_ids = set(
+    # Không load toàn bộ Employee.card_id vào Python rồi nhét vào IN (...).
+    # Dùng subquery để DB tự so khớp UID chưa map, tránh chậm khi danh sách nhân sự lớn.
+    known_card_ids_qs = (
         Employee.objects
         .exclude(card_id__isnull=True)
         .exclude(card_id="")
-        .values_list("card_id", flat=True)
+        .values("card_id")
     )
 
     unmapped_today_qs = (
         AttendanceRawPunchV2.objects
         .filter(
             device_id__in=device_ids,
-            event_time_local__gte=day_start_local,
-            event_time_local__lt=day_end_local,
+            event_time_utc__gte=day_start_utc,
+            event_time_utc__lt=day_end_utc,
             normalized_at__isnull=True,
         )
         .exclude(device_user_id="")
+        .exclude(device_user_id__in=Subquery(known_card_ids_qs))
     )
-    if known_card_ids:
-        unmapped_today_qs = unmapped_today_qs.exclude(device_user_id__in=known_card_ids)
 
     unresolved_today_counts = _dict_counts(
         unmapped_today_qs
@@ -407,15 +444,11 @@ def giam_sat_thiet_bi_view(request):
         "best_device_id",
     )
 
-    latest_logs: dict[int, AttendanceIngestLogV2] = {}
-    for log in (
-        AttendanceIngestLogV2.objects
-        .filter(device_id__in=device_ids)
-        .select_related("agent")
-        .order_by("device_id", "-started_at", "-id")
-    ):
-        if log.device_id not in latest_logs:
-            latest_logs[log.device_id] = log
+    latest_log_ids = [getattr(d, "_latest_log_id", None) for d in devices if getattr(d, "_latest_log_id", None)]
+    latest_logs: dict[int, AttendanceIngestLogV2] = {
+        log.device_id: log
+        for log in AttendanceIngestLogV2.objects.filter(id__in=latest_log_ids).select_related("agent")
+    }
 
     now = dj_timezone.now()
     rows: list[DeviceMonitorRow] = []
