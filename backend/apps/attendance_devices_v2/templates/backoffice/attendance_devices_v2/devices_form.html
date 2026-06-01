@@ -7,9 +7,14 @@
 
 {% block content %}
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <h2 class="mb-0">
-      {% if create %}{% trans "Thêm thiết bị (v2)" %}{% else %}{% trans "Sửa thiết bị (v2)" %}{% endif %}
-    </h2>
+    <div>
+      <h2 class="mb-0">
+        {% if create %}{% trans "Thêm thiết bị (v2)" %}{% else %}{% trans "Sửa thiết bị (v2)" %}{% endif %}
+      </h2>
+      <div class="text-muted small">
+        {% trans "Cấu hình thiết bị và policy Agent V2. Các giá trị mặc định đã đặt theo hướng an toàn: PULL, port 4370, Asia/Ho_Chi_Minh, realtime bật, backfill 22:00/15 ngày, time sync tắt." %}
+      </div>
+    </div>
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}">
       {% trans "Quay lại" %}
     </a>
@@ -21,65 +26,219 @@
       <div class="alert alert-danger">{{ form.non_field_errors }}</div>
     {% endif %}
 
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label">{{ form.name.label }}</label>
-        {{ form.name }}
+    <div class="card mb-3">
+      <div class="card-header py-2">
+        <h3 class="card-title mb-0">{% trans "Thông tin thiết bị" %}</h3>
       </div>
-      <div class="col-md-3">
-        <label class="form-label">{{ form.brand.label }}</label>
-        {{ form.brand }}
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">{{ form.connect_mode.label }}</label>
-        {{ form.connect_mode }}
-      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">{{ form.name.label }} <span class="text-danger">*</span></label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.brand.label }}</label>
+            {{ form.brand }}
+            {% if form.brand.errors %}<div class="text-danger small">{{ form.brand.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.connect_mode.label }}</label>
+            {{ form.connect_mode }}
+            <div class="form-hint">{% trans "Agent V2 hiện dùng PULL." %}</div>
+            {% if form.connect_mode.errors %}<div class="text-danger small">{{ form.connect_mode.errors }}</div>{% endif %}
+          </div>
 
-      <div class="col-md-4">
-        <label class="form-label">{{ form.model.label }}</label>
-        {{ form.model }}
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">{{ form.serial_no.label }}</label>
-        {{ form.serial_no }}
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">{{ form.timezone.label }}</label>
-        {{ form.timezone }}
-      </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ form.model.label }}</label>
+            {{ form.model }}
+            {% if form.model.errors %}<div class="text-danger small">{{ form.model.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ form.serial_no.label }}</label>
+            {{ form.serial_no }}
+            {% if form.serial_no.errors %}<div class="text-danger small">{{ form.serial_no.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ form.timezone.label }}</label>
+            {{ form.timezone }}
+            <div class="form-hint">{% trans "Mặc định: Asia/Ho_Chi_Minh." %}</div>
+            {% if form.timezone.errors %}<div class="text-danger small">{{ form.timezone.errors }}</div>{% endif %}
+          </div>
 
-      <div class="col-md-6">
-        <label class="form-label">{{ form.host.label }}</label>
-        {{ form.host }}
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">{{ form.port.label }}</label>
-        {{ form.port }}
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">{{ form.org_unit.label }}</label>
-        {{ form.org_unit }}
-      </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ form.host.label }} <span class="text-danger">*</span></label>
+            {{ form.host }}
+            {% if form.host.errors %}<div class="text-danger small">{{ form.host.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ form.port.label }}</label>
+            {{ form.port }}
+            <div class="form-hint">ZKTeco/Ronald Jack thường dùng 4370.</div>
+            {% if form.port.errors %}<div class="text-danger small">{{ form.port.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ form.org_unit.label }}</label>
+            {{ form.org_unit }}
+            <div class="form-hint">{% trans "Chỉ là vị trí/quản lý máy, không phải phạm vi nhân sự chấm trên máy." %}</div>
+            {% if form.org_unit.errors %}<div class="text-danger small">{{ form.org_unit.errors }}</div>{% endif %}
+          </div>
 
-      <div class="col-md-6">
-        <label class="form-label">{{ form.assigned_agent.label }}</label>
-        {{ form.assigned_agent }}
-      </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ form.assigned_agent.label }}</label>
+            {{ form.assigned_agent }}
+            {% if form.assigned_agent.errors %}<div class="text-danger small">{{ form.assigned_agent.errors }}</div>{% endif %}
+          </div>
 
-      <div class="col-md-2 d-flex align-items-center">
-        <div class="form-check mt-4">
-          {{ form.is_active }} <label class="form-check-label">{{ form.is_active.label }}</label>
+          <div class="col-md-2 d-flex align-items-center">
+            <div class="form-check mt-4">
+              {{ form.is_active }} <label class="form-check-label">{{ form.is_active.label }}</label>
+            </div>
+          </div>
+
+          <div class="col-md-12">
+            <label class="form-label">{{ form.notes.label }}</label>
+            {{ form.notes }}
+            {% if form.notes.errors %}<div class="text-danger small">{{ form.notes.errors }}</div>{% endif %}
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="col-md-12">
-        <label class="form-label">{{ form.notes.label }}</label>
-        {{ form.notes }}
+    <div class="card mb-3">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">{% trans "SDK / kết nối máy" %}</h3>
+        <span class="badge bg-blue-lt">{% trans "Lưu trong sdk_profile" %}</span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">{{ form.machine_number.label }}</label>
+            {{ form.machine_number }}
+            <div class="form-hint">{{ form.machine_number.help_text }}</div>
+            {% if form.machine_number.errors %}<div class="text-danger small">{{ form.machine_number.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.comm_password.label }}</label>
+            {{ form.comm_password }}
+            <div class="form-hint">{{ form.comm_password.help_text }}</div>
+            {% if form.comm_password.errors %}<div class="text-danger small">{{ form.comm_password.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <div class="alert alert-info mb-0 py-2">
+              {% trans "Nếu máy không đặt mật khẩu giao tiếp, giữ Comm password = 0. Không cần nhập JSON thủ công." %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">{% trans "Sync Policy cho Agent V2" %}</h3>
+        <span class="text-muted small">{% trans "Agent nhận policy khi gọi GET devices" %}</span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <div class="form-check mt-2">
+              {{ form.realtime_enabled }} <label class="form-check-label">{{ form.realtime_enabled.label }}</label>
+            </div>
+            <div class="form-hint">{% trans "Luồng chính, nên bật." %}</div>
+          </div>
+          <div class="col-md-3">
+            <div class="form-check mt-2">
+              {{ form.backfill_enabled }} <label class="form-check-label">{{ form.backfill_enabled.label }}</label>
+            </div>
+            <div class="form-hint">{% trans "Luồng bù/đối soát, nên bật." %}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.backfill_time.label }}</label>
+            {{ form.backfill_time }}
+            {% if form.backfill_time.errors %}<div class="text-danger small">{{ form.backfill_time.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.backfill_days.label }}</label>
+            {{ form.backfill_days }}
+            {% if form.backfill_days.errors %}<div class="text-danger small">{{ form.backfill_days.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">{{ form.health_check_seconds.label }}</label>
+            {{ form.health_check_seconds }}
+            {% if form.health_check_seconds.errors %}<div class="text-danger small">{{ form.health_check_seconds.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.reconnect_seconds.label }}</label>
+            {{ form.reconnect_seconds }}
+            {% if form.reconnect_seconds.errors %}<div class="text-danger small">{{ form.reconnect_seconds.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.backfill_retry_delay_minutes.label }}</label>
+            {{ form.backfill_retry_delay_minutes }}
+            {% if form.backfill_retry_delay_minutes.errors %}<div class="text-danger small">{{ form.backfill_retry_delay_minutes.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.backfill_max_retries_per_window.label }}</label>
+            {{ form.backfill_max_retries_per_window }}
+            {% if form.backfill_max_retries_per_window.errors %}<div class="text-danger small">{{ form.backfill_max_retries_per_window.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-12">
+            <div class="alert alert-warning mb-0 py-2">
+              {% trans "Backfill mặc định chạy tuần tự lúc 22:00, lấy 15 ngày. Duplicate do backfill gửi lại là bình thường và server sẽ dedupe." %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header py-2">
+        <h3 class="card-title mb-0">{% trans "Time Sync" %}</h3>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <div class="form-check mt-2">
+              {{ form.time_sync_enabled }} <label class="form-check-label">{{ form.time_sync_enabled.label }}</label>
+            </div>
+            <div class="form-hint">{% trans "Khuyến nghị để tắt giai đoạn đầu." %}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.time_sync_warn_seconds.label }}</label>
+            {{ form.time_sync_warn_seconds }}
+            {% if form.time_sync_warn_seconds.errors %}<div class="text-danger small">{{ form.time_sync_warn_seconds.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.time_sync_auto_seconds.label }}</label>
+            {{ form.time_sync_auto_seconds }}
+            {% if form.time_sync_auto_seconds.errors %}<div class="text-danger small">{{ form.time_sync_auto_seconds.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3"></div>
+
+          <div class="col-md-3">
+            <label class="form-label">{{ form.time_sync_from.label }}</label>
+            {{ form.time_sync_from }}
+            {% if form.time_sync_from.errors %}<div class="text-danger small">{{ form.time_sync_from.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.time_sync_to.label }}</label>
+            {{ form.time_sync_to }}
+            {% if form.time_sync_to.errors %}<div class="text-danger small">{{ form.time_sync_to.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <div class="alert alert-secondary mb-0 py-2">
+              {% trans "Khi time sync bật, Agent chỉ nên đồng bộ trong khung giờ ít người chấm công. Mặc định chỉ cảnh báo drift, chưa auto sync." %}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="mt-3 d-flex gap-2">
       <button class="btn btn-primary btn-sm" type="submit">{% trans "Lưu" %}</button>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}">{% trans "Hủy" %}</a>
     </div>
   </form>
 {% endblock %}

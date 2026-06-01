@@ -18,7 +18,7 @@
   .monitor-filter .btn-sm { font-size: 12px; min-height: 30px; padding-top: .18rem; padding-bottom: .18rem; }
   .monitor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; }
 
-  .kpi-grid { display: grid; grid-template-columns: repeat(9, minmax(105px, 1fr)); gap: .5rem; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(11, minmax(105px, 1fr)); gap: .5rem; }
   .kpi-card { border: 1px solid rgba(0,0,0,.08); border-radius: 10px; padding: .55rem .65rem; background: #fff; }
   .kpi-title { font-size: 11px; color: #6c757d; line-height: 1.1; }
   .kpi-value { font-size: 1.25rem; font-weight: 700; line-height: 1.25; }
@@ -157,13 +157,14 @@
     <div class="kpi-card"><div class="kpi-title">Raw chưa chuẩn hoá</div><div class="kpi-value {% if kpi.raw_pending %}text-warning{% endif %}">{{ kpi.raw_pending }}</div></div>
     <div class="kpi-card"><div class="kpi-title">UID chưa map</div><div class="kpi-value {% if kpi.unresolved_today %}text-danger{% endif %}">{{ kpi.unresolved_today }}</div></div>
     <div class="kpi-card"><div class="kpi-title">Raw UID chưa map</div><div class="kpi-value {% if kpi.unresolved_raw_today %}text-danger{% endif %}">{{ kpi.unresolved_raw_today }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Realtime lỗi</div><div class="kpi-value {% if kpi.realtime_error %}text-danger{% endif %}">{{ kpi.realtime_error }}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Backfill lỗi/pending</div><div class="kpi-value {% if kpi.backfill_failed %}text-warning{% endif %}">{{ kpi.backfill_failed }}</div></div>
   </div>
 
   <div class="card card-body py-2 mb-2">
     <div class="small text-muted">
-      Quy ước trạng thái động: <strong>Online</strong> nếu máy có pull trong {{ online_minutes }} phút gần nhất;
-      <strong>Chậm dữ liệu</strong> nếu quá {{ online_minutes }} đến {{ stale_minutes }} phút;
-      <strong>Offline</strong> nếu quá {{ stale_minutes }} phút. Agent online nếu heartbeat trong {{ agent_online_minutes }} phút gần nhất.
+      Quy ước trạng thái động: ưu tiên trạng thái realtime do Agent báo về; nếu chưa có báo cáo realtime thì fallback theo lần pull/ingest gần nhất.
+      <strong>Online</strong> nếu máy báo trong {{ online_minutes }} phút gần nhất; <strong>Chậm dữ liệu</strong> nếu quá {{ online_minutes }} đến {{ stale_minutes }} phút; <strong>Offline</strong> nếu quá {{ stale_minutes }} phút. Agent online nếu heartbeat trong {{ agent_online_minutes }} phút gần nhất.
       <br>UID chưa map là các mã thẻ máy gửi lên nhưng chưa khớp với <strong>Employee.card_id</strong>; sau khi cập nhật mã thẻ trong hồ sơ nhân sự, bấm <strong>Normalize lại</strong> để xử lý các raw cũ.
       <br><strong>Tính lại MasterList</strong> dùng dữ liệu đã chuẩn hoá và dữ liệu nhập bổ sung để cập nhật báo cáo/thống kê. Nếu không chọn đơn vị, hệ thống sẽ tính tất cả đơn vị có công chốt trong ngày; đơn vị gắn trên thiết bị chỉ là vị trí/quản lý máy, không phải phạm vi nhân sự chấm trên máy.
     </div>
@@ -178,7 +179,10 @@
             <th>Đơn vị</th>
             <th>Agent</th>
             <th>Trạng thái</th>
-            <th>Lần pull</th>
+            <th>Realtime</th>
+            <th>Backfill</th>
+            <th>Drift</th>
+            <th>Lần báo/pull</th>
             <th class="text-end">Raw ngày</th>
             <th class="text-end">Raw 24h</th>
             <th class="text-end">Norm ngày</th>
@@ -210,7 +214,25 @@
               <td>
                 <span class="badge badge-status bg-{{ r.dynamic_status_class }}">{{ r.dynamic_status_label }}</span>
                 <div class="small-muted">DB: {{ r.device.status }}</div>
+                {% if r.last_error_text %}
+                  <div class="text-danger small cell-compact" title="{{ r.last_error_text }}">{{ r.last_error_text }}</div>
+                {% endif %}
               </td>
+              <td class="text-nowrap">
+                <span class="badge badge-status bg-{{ r.realtime_class }}">{{ r.realtime_label }}</span>
+                {% if r.latest_status %}
+                  <div class="small-muted">{{ r.latest_status.reported_at|date:"Y-m-d H:i" }}</div>
+                  {% if r.latest_status.last_event_time_local %}<div class="small-muted">Event: {{ r.latest_status.last_event_time_local|date:"Y-m-d H:i" }}</div>{% endif %}
+                {% endif %}
+              </td>
+              <td class="text-nowrap">
+                <span class="badge badge-status bg-{{ r.backfill_class }}">{{ r.backfill_label }}</span>
+                {% if r.latest_backfill %}
+                  <div class="small-muted">{{ r.latest_backfill.window_name|default:"-" }} · {{ r.latest_backfill.reported_at|date:"Y-m-d H:i" }}</div>
+                  <div class="small-muted">đọc {{ r.latest_backfill.read_total }} · lọc {{ r.latest_backfill.filtered }} · ghi {{ r.latest_backfill.processed }} · trùng {{ r.latest_backfill.duplicates }}</div>
+                {% endif %}
+              </td>
+              <td class="text-nowrap {% if r.latest_status and r.latest_status.drift_seconds and r.latest_status.drift_seconds > 120 %}text-warning fw-bold{% endif %}">{{ r.drift_text }}</td>
               <td class="text-nowrap">
                 {% if r.device.last_pull_at %}
                   {{ r.device.last_pull_at|date:"Y-m-d H:i" }}
@@ -250,7 +272,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="13" class="text-muted">Không có thiết bị phù hợp bộ lọc.</td></tr>
+            <tr><td colspan="16" class="text-muted">Không có thiết bị phù hợp bộ lọc.</td></tr>
           {% endfor %}
         </tbody>
       </table>

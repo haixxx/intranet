@@ -5,7 +5,10 @@
 
 {% block content %}
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <h2 class="mb-0">{% trans "Thiết bị chấm công (v2)" %}</h2>
+    <div>
+      <h2 class="mb-0">{% trans "Thiết bị chấm công (v2)" %}</h2>
+      <div class="text-muted small">{% trans "Quản lý thiết bị và cấu hình Agent V2: realtime, backfill, time sync." %}</div>
+    </div>
     <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices_v2:device_create' %}">
       {% trans "Thêm thiết bị" %}
     </a>
@@ -51,21 +54,53 @@
             <th>{% trans "Tên" %}</th>
             <th>{% trans "Host" %}</th>
             <th>{% trans "Port" %}</th>
-            <th>{% trans "Hãng" %}</th>
+            <th>{% trans "Hãng/Model" %}</th>
             <th>{% trans "Agent phụ trách" %}</th>
             <th>{% trans "Đơn vị" %}</th>
+            <th>{% trans "Policy" %}</th>
             <th class="text-end">{% trans "Hành động" %}</th>
           </tr>
         </thead>
         <tbody>
           {% for x in items %}
             <tr>
-              <td>{{ x.name }}</td>
+              <td>
+                <div><strong>{{ x.name }}</strong></div>
+                <div class="text-muted small">
+                  {% if x.is_active %}{% trans "Đang hoạt động" %}{% else %}{% trans "Ngừng dùng" %}{% endif %}
+                </div>
+              </td>
               <td>{{ x.host }}</td>
               <td>{{ x.port }}</td>
-              <td>{{ x.brand }}</td>
+              <td>
+                <div>{{ x.brand }}</div>
+                <div class="text-muted small">{% if x.model %}{{ x.model }}{% else %}-{% endif %}</div>
+              </td>
               <td>{% if x.assigned_agent %}{{ x.assigned_agent.name }}{% else %}-{% endif %}</td>
               <td>{% if x.org_unit %}{{ x.org_unit }}{% else %}-{% endif %}</td>
+              <td>
+                <div class="small">
+                  {% if x.sync_policy_summary.realtime_enabled %}
+                    <span class="badge bg-green-lt">{% trans "Realtime" %}</span>
+                  {% else %}
+                    <span class="badge bg-secondary-lt">{% trans "Tắt realtime" %}</span>
+                  {% endif %}
+
+                  {% if x.sync_policy_summary.backfill_enabled %}
+                    <span class="badge bg-blue-lt">
+                      {% trans "Backfill" %} {{ x.sync_policy_summary.backfill_time }}/{{ x.sync_policy_summary.backfill_days }}d
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary-lt">{% trans "Tắt backfill" %}</span>
+                  {% endif %}
+
+                  {% if x.sync_policy_summary.time_sync_enabled %}
+                    <span class="badge bg-orange-lt">{% trans "Time sync" %}</span>
+                  {% else %}
+                    <span class="badge bg-secondary-lt">{% trans "Không auto sync giờ" %}</span>
+                  {% endif %}
+                </div>
+              </td>
               <td class="text-end">
                 <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices_v2:device_edit' x.id %}">
                   {% trans "Sửa" %}
@@ -73,7 +108,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="7" class="text-muted">{% trans "Chưa có thiết bị." %}</td></tr>
+            <tr><td colspan="8" class="text-muted">{% trans "Chưa có thiết bị." %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

@@ -410,4 +410,133 @@ class AttendancePunchMatchV2(models.Model):
 
     def __str__(self) -> str:
         return f"{self.work_date} emp={self.employee_id} {self.target_field} {self.status}"
-    
+
+class AttendanceDeviceStatusReportV2(models.Model):
+    """
+    Báo cáo trạng thái realtime/health-check từ Attendance Agent V2.
+
+    Agent gửi định kỳ để server/dashboard biết trạng thái thật của từng máy:
+    ONLINE/OFFLINE/RECONNECTING/PAUSED_BACKFILL/PAUSED_TIME_SYNC/REALTIME_UNAVAILABLE/ERROR.
+    """
+
+    class RealtimeStatus(models.TextChoices):
+        ONLINE = "ONLINE", _("Online")
+        OFFLINE = "OFFLINE", _("Offline")
+        RECONNECTING = "RECONNECTING", _("Đang kết nối lại")
+        PAUSED_BACKFILL = "PAUSED_BACKFILL", _("Tạm dừng để backfill")
+        PAUSED_TIME_SYNC = "PAUSED_TIME_SYNC", _("Tạm dừng để đồng bộ giờ")
+        REALTIME_UNAVAILABLE = "REALTIME_UNAVAILABLE", _("Không hỗ trợ realtime")
+        ERROR = "ERROR", _("Lỗi")
+
+    device = models.ForeignKey(
+        AttendanceDeviceV2,
+        on_delete=models.CASCADE,
+        related_name="status_reports_v2",
+        verbose_name=_("Thiết bị"),
+    )
+    agent = models.ForeignKey(
+        AttendanceDeviceAgentV2,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="device_status_reports_v2",
+        verbose_name=_("Agent"),
+    )
+
+    realtime_status = models.CharField(
+        max_length=32,
+        choices=RealtimeStatus.choices,
+        default=RealtimeStatus.ONLINE,
+        db_index=True,
+        verbose_name=_("Trạng thái realtime"),
+    )
+    last_realtime_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Realtime cuối"))
+    last_event_time_local = models.DateTimeField(null=True, blank=True, verbose_name=_("Event cuối trên máy"))
+    last_device_seen_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name=_("Lần thấy máy"))
+    pending_backfill_required = models.BooleanField(default=False, db_index=True, verbose_name=_("Cần backfill"))
+    drift_seconds = models.IntegerField(null=True, blank=True, verbose_name=_("Lệch giờ máy (giây)"))
+    last_error = models.TextField(blank=True, default="", verbose_name=_("Lỗi cuối"))
+
+    payload_json = models.JSONField(blank=True, null=True, verbose_name=_("Payload gốc"))
+    reported_at = models.DateTimeField(default=dj_timezone.now, db_index=True, verbose_name=_("Server nhận lúc"))
+
+    class Meta:
+        verbose_name = _("Báo cáo trạng thái thiết bị (v2)")
+        verbose_name_plural = _("Báo cáo trạng thái thiết bị (v2)")
+        indexes = [
+            models.Index(fields=["device", "-reported_at", "-id"], name="adv2_st_dev_latest_idx"),
+            models.Index(fields=["agent", "-reported_at"], name="adv2_st_agent_time_idx"),
+            models.Index(fields=["realtime_status", "reported_at"], name="adv2_st_status_time_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"StatusReport#{self.pk} dev={self.device_id} {self.realtime_status}"
+
+
+class AttendanceDeviceBackfillReportV2(models.Model):
+    """
+    Báo cáo kết quả backfill từ Attendance Agent V2.
+    Lưu mỗi lần chạy window backfill để dashboard biết backfill có thành công không.
+    """
+
+    class Status(models.TextChoices):
+        SUCCESS = "SUCCESS", _("Thành công")
+        PARTIAL_PENDING = "PARTIAL_PENDING", _("Một phần đang pending")
+        FAILED = "FAILED", _("Thất bại")
+        SKIPPED = "SKIPPED", _("Bỏ qua")
+
+    device = models.ForeignKey(
+        AttendanceDeviceV2,
+        on_delete=models.CASCADE,
+        related_name="backfill_reports_v2",
+        verbose_name=_("Thiết bị"),
+    )
+    agent = models.ForeignKey(
+        AttendanceDeviceAgentV2,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="backfill_reports_v2",
+        verbose_name=_("Agent"),
+    )
+
+    window_name = models.CharField(max_length=64, blank=True, default="", db_index=True, verbose_name=_("Window"))
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.SUCCESS, db_index=True, verbose_name=_("Trạng thái"))
+    started_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Bắt đầu"))
+    finished_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name=_("Kết thúc"))
+    duration_seconds = models.IntegerField(null=True, blank=True, verbose_name=_("Thời gian chạy (giây)"))
+
+    days = models.PositiveIntegerField(default=0, verbose_name=_("Số ngày backfill"))
+    from_local = models.DateTimeField(null=True, blank=True, verbose_name=_("Từ local"))
+    to_local = models.DateTimeField(null=True, blank=True, verbose_name=_("Đến local"))
+
+    read_total = models.PositiveIntegerField(default=0, verbose_name=_("Tổng log đọc"))
+    filtered = models.PositiveIntegerField(default=0, verbose_name=_("Log sau lọc"))
+    sent_batches = models.PositiveIntegerField(default=0, verbose_name=_("Batch đã gửi"))
+    pending_batches = models.PositiveIntegerField(default=0, verbose_name=_("Batch pending"))
+    processed = models.PositiveIntegerField(default=0, verbose_name=_("Server ghi"))
+    duplicates = models.PositiveIntegerField(default=0, verbose_name=_("Trùng"))
+    rejected = models.PositiveIntegerField(default=0, verbose_name=_("Bị loại"))
+    errors = models.PositiveIntegerField(default=0, verbose_name=_("Số lỗi"))
+
+    error_code = models.CharField(max_length=64, blank=True, default="", db_index=True, verbose_name=_("Mã lỗi"))
+    error_message = models.TextField(blank=True, default="", verbose_name=_("Thông báo lỗi"))
+    need_retry = models.BooleanField(default=False, db_index=True, verbose_name=_("Cần retry"))
+    need_backfill = models.BooleanField(default=False, db_index=True, verbose_name=_("Cần backfill"))
+
+    payload_json = models.JSONField(blank=True, null=True, verbose_name=_("Payload gốc"))
+    reported_at = models.DateTimeField(default=dj_timezone.now, db_index=True, verbose_name=_("Server nhận lúc"))
+
+    class Meta:
+        verbose_name = _("Báo cáo backfill thiết bị (v2)")
+        verbose_name_plural = _("Báo cáo backfill thiết bị (v2)")
+        indexes = [
+            models.Index(fields=["device", "-reported_at", "-id"], name="adv2_bf_dev_latest_idx"),
+            models.Index(fields=["agent", "-reported_at"], name="adv2_bf_agent_time_idx"),
+            models.Index(fields=["status", "reported_at"], name="adv2_bf_status_time_idx"),
+            models.Index(fields=["need_retry", "reported_at"], name="adv2_bf_retry_time_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"BackfillReport#{self.pk} dev={self.device_id} {self.status}"
+

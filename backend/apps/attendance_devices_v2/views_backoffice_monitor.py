@@ -25,6 +25,8 @@ from .models import (
     AttendanceIngestLogV2,
     AttendanceNormalizedPunchV2,
     AttendanceRawPunchV2,
+    AttendanceDeviceStatusReportV2,
+    AttendanceDeviceBackfillReportV2,
 )
 
 
@@ -53,6 +55,14 @@ class DeviceMonitorRow:
     last_log: AttendanceIngestLogV2 | None
     last_log_status_label: str
     last_log_class: str
+    latest_status: AttendanceDeviceStatusReportV2 | None
+    latest_backfill: AttendanceDeviceBackfillReportV2 | None
+    realtime_label: str
+    realtime_class: str
+    backfill_label: str
+    backfill_class: str
+    drift_text: str
+    last_error_text: str
     cursor_text: str
 
 
@@ -118,6 +128,89 @@ def _agent_status(agent: AttendanceDeviceAgentV2 | None, now) -> tuple[str, str]
     if age_min <= AGENT_ONLINE_MINUTES:
         return "ONLINE", "Agent online"
     return "OFFLINE", "Agent offline"
+
+
+def _device_status_from_report(device: AttendanceDeviceV2, report: AttendanceDeviceStatusReportV2 | None, now) -> tuple[str, str, str]:
+    """Ưu tiên trạng thái Agent báo về; fallback về last_pull_at cũ."""
+    if not report:
+        return _device_status(device, now)
+    if not device.is_active:
+        return "DISABLED", "Ngừng dùng", "secondary"
+
+    ref_dt = report.last_device_seen_at or report.last_realtime_at or report.reported_at
+    age_min = (now - ref_dt).total_seconds() / 60 if ref_dt else 999999
+
+    if age_min > STALE_MINUTES:
+        return "OFFLINE", "Offline", "danger"
+    if age_min > ONLINE_MINUTES:
+        return "STALE", "Chậm dữ liệu", "warning"
+
+    status = report.realtime_status
+    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.ONLINE:
+        return "ONLINE", "Online", "success"
+    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.RECONNECTING:
+        return "STALE", "Đang kết nối lại", "warning"
+    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.PAUSED_BACKFILL:
+        return "ONLINE", "Tạm dừng backfill", "warning"
+    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.PAUSED_TIME_SYNC:
+        return "ONLINE", "Tạm dừng sync giờ", "warning"
+    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.REALTIME_UNAVAILABLE:
+        return "OFFLINE", "Không realtime", "danger"
+    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.ERROR:
+        return "OFFLINE", "Lỗi realtime", "danger"
+    return _device_status(device, now)
+
+
+def _realtime_badge(report: AttendanceDeviceStatusReportV2 | None) -> tuple[str, str]:
+    if not report:
+        return "Chưa báo", "secondary"
+    status = report.realtime_status
+    labels = {
+        "ONLINE": "Online",
+        "OFFLINE": "Offline",
+        "RECONNECTING": "Reconnect",
+        "PAUSED_BACKFILL": "Pause backfill",
+        "PAUSED_TIME_SYNC": "Pause sync giờ",
+        "REALTIME_UNAVAILABLE": "Không realtime",
+        "ERROR": "Lỗi",
+    }
+    css = {
+        "ONLINE": "success",
+        "OFFLINE": "danger",
+        "RECONNECTING": "warning",
+        "PAUSED_BACKFILL": "warning",
+        "PAUSED_TIME_SYNC": "warning",
+        "REALTIME_UNAVAILABLE": "danger",
+        "ERROR": "danger",
+    }
+    return labels.get(status, status), css.get(status, "secondary")
+
+
+def _backfill_badge(report: AttendanceDeviceBackfillReportV2 | None) -> tuple[str, str]:
+    if not report:
+        return "Chưa chạy", "secondary"
+    status = report.status
+    labels = {
+        "SUCCESS": "OK",
+        "PARTIAL_PENDING": "Pending",
+        "FAILED": "Lỗi",
+        "SKIPPED": "Bỏ qua",
+    }
+    css = {
+        "SUCCESS": "success",
+        "PARTIAL_PENDING": "warning",
+        "FAILED": "danger",
+        "SKIPPED": "secondary",
+    }
+    return labels.get(status, status), css.get(status, "secondary")
+
+
+def _drift_text(report: AttendanceDeviceStatusReportV2 | None) -> str:
+    if not report or report.drift_seconds is None:
+        return "-"
+    sec = int(report.drift_seconds)
+    sign = "+" if sec > 0 else ""
+    return f"{sign}{sec}s"
 
 
 def _dict_counts(qs, key_name: str) -> dict[int, int]:
@@ -339,7 +432,23 @@ def giam_sat_thiet_bi_view(request):
         .order_by("-started_at", "-id")
         .values("id")[:1]
     )
-    devices_qs = devices_qs.annotate(_latest_log_id=Subquery(latest_log_subquery))
+    latest_status_subquery = (
+        AttendanceDeviceStatusReportV2.objects
+        .filter(device_id=OuterRef("pk"))
+        .order_by("-reported_at", "-id")
+        .values("id")[:1]
+    )
+    latest_backfill_subquery = (
+        AttendanceDeviceBackfillReportV2.objects
+        .filter(device_id=OuterRef("pk"))
+        .order_by("-reported_at", "-id")
+        .values("id")[:1]
+    )
+    devices_qs = devices_qs.annotate(
+        _latest_log_id=Subquery(latest_log_subquery),
+        _latest_status_id=Subquery(latest_status_subquery),
+        _latest_backfill_id=Subquery(latest_backfill_subquery),
+    )
 
     devices = list(devices_qs)
     device_ids = [d.id for d in devices]
@@ -361,7 +470,7 @@ def giam_sat_thiet_bi_view(request):
             "kpi": {
                 "total": 0, "online": 0, "stale": 0, "offline": 0, "unknown": 0, "disabled": 0,
                 "raw_today": 0, "raw_pending": 0, "unresolved_today": 0, "unresolved_raw_today": 0,
-                "normalized_today": 0, "agent_offline": 0,
+                "normalized_today": 0, "agent_offline": 0, "realtime_error": 0, "backfill_failed": 0,
             },
             "status_links": [],
             "unmapped_uid_details": [],
@@ -449,6 +558,16 @@ def giam_sat_thiet_bi_view(request):
         log.device_id: log
         for log in AttendanceIngestLogV2.objects.filter(id__in=latest_log_ids).select_related("agent")
     }
+    latest_status_ids = [getattr(d, "_latest_status_id", None) for d in devices if getattr(d, "_latest_status_id", None)]
+    latest_status_reports: dict[int, AttendanceDeviceStatusReportV2] = {
+        rep.device_id: rep
+        for rep in AttendanceDeviceStatusReportV2.objects.filter(id__in=latest_status_ids).select_related("agent")
+    }
+    latest_backfill_ids = [getattr(d, "_latest_backfill_id", None) for d in devices if getattr(d, "_latest_backfill_id", None)]
+    latest_backfill_reports: dict[int, AttendanceDeviceBackfillReportV2] = {
+        rep.device_id: rep
+        for rep in AttendanceDeviceBackfillReportV2.objects.filter(id__in=latest_backfill_ids).select_related("agent")
+    }
 
     now = dj_timezone.now()
     rows: list[DeviceMonitorRow] = []
@@ -465,10 +584,16 @@ def giam_sat_thiet_bi_view(request):
         "unresolved_raw_today": 0,
         "normalized_today": 0,
         "agent_offline": 0,
+        "realtime_error": 0,
+        "backfill_failed": 0,
     }
 
     for d in devices:
-        dyn_status, dyn_label, dyn_class = _device_status(d, now)
+        latest_status = latest_status_reports.get(d.id)
+        latest_backfill = latest_backfill_reports.get(d.id)
+        dyn_status, dyn_label, dyn_class = _device_status_from_report(d, latest_status, now)
+        realtime_label, realtime_class = _realtime_badge(latest_status)
+        backfill_label, backfill_class = _backfill_badge(latest_backfill)
         agent_status, agent_label = _agent_status(d.assigned_agent, now)
 
         if status_filter and dyn_status != status_filter:
@@ -528,6 +653,14 @@ def giam_sat_thiet_bi_view(request):
             last_log=last_log,
             last_log_status_label=log_label,
             last_log_class=log_class,
+            latest_status=latest_status,
+            latest_backfill=latest_backfill,
+            realtime_label=realtime_label,
+            realtime_class=realtime_class,
+            backfill_label=backfill_label,
+            backfill_class=backfill_class,
+            drift_text=_drift_text(latest_status),
+            last_error_text=(latest_status.last_error if latest_status and latest_status.last_error else (latest_backfill.error_message if latest_backfill and latest_backfill.error_message else "")),
             cursor_text=cursor_text,
         ))
 
@@ -544,6 +677,10 @@ def giam_sat_thiet_bi_view(request):
             kpi["unknown"] += 1
         if agent_status in {"OFFLINE", "UNKNOWN", "NO_AGENT", "DISABLED"}:
             kpi["agent_offline"] += 1
+        if latest_status and latest_status.realtime_status in {"ERROR", "OFFLINE", "REALTIME_UNAVAILABLE"}:
+            kpi["realtime_error"] += 1
+        if latest_backfill and latest_backfill.status in {"FAILED", "PARTIAL_PENDING"}:
+            kpi["backfill_failed"] += 1
         kpi["raw_today"] += raw_today
         kpi["raw_pending"] += raw_pending
         kpi["unresolved_today"] += unresolved_today

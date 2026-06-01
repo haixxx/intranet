@@ -8,6 +8,7 @@ from .forms import (
     AgentAPIKeyCreateForm,
     AttendanceDeviceAgentV2Form,
     AttendanceDeviceV2Form,
+    get_device_sync_policy,
 )
 from .models import AttendanceDeviceAgentV2, AttendanceDeviceAPIKeyV2, AttendanceDeviceV2
 
@@ -115,8 +116,20 @@ def device_list(request):
 
     agents = AttendanceDeviceAgentV2.objects.all().order_by("name")
 
+    items = list(qs)
+    for item in items:
+        policy = get_device_sync_policy(item)
+        window = (policy.get("backfill_windows") or [{}])[0]
+        item.sync_policy_summary = {
+            "realtime_enabled": bool(policy.get("realtime_enabled")),
+            "backfill_enabled": bool(policy.get("backfill_enabled")),
+            "backfill_time": window.get("time") or "-",
+            "backfill_days": window.get("days") or "-",
+            "time_sync_enabled": bool(policy.get("time_sync_enabled")),
+        }
+
     return render(request, "backoffice/attendance_devices_v2/devices_list.html", {
-        "items": qs,
+        "items": items,
         "q": q,
         "agent": agent_id,
         "active": active,
@@ -131,7 +144,7 @@ def device_create(request):
         form = AttendanceDeviceV2Form(request.POST)
         if form.is_valid():
             obj = form.save()
-            messages.success(request, _("Đã tạo thiết bị."))
+            messages.success(request, _("Đã tạo thiết bị và lưu cấu hình Agent V2 an toàn."))
             return redirect("attendance_devices_v2:device_edit", device_id=obj.id)
     else:
         form = AttendanceDeviceV2Form()
@@ -151,7 +164,7 @@ def device_edit(request, device_id: int):
         form = AttendanceDeviceV2Form(request.POST, instance=obj)
         if form.is_valid():
             form.save()
-            messages.success(request, _("Đã cập nhật thiết bị."))
+            messages.success(request, _("Đã cập nhật thiết bị và cấu hình Agent V2."))
             return redirect("attendance_devices_v2:device_edit", device_id=obj.id)
     else:
         form = AttendanceDeviceV2Form(instance=obj)
