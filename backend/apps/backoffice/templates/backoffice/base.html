@@ -159,14 +159,14 @@
                     <i class="ti ti-server me-2"></i> {% trans "Agent" %}
                   </a>
                   {% endif %}
-
+<!-- Không dùng nữa, tạm ẩn để tránh rối UI. Cần thì bật lại sau.
                   {% if perms.attendance_devices_v2.view_attendancepunchmatchv2 %}
                   <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'audit_matches' %}active{% endif %}"
                      href="{% url 'attendance_devices_v2:audit_matches' %}">
                     <i class="ti ti-checkup-list me-2"></i> {% trans "Đối chiếu" %}
                   </a>
                   {% endif %}
-
+-->
                   {% endif %}
 
                   {# Cấu hình hệ thống: Mã chế độ + Cấu hình đối chiếu #}

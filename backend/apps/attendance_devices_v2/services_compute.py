@@ -16,6 +16,8 @@ from .models import AttendanceNormalizedPunchV2, AttendancePunchMatchV2
 
 SourceMode = Literal["commit"]
 
+OVERNIGHT_OUT2_CUTOFF = dt_time(4, 0)
+
 
 @dataclass
 class ComputeAuditResult:
@@ -41,6 +43,15 @@ def _make_local_dt(work_date, t: dt_time) -> datetime:
     return dj_timezone.make_aware(naive, tz)
 
 
+def _make_target_dt(work_date, t: dt_time | None, field: str) -> datetime | None:
+    if not t:
+        return None
+    target_date = work_date
+    if field == "OUT2" and t < OVERNIGHT_OUT2_CUTOFF:
+        target_date = work_date + timedelta(days=1)
+    return _make_local_dt(target_date, t)
+
+
 def _pick_nearest_punch(
     *,
     target_local: datetime,
@@ -64,28 +75,33 @@ def _pick_nearest_punch(
     return best
 
 
-def _iter_targets_from_code_and_item(code: AttendanceCode, item) -> list[tuple[str, dt_time]]:
-    targets: list[tuple[str, dt_time]] = []
+def _iter_targets_from_code_and_item(code: AttendanceCode, item, work_date) -> tuple[list[tuple[str, datetime]], list[str]]:
+    targets: list[tuple[str, datetime]] = []
+    missing_required: list[str] = []
 
     if not code or not code.is_work:
-        return targets
+        return targets, missing_required
 
-    # AM
+    expected_fields: list[tuple[str, dt_time | None]] = []
     if code.requires_am_work:
-        if item.in1:
-            targets.append(("IN1", item.in1))
-        if item.out1:
-            targets.append(("OUT1", item.out1))
-
-    # PM
+        expected_fields.extend([
+            ("IN1", getattr(item, "in1", None)),
+            ("OUT1", getattr(item, "out1", None)),
+        ])
     if code.requires_pm_work:
-        if item.in2:
-            targets.append(("IN2", item.in2))
-        if item.out2:
-            targets.append(("OUT2", item.out2))
+        expected_fields.extend([
+            ("IN2", getattr(item, "in2", None)),
+            ("OUT2", getattr(item, "out2", None)),
+        ])
 
-    return targets
+    for field, t in expected_fields:
+        target_dt = _make_target_dt(work_date, t, field)
+        if target_dt:
+            targets.append((field, target_dt))
+        else:
+            missing_required.append(field)
 
+    return targets, missing_required
 
 @transaction.atomic
 def compute_audit_for_unit_date(
@@ -126,7 +142,7 @@ def compute_audit_for_unit_date(
 
     tz = dj_timezone.get_current_timezone()
     day_start_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(0, 0, 0)), tz) - window
-    day_end_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(23, 59, 59)), tz) + window
+    day_end_local = dj_timezone.make_aware(datetime.combine(work_date + timedelta(days=1), OVERNIGHT_OUT2_CUTOFF), tz) + window
     start_utc = day_start_local.astimezone(datetime_timezone.utc)
     end_utc = day_end_local.astimezone(datetime_timezone.utc)
 
@@ -142,6 +158,7 @@ def compute_audit_for_unit_date(
         punches_by_emp.setdefault(p.employee_id, []).append(p)
 
     now = dj_timezone.now()
+    missing_target_warnings: list[str] = []
 
     def create_match(*, emp: Employee, field: str, target_local: datetime, matched: AttendanceNormalizedPunchV2 | None, status: str, notes: str = ""):
         nonlocal res
@@ -174,13 +191,15 @@ def compute_audit_for_unit_date(
 
         emp: Employee = it.employee
         code: AttendanceCode = it.code
-        targets = _iter_targets_from_code_and_item(code, it)
+        targets, missing_required = _iter_targets_from_code_and_item(code, it, work_date)
+        if missing_required:
+            emp_code = getattr(emp, "employee_code", "") or str(emp.id)
+            missing_target_warnings.append(f"{emp_code}: thiếu {','.join(missing_required)}")
         if not targets:
             continue
 
         if bool(getattr(emp, "skip_device_attendance", False)):
-            for field, tval in targets:
-                target_local = _make_local_dt(work_date, tval)
+            for field, target_local in targets:
                 create_match(
                     emp=emp,
                     field=field,
@@ -195,13 +214,18 @@ def compute_audit_for_unit_date(
         punches = punches_by_emp.get(emp.id, [])
         used: set[int] = set()
 
-        for field, tval in targets:
-            target_local = _make_local_dt(work_date, tval)
+        for field, target_local in targets:
             m = _pick_nearest_punch(target_local=target_local, punches=punches, window=window, used_ids=used)
             if m:
                 used.add(m.id)
                 create_match(emp=emp, field=field, target_local=target_local, matched=m, status=AttendancePunchMatchV2.Status.MATCHED)
             else:
                 create_match(emp=emp, field=field, target_local=target_local, matched=None, status=AttendancePunchMatchV2.Status.MISSING)
+
+    if missing_target_warnings:
+        sample = "; ".join(missing_target_warnings[:20])
+        if len(missing_target_warnings) > 20:
+            sample += f"; ... còn {len(missing_target_warnings) - 20} dòng"
+        res.notes = (res.notes + " | " if res.notes else "") + "mốc công chốt bị thiếu giờ target: " + sample
 
     return res

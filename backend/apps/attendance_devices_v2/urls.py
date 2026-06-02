@@ -21,6 +21,7 @@ urlpatterns = [
     path("backoffice/attendance-devices-v2/giam-sat-thiet-bi/", views_backoffice_monitor.giam_sat_thiet_bi_view, name="giam_sat_thiet_bi"),
     path("backoffice/attendance-devices-v2/giam-sat-thiet-bi/normalize-lai/", views_backoffice_monitor.normalize_lai_view, name="normalize_lai"),
     path("backoffice/attendance-devices-v2/giam-sat-thiet-bi/tinh-lai-masterlist/", views_backoffice_monitor.tinh_lai_masterlist_view, name="tinh_lai_masterlist"),
+    path("backoffice/attendance-devices-v2/giam-sat-thiet-bi/xoa-raw-chua-map/", views_backoffice_monitor.xoa_raw_chua_map_view, name="xoa_raw_chua_map"),
 
     # Backoffice: Devices
     path("backoffice/attendance-devices-v2/devices/", views_backoffice.device_list, name="device_list"),

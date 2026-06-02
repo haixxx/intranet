@@ -20,6 +20,13 @@ METHOD_PRIORITY = {
     "OTHER": 0,
 }
 
+# Normalize chỉ dùng để chống bấm lặp / trùng cross-device trong thời gian rất ngắn.
+# KHÔNG dùng window này để đối chiếu ca. Đối chiếu ca dùng AttendanceSettings.window_minutes
+# trong services_master_list_compute.py.
+DEFAULT_DEDUPE_WINDOW_SECONDS = 120      # 2 phút
+MAX_DEDUPE_WINDOW_SECONDS = 180          # chặn cứng 3 phút để tránh gộp sai các mốc hợp lệ
+MIN_DEDUPE_WINDOW_SECONDS = 10           # chống cấu hình 0/âm/quá nhỏ gây mất dedupe cơ bản
+
 
 def _best_method(a: str, b: str) -> str:
     pa = METHOD_PRIORITY.get((a or "OTHER").upper(), 0)
@@ -36,13 +43,53 @@ class NormalizeResult:
     merged_into_existing: int = 0
     marked_no_uid: int = 0
     pending_unmapped_hint: str = ""
+    configured_dedupe_seconds: int = DEFAULT_DEDUPE_WINDOW_SECONDS
+    effective_dedupe_seconds: int = DEFAULT_DEDUPE_WINDOW_SECONDS
+    dedupe_warning: str = ""
 
 
 def get_dedupe_window_seconds() -> int:
+    """
+    Window dedupe cho Normalize.
+
+    Ý nghĩa đúng: gộp các lần bấm lặp rất gần nhau, ví dụ bấm 2-3 lần trong vài giây/phút.
+    Không được để window này lớn như window đối chiếu ca. Nếu cấu hình cluster_minutes quá lớn,
+    hệ thống sẽ cap tối đa 3 phút để tránh gộp sai các lần chấm hợp lệ, ví dụ 16:33 và 16:50.
+    """
     s = AttendanceSettings.objects.first()
-    if s and s.cluster_minutes:
-        return int(s.cluster_minutes) * 60
-    return 120
+    configured = DEFAULT_DEDUPE_WINDOW_SECONDS
+    if s and getattr(s, "cluster_minutes", None):
+        try:
+            configured = int(s.cluster_minutes) * 60
+        except Exception:
+            configured = DEFAULT_DEDUPE_WINDOW_SECONDS
+
+    if configured <= 0:
+        return DEFAULT_DEDUPE_WINDOW_SECONDS
+    if configured < MIN_DEDUPE_WINDOW_SECONDS:
+        return MIN_DEDUPE_WINDOW_SECONDS
+    if configured > MAX_DEDUPE_WINDOW_SECONDS:
+        return MAX_DEDUPE_WINDOW_SECONDS
+    return configured
+
+
+def _dedupe_window_info() -> tuple[int, int, str]:
+    s = AttendanceSettings.objects.first()
+    configured = DEFAULT_DEDUPE_WINDOW_SECONDS
+    if s and getattr(s, "cluster_minutes", None):
+        try:
+            configured = int(s.cluster_minutes) * 60
+        except Exception:
+            configured = DEFAULT_DEDUPE_WINDOW_SECONDS
+
+    effective = get_dedupe_window_seconds()
+    warning = ""
+    if configured != effective:
+        warning = (
+            f"cluster_minutes cấu hình tương đương {configured} giây, "
+            f"normalize dùng {effective} giây để tránh gộp sai mốc chấm công."
+        )
+    return configured, effective, warning
 
 
 def _employee_card_map() -> dict[str, Employee]:
@@ -61,6 +108,31 @@ def _employee_card_map() -> dict[str, Employee]:
     return result
 
 
+def _find_existing_normalized(
+    *,
+    emp: Employee,
+    event_time_utc,
+    window: timedelta,
+) -> AttendanceNormalizedPunchV2 | None:
+    """
+    Tìm normalized punch đã có trong cửa sổ dedupe.
+
+    Quan trọng: nếu có nhiều mốc trong cửa sổ, chọn mốc gần nhất, không chọn bản ghi đầu tiên
+    theo thời gian. Điều này giúp dữ liệu ổn định hơn khi có nhiều thiết bị / nhiều lần retry.
+    """
+    left = event_time_utc - window
+    right = event_time_utc + window
+    candidates = list(
+        AttendanceNormalizedPunchV2.objects
+        .filter(employee=emp, canonical_time_utc__gte=left, canonical_time_utc__lte=right)
+        .only("id", "employee", "canonical_time_utc", "best_device", "method", "source_count", "sources_json")
+        .order_by("canonical_time_utc")
+    )
+    if not candidates:
+        return None
+    return min(candidates, key=lambda p: abs((p.canonical_time_utc - event_time_utc).total_seconds()))
+
+
 @transaction.atomic
 def normalize_raw_punches(
     *,
@@ -76,16 +148,14 @@ def normalize_raw_punches(
     - Raw có device_user_id nhưng CHƯA khớp Employee.card_id => giữ normalized_at=NULL,
       nhưng không đưa vào batch xử lý chính. Khi sau này cập nhật Employee.card_id, raw đó
       sẽ tự được chọn lại ở lần normalize tiếp theo.
-
-    Lý do sửa:
-    - Bản cũ lấy các raw normalized_at=NULL theo id tăng dần. Nếu đầu hàng đợi có nhiều UID
-      chưa map, batch sau bị chặn, raw mới phía sau chậm được normalize.
+    - Dedupe chỉ gộp các lần chấm rất gần nhau, tối đa 3 phút. Không gộp các mốc cách nhau
+      xa như 16:33 và 16:50.
     """
     if limit <= 0:
         limit = 1000
 
-    window_seconds = get_dedupe_window_seconds()
-    window = timedelta(seconds=window_seconds)
+    configured_window_seconds, effective_window_seconds, warning = _dedupe_window_info()
+    window = timedelta(seconds=effective_window_seconds)
 
     base_qs = AttendanceRawPunchV2.objects.filter(normalized_at__isnull=True)
     if since_id is not None:
@@ -93,7 +163,11 @@ def normalize_raw_punches(
 
     emp_map = _employee_card_map()
     card_ids = list(emp_map.keys())
-    result = NormalizeResult()
+    result = NormalizeResult(
+        configured_dedupe_seconds=configured_window_seconds,
+        effective_dedupe_seconds=effective_window_seconds,
+        dedupe_warning=warning,
+    )
 
     now = dj_timezone.now()
 
@@ -130,30 +204,24 @@ def normalize_raw_punches(
 
         result.resolved += 1
 
-        t = r.event_time_utc
-        left = t - window
-        right = t + window
+        existing = _find_existing_normalized(emp=emp, event_time_utc=r.event_time_utc, window=window)
 
-        existing = (
-            AttendanceNormalizedPunchV2.objects
-            .filter(employee=emp, canonical_time_utc__gte=left, canonical_time_utc__lte=right)
-            .order_by("canonical_time_utc")
-            .first()
-        )
+        source_item = {
+            "raw_id": r.id,
+            "device_id": r.device_id,
+            "method": r.method,
+            "time_utc": r.event_time_utc.isoformat(),
+            "time_local": r.event_time_local.isoformat() if r.event_time_local else None,
+        }
 
         if not existing:
             norm = AttendanceNormalizedPunchV2.objects.create(
                 employee=emp,
-                canonical_time_utc=t,
+                canonical_time_utc=r.event_time_utc,
                 best_device=r.device,
                 method=(r.method or "OTHER").upper(),
                 source_count=1,
-                sources_json=[{
-                    "raw_id": r.id,
-                    "device_id": r.device_id,
-                    "method": r.method,
-                    "time_utc": r.event_time_utc.isoformat(),
-                }],
+                sources_json=[source_item],
                 created_at=now,
             )
             result.created_norm += 1
@@ -168,12 +236,7 @@ def normalize_raw_punches(
                 update_fields.extend(["method", "best_device"])
 
             sources = norm.sources_json or []
-            sources.append({
-                "raw_id": r.id,
-                "device_id": r.device_id,
-                "method": r.method,
-                "time_utc": r.event_time_utc.isoformat(),
-            })
+            sources.append(source_item)
             norm.sources_json = sources
             norm.save(update_fields=update_fields)
             result.merged_into_existing += 1

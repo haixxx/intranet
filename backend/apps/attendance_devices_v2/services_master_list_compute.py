@@ -22,6 +22,9 @@ MANUAL_SOURCE_MAY_HONG = "MAY_HONG"
 MANUAL_SOURCE_SUA_DU_LIEU = "SUA_DU_LIEU"
 MANUAL_SOURCE_DEFAULT = MANUAL_SOURCE_MAY_HONG
 
+# OUT2 nhỏ hơn mốc này được hiểu là R2 của ngày hôm sau.
+# Quy ước này phải đồng bộ với nhập bổ sung và import Excel.
+OVERNIGHT_OUT2_CUTOFF = dt_time(4, 0)
 
 
 @dataclass
@@ -49,25 +52,81 @@ def _make_local_dt(work_date, t: dt_time) -> datetime:
     return dj_timezone.make_aware(naive, tz)
 
 
-def _expected_flags(code: AttendanceCode) -> dict:
-    # WORK ở AM => yêu cầu IN1/OUT1; WORK ở PM => yêu cầu IN2/OUT2
+def _make_target_dt(work_date, t: dt_time | None, field: str) -> datetime | None:
+    """
+    Tạo datetime local cho mốc đăng ký từ AttendanceCommitItem.
+
+    Quy ước:
+    - IN1/OUT1/IN2 lấy theo work_date.
+    - OUT2 < 04:00 được coi là ngày hôm sau, phục vụ ca qua ngày.
+    """
+    if not t:
+        return None
+    target_date = work_date
+    if field == "OUT2" and t < OVERNIGHT_OUT2_CUTOFF:
+        target_date = work_date + timedelta(days=1)
+    return _make_local_dt(target_date, t)
+
+
+def _expected_flags_and_targets(code: AttendanceCode, item, work_date) -> tuple[dict, dict[str, datetime | None], list[str]]:
+    """
+    Xác định mốc kỳ vọng và target thực tế.
+
+    Lưu ý:
+    - code.requires_* cho biết mốc đáng lẽ phải có.
+    - Nếu AttendanceCommitItem thiếu giờ target, không tính expected=True một cách mù,
+      vì không có giờ chuẩn để đối chiếu. Ghi warning để kiểm tra lại công chốt.
+    """
+    targets: dict[str, datetime | None] = {
+        "IN1": None,
+        "OUT1": None,
+        "IN2": None,
+        "OUT2": None,
+    }
+    missing_required: list[str] = []
+
     if not code or not code.is_work:
         return {
-            "expected_in1": False, "expected_out1": False, "expected_in2": False, "expected_out2": False, "expected_marks": 0
-        }
-    expected_in1 = bool(code.requires_am_work)
-    expected_out1 = bool(code.requires_am_work)
-    expected_in2 = bool(code.requires_pm_work)
-    expected_out2 = bool(code.requires_pm_work)
-    expected_marks = int(expected_in1) + int(expected_out1) + int(expected_in2) + int(expected_out2)
-    return {
-        "expected_in1": expected_in1,
-        "expected_out1": expected_out1,
-        "expected_in2": expected_in2,
-        "expected_out2": expected_out2,
-        "expected_marks": expected_marks,
+            "expected_in1": False,
+            "expected_out1": False,
+            "expected_in2": False,
+            "expected_out2": False,
+            "expected_marks": 0,
+        }, targets, missing_required
+
+    requires = {
+        "IN1": bool(code.requires_am_work),
+        "OUT1": bool(code.requires_am_work),
+        "IN2": bool(code.requires_pm_work),
+        "OUT2": bool(code.requires_pm_work),
+    }
+    item_times = {
+        "IN1": getattr(item, "in1", None),
+        "OUT1": getattr(item, "out1", None),
+        "IN2": getattr(item, "in2", None),
+        "OUT2": getattr(item, "out2", None),
     }
 
+    expected: dict[str, bool] = {}
+    for field, required in requires.items():
+        t = item_times[field]
+        if required and t:
+            expected[field] = True
+            targets[field] = _make_target_dt(work_date, t, field)
+        elif required and not t:
+            expected[field] = False
+            missing_required.append(field)
+        else:
+            expected[field] = False
+
+    expected_marks = sum(1 for v in expected.values() if v)
+    return {
+        "expected_in1": expected["IN1"],
+        "expected_out1": expected["OUT1"],
+        "expected_in2": expected["IN2"],
+        "expected_out2": expected["OUT2"],
+        "expected_marks": expected_marks,
+    }, targets, missing_required
 
 class _PunchLike(Protocol):
     """
@@ -196,9 +255,12 @@ def compute_master_list_for_unit_date(
 
     tz = dj_timezone.get_current_timezone()
 
-    # Lấy punches trong khoảng ngày +/- window (UTC) để đối chiếu
+    # Lấy punches trong khoảng đủ rộng cho ngày công:
+    # - 00:00 work_date - window_minutes;
+    # - 04:00 ngày hôm sau + window_minutes để không mất OUT2 qua ngày.
+    # Đây là window đối chiếu ca, khác hoàn toàn với cluster_minutes của normalize.
     day_start_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(0, 0, 0)), tz) - window
-    day_end_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(23, 59, 59)), tz) + window
+    day_end_local = dj_timezone.make_aware(datetime.combine(work_date + timedelta(days=1), OVERNIGHT_OUT2_CUTOFF), tz) + window
     start_utc = day_start_local.astimezone(datetime_timezone.utc)
     end_utc = day_end_local.astimezone(datetime_timezone.utc)
 
@@ -293,15 +355,24 @@ def compute_master_list_for_unit_date(
     }
     AttendanceDeviceMasterListV2.objects.filter(work_date=work_date, unit_id=unit_id).delete()
 
+    missing_target_warnings: list[str] = []
+    skipped_include_false = 0
+    skipped_expected_zero = 0
+
     for it in items:
         if hasattr(it, "include_in_unit") and not bool(it.include_in_unit):
+            skipped_include_false += 1
             continue
 
         emp: Employee = it.employee
         code: AttendanceCode = it.code
-        exp = _expected_flags(code)
+        exp, targets, missing_required = _expected_flags_and_targets(code, it, work_date)
+        if missing_required:
+            emp_code = getattr(emp, "employee_code", "") or str(emp.id)
+            missing_target_warnings.append(f"{emp_code}: thiếu {','.join(missing_required)}")
         expected_marks = exp["expected_marks"]
         if expected_marks == 0:
+            skipped_expected_zero += 1
             continue
 
         is_exempt = bool(getattr(emp, "skip_device_attendance", False))
@@ -309,11 +380,11 @@ def compute_master_list_for_unit_date(
         punches = punches_by_emp.get(emp.id, [])
         manual_overrides = manual_override_by_emp.get(emp.id, {})
 
-        # build targets (nullable)
-        t_in1 = _make_local_dt(work_date, it.in1) if exp["expected_in1"] and it.in1 else None
-        t_out1 = _make_local_dt(work_date, it.out1) if exp["expected_out1"] and it.out1 else None
-        t_in2 = _make_local_dt(work_date, it.in2) if exp["expected_in2"] and it.in2 else None
-        t_out2 = _make_local_dt(work_date, it.out2) if exp["expected_out2"] and it.out2 else None
+        # target đã được build từ công chốt, trong đó OUT2 < 04:00 là ngày hôm sau.
+        t_in1 = targets["IN1"]
+        t_out1 = targets["OUT1"]
+        t_in2 = targets["IN2"]
+        t_out2 = targets["OUT2"]
 
         # midpoint bounds (only when both exist)
         mid_1_2 = _midpoint(t_out1, t_in2) if (t_out1 and t_in2) else None
@@ -500,5 +571,17 @@ def compute_master_list_for_unit_date(
             yeu_cau_sua_xu_ly_luc=getattr(old, "yeu_cau_sua_xu_ly_luc", None),
         )
         res.master_rows_upserted += 1
+
+    note_parts = [res.notes] if res.notes else []
+    if skipped_include_false:
+        note_parts.append(f"bỏ qua include_in_unit=False: {skipped_include_false}")
+    if skipped_expected_zero:
+        note_parts.append(f"bỏ qua expected_marks=0/thiếu toàn bộ target: {skipped_expected_zero}")
+    if missing_target_warnings:
+        sample = "; ".join(missing_target_warnings[:20])
+        if len(missing_target_warnings) > 20:
+            sample += f"; ... còn {len(missing_target_warnings) - 20} dòng"
+        note_parts.append("mốc công chốt bị thiếu giờ target: " + sample)
+    res.notes = " | ".join(note_parts)
 
     return res

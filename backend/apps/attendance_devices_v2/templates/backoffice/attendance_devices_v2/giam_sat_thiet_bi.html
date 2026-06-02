@@ -279,12 +279,61 @@
     </div>
   </div>
 
-  {% if unmapped_uid_details %}
   <div class="card mt-3">
-    <div class="card-header py-2">
-      <strong>Chi tiết UID/mã thẻ chưa map trong ngày {{ work_date }}</strong>
-      <span class="text-muted small ms-2">Hiển thị tối đa 200 dòng theo bộ lọc hiện tại</span>
+    <div class="card-header py-2 d-flex justify-content-between align-items-start gap-2 flex-wrap">
+      <div>
+        <strong>UID/mã thẻ chưa map nhân sự</strong>
+        <div class="text-muted small">
+          Toàn bộ raw chưa chuẩn hoá do UID chưa khớp <strong>Employee.card_id</strong> theo bộ lọc thiết bị hiện tại.
+          Tổng: <strong>{{ unmapped_uid_total_groups }}</strong> UID, <strong>{{ unmapped_uid_total_raw }}</strong> raw.
+        </div>
+      </div>
+      {% if unmapped_uid_total_raw %}
+        <form method="post" action="{% url 'attendance_devices_v2:xoa_raw_chua_map' %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input type="hidden" name="mode" value="all">
+          <input type="hidden" name="confirm_text" value="">
+          <button class="btn btn-outline-danger btn-sm" type="submit"
+                  onclick="var c=prompt('Chỉ dùng cho dữ liệu test/rác. Nếu chắc chắn muốn xóa TOÀN BỘ raw chưa map theo hệ thống, gõ: XOA_RAW_CHUA_MAP'); if(c !== 'XOA_RAW_CHUA_MAP'){ return false; } this.form.confirm_text.value=c; return true;">
+            Xóa toàn bộ raw chưa map
+          </button>
+        </form>
+      {% endif %}
     </div>
+
+    <div class="card-body py-2">
+      <form method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="date" value="{{ work_date }}">
+        <input type="hidden" name="q" value="{{ q }}">
+        <input type="hidden" name="agent" value="{{ agent }}">
+        <input type="hidden" name="unit" value="{{ unit }}">
+        <input type="hidden" name="active" value="{{ active }}">
+        <input type="hidden" name="status" value="{{ status }}">
+        <input type="hidden" name="page_size" value="{{ page_size }}">
+        <div class="col-md-4">
+          <label class="form-label small text-muted mb-1">Tìm UID</label>
+          <input class="form-control form-control-sm" name="uid_q" value="{{ uid_q }}" placeholder="VD: 79">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted mb-1">Dòng UID</label>
+          <select class="form-select form-select-sm" name="uid_page_size">
+            <option value="10"{% if uid_page_size == 10 %} selected{% endif %}>10</option>
+            <option value="20"{% if uid_page_size == 20 %} selected{% endif %}>20</option>
+            <option value="50"{% if uid_page_size == 50 %} selected{% endif %}>50</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button class="btn btn-primary btn-sm" type="submit">Lọc UID</button>
+          <a class="btn btn-outline-secondary btn-sm" href="?date={{ work_date }}&q={{ q|urlencode }}&agent={{ agent }}&unit={{ unit }}&active={{ active }}&status={{ status }}&page_size={{ page_size }}">Xóa lọc UID</a>
+        </div>
+        <div class="col-md-12 small text-muted">
+          Cách xử lý chuẩn: cập nhật UID này vào <strong>card_id</strong> của nhân sự tương ứng → bấm <strong>Normalize lại</strong> → bấm <strong>Tính lại MasterList</strong>.
+          Chỉ xóa raw nếu chắc chắn đây là dữ liệu test/rác hoặc UID không thuộc nhân sự.
+        </div>
+      </form>
+    </div>
+
     <div class="table-responsive">
       <table class="table table-sm table-striped table-monitor mb-0">
         <thead>
@@ -293,25 +342,57 @@
             <th>Đơn vị</th>
             <th>UID / mã thẻ trên máy</th>
             <th class="text-end">Số raw</th>
+            <th>Lần đầu</th>
             <th>Lần cuối</th>
-            <th>Gợi ý xử lý</th>
+            <th>Thông báo xử lý</th>
+            <th class="text-end">Thao tác</th>
           </tr>
         </thead>
         <tbody>
-          {% for u in unmapped_uid_details %}
+          {% for u in unmapped_uid_page_items %}
             <tr>
-              <td><strong>{{ u.device.name }}</strong></td>
+              <td><strong>{{ u.device.name }}</strong><div class="small-muted">{{ u.device.host }}:{{ u.device.port }}</div></td>
               <td>{% if u.device.org_unit %}{{ u.device.org_unit.symbol }}{% else %}-{% endif %}</td>
               <td><span class="uid-pill">{{ u.uid }}</span></td>
               <td class="text-end"><strong>{{ u.cnt }}</strong></td>
+              <td class="text-nowrap">{% if u.first_seen %}{{ u.first_seen|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
               <td class="text-nowrap">{% if u.last_seen %}{{ u.last_seen|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
-              <td class="small text-muted">Cập nhật mã thẻ này vào hồ sơ nhân sự tương ứng, sau đó chạy lại normalize.</td>
+              <td class="small text-muted">Cần cập nhật UID này vào <strong>Employee.card_id</strong>; nếu là dữ liệu test/rác thì có thể xóa.</td>
+              <td class="text-end text-nowrap">
+                <form method="post" action="{% url 'attendance_devices_v2:xoa_raw_chua_map' %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  <input type="hidden" name="mode" value="group">
+                  <input type="hidden" name="device_id" value="{{ u.device.id }}">
+                  <input type="hidden" name="uid" value="{{ u.uid }}">
+                  <button class="btn btn-outline-danger btn-sm" type="submit" onclick="return confirm('Xóa {{ u.cnt }} raw chưa map của UID {{ u.uid }} trên máy {{ u.device.name }}? Chỉ xóa nếu đây là dữ liệu test/rác.');">Xóa UID này</button>
+                </form>
+              </td>
             </tr>
+          {% empty %}
+            <tr><td colspan="8" class="text-muted">Không còn UID/mã thẻ chưa map theo bộ lọc hiện tại.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+
+    {% if unmapped_uid_page and unmapped_uid_page.paginator.num_pages > 1 %}
+      <div class="card-footer py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="small text-muted">
+          Trang {{ unmapped_uid_page.number }}/{{ unmapped_uid_page.paginator.num_pages }} · {{ unmapped_uid_page.paginator.count }} UID
+        </div>
+        <div class="btn-group btn-group-sm">
+          {% if unmapped_uid_page.has_previous %}
+            <a class="btn btn-outline-secondary" href="?date={{ work_date }}&q={{ q|urlencode }}&agent={{ agent }}&unit={{ unit }}&active={{ active }}&status={{ status }}&page_size={{ page_size }}&uid_q={{ uid_q|urlencode }}&uid_page_size={{ uid_page_size }}&uid_page=1">Đầu</a>
+            <a class="btn btn-outline-secondary" href="?date={{ work_date }}&q={{ q|urlencode }}&agent={{ agent }}&unit={{ unit }}&active={{ active }}&status={{ status }}&page_size={{ page_size }}&uid_q={{ uid_q|urlencode }}&uid_page_size={{ uid_page_size }}&uid_page={{ unmapped_uid_page.previous_page_number }}">Trước</a>
+          {% endif %}
+          {% if unmapped_uid_page.has_next %}
+            <a class="btn btn-outline-secondary" href="?date={{ work_date }}&q={{ q|urlencode }}&agent={{ agent }}&unit={{ unit }}&active={{ active }}&status={{ status }}&page_size={{ page_size }}&uid_q={{ uid_q|urlencode }}&uid_page_size={{ uid_page_size }}&uid_page={{ unmapped_uid_page.next_page_number }}">Sau</a>
+            <a class="btn btn-outline-secondary" href="?date={{ work_date }}&q={{ q|urlencode }}&agent={{ agent }}&unit={{ unit }}&active={{ active }}&status={{ status }}&page_size={{ page_size }}&uid_q={{ uid_q|urlencode }}&uid_page_size={{ uid_page_size }}&uid_page={{ unmapped_uid_page.paginator.num_pages }}">Cuối</a>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 {% endblock %}

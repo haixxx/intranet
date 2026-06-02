@@ -7,8 +7,10 @@ from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
-from django.db.models import Count, Max, OuterRef, Q, Subquery
+from django.core.paginator import Paginator
+from django.db.models import Count, Max, Min, OuterRef, Q, Subquery
 from django.shortcuts import render, redirect
+from django.views.decorators.http import require_POST
 from django.utils import timezone as dj_timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -130,40 +132,67 @@ def _agent_status(agent: AttendanceDeviceAgentV2 | None, now) -> tuple[str, str]
     return "OFFLINE", "Agent offline"
 
 
-def _device_status_from_report(device: AttendanceDeviceV2, report: AttendanceDeviceStatusReportV2 | None, now) -> tuple[str, str, str]:
-    """Ưu tiên trạng thái Agent báo về; fallback về last_pull_at cũ."""
+def _report_age_minutes(report: AttendanceDeviceStatusReportV2 | None, now) -> float | None:
+    """Tuổi của report realtime mới nhất, tính theo mốc đáng tin nhất Agent gửi lên."""
     if not report:
-        return _device_status(device, now)
+        return None
+    ref_dt = report.last_device_seen_at or report.last_realtime_at or report.reported_at
+    if not ref_dt:
+        return None
+    return max(0.0, (now - ref_dt).total_seconds() / 60)
+
+
+def _device_status_from_report(device: AttendanceDeviceV2, report: AttendanceDeviceStatusReportV2 | None, now) -> tuple[str, str, str]:
+    """
+    Tính trạng thái thiết bị cho dashboard.
+
+    Quy tắc mới:
+    - Nếu report realtime còn mới: ưu tiên status do Agent báo.
+    - Nếu report realtime đã quá hạn nhưng device.last_pull_at/ingest còn mới: fallback theo last_pull_at.
+      Điều này xử lý trường hợp Agent vẫn gửi raw/ingest nhưng chưa gửi device-status mới.
+    - Nếu report cũ và last_pull_at cũng cũ: offline.
+    """
     if not device.is_active:
         return "DISABLED", "Ngừng dùng", "secondary"
 
-    ref_dt = report.last_device_seen_at or report.last_realtime_at or report.reported_at
-    age_min = (now - ref_dt).total_seconds() / 60 if ref_dt else 999999
+    age_min = _report_age_minutes(report, now)
+    if report and age_min is not None and age_min <= STALE_MINUTES:
+        if age_min > ONLINE_MINUTES:
+            return "STALE", "Chậm realtime", "warning"
 
-    if age_min > STALE_MINUTES:
-        return "OFFLINE", "Offline", "danger"
-    if age_min > ONLINE_MINUTES:
-        return "STALE", "Chậm dữ liệu", "warning"
+        status = report.realtime_status
+        if status == AttendanceDeviceStatusReportV2.RealtimeStatus.ONLINE:
+            return "ONLINE", "Online", "success"
+        if status == AttendanceDeviceStatusReportV2.RealtimeStatus.RECONNECTING:
+            return "STALE", "Đang kết nối lại", "warning"
+        if status == AttendanceDeviceStatusReportV2.RealtimeStatus.PAUSED_BACKFILL:
+            return "ONLINE", "Tạm dừng backfill", "warning"
+        if status == AttendanceDeviceStatusReportV2.RealtimeStatus.PAUSED_TIME_SYNC:
+            return "ONLINE", "Tạm dừng sync giờ", "warning"
+        if status == AttendanceDeviceStatusReportV2.RealtimeStatus.REALTIME_UNAVAILABLE:
+            return "OFFLINE", "Không realtime", "danger"
+        if status == AttendanceDeviceStatusReportV2.RealtimeStatus.ERROR:
+            return "OFFLINE", "Lỗi realtime", "danger"
 
-    status = report.realtime_status
-    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.ONLINE:
-        return "ONLINE", "Online", "success"
-    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.RECONNECTING:
-        return "STALE", "Đang kết nối lại", "warning"
-    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.PAUSED_BACKFILL:
-        return "ONLINE", "Tạm dừng backfill", "warning"
-    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.PAUSED_TIME_SYNC:
-        return "ONLINE", "Tạm dừng sync giờ", "warning"
-    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.REALTIME_UNAVAILABLE:
-        return "OFFLINE", "Không realtime", "danger"
-    if status == AttendanceDeviceStatusReportV2.RealtimeStatus.ERROR:
-        return "OFFLINE", "Lỗi realtime", "danger"
+    # Report không có hoặc đã quá hạn: fallback theo last_pull_at do ingest raw cập nhật.
     return _device_status(device, now)
 
 
-def _realtime_badge(report: AttendanceDeviceStatusReportV2 | None) -> tuple[str, str]:
+def _realtime_badge(report: AttendanceDeviceStatusReportV2 | None, now=None) -> tuple[str, str]:
     if not report:
         return "Chưa báo", "secondary"
+
+    # Không hiển thị ONLINE mãi mãi từ report cũ. Nếu Agent/service đã tắt lâu, badge phải báo quá hạn.
+    if now is None:
+        now = dj_timezone.now()
+    age_min = _report_age_minutes(report, now)
+    if age_min is None:
+        return "Chưa báo", "secondary"
+    if age_min > STALE_MINUTES:
+        return "Quá hạn", "danger"
+    if age_min > ONLINE_MINUTES:
+        return "Chậm báo", "warning"
+
     status = report.realtime_status
     labels = {
         "ONLINE": "Online",
@@ -220,6 +249,51 @@ def _dict_counts(qs, key_name: str) -> dict[int, int]:
 def _short_uid_list(items: list[dict], limit: int = 5) -> list[dict]:
     """Giữ tối đa vài UID để hiển thị gọn trên bảng."""
     return items[:limit]
+
+
+def _known_card_ids_qs():
+    """Subquery card_id hợp lệ trong hồ sơ nhân sự."""
+    return (
+        Employee.objects
+        .exclude(card_id__isnull=True)
+        .exclude(card_id="")
+        .values("card_id")
+    )
+
+
+def _unmapped_raw_qs():
+    """
+    Raw chưa normalize vì UID/mã thẻ trên máy chưa khớp Employee.card_id.
+
+    Điều kiện này cố tình CHỈ lấy raw chưa normalize, có UID, nhưng UID không tồn tại
+    trong hồ sơ nhân sự. Raw này không tham gia compute và không chặn queue normalize.
+    """
+    return (
+        AttendanceRawPunchV2.objects
+        .filter(normalized_at__isnull=True)
+        .exclude(Q(device_user_id__isnull=True) | Q(device_user_id=""))
+        .exclude(device_user_id__in=Subquery(_known_card_ids_qs()))
+    )
+
+
+def _filtered_device_ids(*, q: str = "", agent_raw: str = "", unit_raw: str = "", active_raw: str = "") -> list[int]:
+    qs = AttendanceDeviceV2.objects.all()
+    if q:
+        qs = qs.filter(
+            Q(name__icontains=q) |
+            Q(host__icontains=q) |
+            Q(model__icontains=q) |
+            Q(serial_no__icontains=q) |
+            Q(org_unit__symbol__icontains=q) |
+            Q(org_unit__name__icontains=q)
+        )
+    if agent_raw.isdigit():
+        qs = qs.filter(assigned_agent_id=int(agent_raw))
+    if unit_raw.isdigit():
+        qs = qs.filter(org_unit_id=int(unit_raw))
+    if active_raw in {"0", "1"}:
+        qs = qs.filter(is_active=(active_raw == "1"))
+    return list(qs.values_list("id", flat=True))
 
 
 @login_required
@@ -377,6 +451,52 @@ def tinh_lai_masterlist_view(request):
 
 
 @login_required
+@permission_required("attendance_devices_v2.change_attendancedevicev2", raise_exception=True)
+@require_POST
+def xoa_raw_chua_map_view(request):
+    """
+    Xóa raw chưa map card_id.
+
+    Chỉ xóa raw thỏa điều kiện rất chặt:
+    - normalized_at IS NULL;
+    - normalized_punch IS NULL;
+    - có device_user_id;
+    - device_user_id chưa tồn tại trong Employee.card_id tại thời điểm xóa.
+
+    Dùng cho dữ liệu test/rác hoặc UID chắc chắn không thuộc nhân sự.
+    Nếu UID là của nhân sự thật, nên cập nhật Employee.card_id rồi Normalize lại, không xóa.
+    """
+    next_url = (request.POST.get("next") or "").strip()
+    if not next_url.startswith("/"):
+        next_url = None
+
+    mode = (request.POST.get("mode") or "group").strip()
+    qs = _unmapped_raw_qs().filter(normalized_punch_id__isnull=True)
+
+    if mode == "all":
+        confirm_text = (request.POST.get("confirm_text") or "").strip()
+        if confirm_text != "XOA_RAW_CHUA_MAP":
+            messages.error(request, "Chưa xác nhận đúng. Không xóa raw chưa map.")
+            return redirect(next_url or "attendance_devices_v2:giam_sat_thiet_bi")
+    else:
+        device_id = (request.POST.get("device_id") or "").strip()
+        uid = (request.POST.get("uid") or "").strip()
+        if not device_id.isdigit() or not uid:
+            messages.error(request, "Thiếu device_id hoặc UID cần xóa.")
+            return redirect(next_url or "attendance_devices_v2:giam_sat_thiet_bi")
+        qs = qs.filter(device_id=int(device_id), device_user_id=uid)
+
+    count = qs.count()
+    if count <= 0:
+        messages.warning(request, "Không có raw chưa map phù hợp để xóa.")
+        return redirect(next_url or "attendance_devices_v2:giam_sat_thiet_bi")
+
+    deleted_count, _ = qs.delete()
+    messages.success(request, f"Đã xóa {deleted_count} raw chưa map card_id. Sau đó có thể chạy Normalize lại để kiểm tra còn tồn không.")
+    return redirect(next_url or "attendance_devices_v2:giam_sat_thiet_bi")
+
+
+@login_required
 @permission_required("attendance_devices_v2.view_attendancedevicev2", raise_exception=True)
 def giam_sat_thiet_bi_view(request):
     """
@@ -474,6 +594,12 @@ def giam_sat_thiet_bi_view(request):
             },
             "status_links": [],
             "unmapped_uid_details": [],
+            "unmapped_uid_page": None,
+            "unmapped_uid_page_items": [],
+            "unmapped_uid_total_groups": 0,
+            "unmapped_uid_total_raw": 0,
+            "uid_page_size": 20,
+            "uid_q": "",
             "online_minutes": ONLINE_MINUTES,
             "stale_minutes": STALE_MINUTES,
             "agent_online_minutes": AGENT_ONLINE_MINUTES,
@@ -499,23 +625,13 @@ def giam_sat_thiet_bi_view(request):
     )
     # Không load toàn bộ Employee.card_id vào Python rồi nhét vào IN (...).
     # Dùng subquery để DB tự so khớp UID chưa map, tránh chậm khi danh sách nhân sự lớn.
-    known_card_ids_qs = (
-        Employee.objects
-        .exclude(card_id__isnull=True)
-        .exclude(card_id="")
-        .values("card_id")
-    )
-
     unmapped_today_qs = (
-        AttendanceRawPunchV2.objects
+        _unmapped_raw_qs()
         .filter(
             device_id__in=device_ids,
             event_time_utc__gte=day_start_utc,
             event_time_utc__lt=day_end_utc,
-            normalized_at__isnull=True,
         )
-        .exclude(device_user_id="")
-        .exclude(device_user_id__in=Subquery(known_card_ids_qs))
     )
 
     unresolved_today_counts = _dict_counts(
@@ -592,7 +708,7 @@ def giam_sat_thiet_bi_view(request):
         latest_status = latest_status_reports.get(d.id)
         latest_backfill = latest_backfill_reports.get(d.id)
         dyn_status, dyn_label, dyn_class = _device_status_from_report(d, latest_status, now)
-        realtime_label, realtime_class = _realtime_badge(latest_status)
+        realtime_label, realtime_class = _realtime_badge(latest_status, now)
         backfill_label, backfill_class = _backfill_badge(latest_backfill)
         agent_status, agent_label = _agent_status(d.assigned_agent, now)
 
@@ -690,20 +806,49 @@ def giam_sat_thiet_bi_view(request):
     # Với số lượng máy nhỏ, phân trang chưa cần; vẫn giới hạn nếu sau này nhiều thiết bị.
     rows = rows[:page_size]
 
-    unmapped_uid_details = []
-    for did, samples in unresolved_uid_samples_by_device.items():
-        device = next((x for x in devices if x.id == did), None)
+    # Bảng chi tiết UID chưa map: lấy TOÀN BỘ raw chưa map theo bộ lọc thiết bị hiện tại,
+    # không chỉ ngày đang xem. Query được group + phân trang ở DB, tránh load toàn bộ raw vào Python.
+    uid_q = (request.GET.get("uid_q") or "").strip()
+    uid_page_size = _safe_int(request.GET.get("uid_page_size") or "20", 20)
+    if uid_page_size not in (10, 20, 50):
+        uid_page_size = 20
+
+    unmapped_all_qs = _unmapped_raw_qs().filter(device_id__in=device_ids)
+    if uid_q:
+        unmapped_all_qs = unmapped_all_qs.filter(device_user_id__icontains=uid_q)
+
+    unmapped_total_raw = unmapped_all_qs.count()
+    unmapped_group_qs = (
+        unmapped_all_qs
+        .values("device_id", "device_user_id")
+        .annotate(cnt=Count("id"), first_seen=Min("event_time_local"), last_seen=Max("event_time_local"))
+        .order_by("device_id", "device_user_id")
+    )
+
+    unmapped_uid_paginator = Paginator(unmapped_group_qs, uid_page_size)
+    uid_page_number = request.GET.get("uid_page") or 1
+    unmapped_uid_page = unmapped_uid_paginator.get_page(uid_page_number)
+
+    page_device_ids = [x["device_id"] for x in unmapped_uid_page.object_list if x.get("device_id")]
+    page_devices = {
+        d.id: d
+        for d in AttendanceDeviceV2.objects.filter(id__in=page_device_ids).select_related("org_unit")
+    }
+    unmapped_uid_page_items = []
+    for item in unmapped_uid_page.object_list:
+        device = page_devices.get(item["device_id"])
         if not device:
             continue
-        for item in samples[:20]:
-            unmapped_uid_details.append({
-                "device": device,
-                "uid": item["uid"],
-                "cnt": item["cnt"],
-                "last_seen": item["last_seen"],
-            })
-    unmapped_uid_details.sort(key=lambda x: (x["device"].name, -x["cnt"], x["uid"]))
-    unmapped_uid_details = unmapped_uid_details[:200]
+        unmapped_uid_page_items.append({
+            "device": device,
+            "uid": item["device_user_id"],
+            "cnt": item["cnt"],
+            "first_seen": item["first_seen"],
+            "last_seen": item["last_seen"],
+        })
+
+    # Giữ biến cũ để template/logic khác không vỡ; bảng mới dùng unmapped_uid_page_items.
+    unmapped_uid_details = unmapped_uid_page_items
 
     agents = AttendanceDeviceAgentV2.objects.order_by("name")
     units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
@@ -744,6 +889,12 @@ def giam_sat_thiet_bi_view(request):
         "kpi": kpi,
         "status_links": status_links,
         "unmapped_uid_details": unmapped_uid_details,
+        "unmapped_uid_page": unmapped_uid_page,
+        "unmapped_uid_page_items": unmapped_uid_page_items,
+        "unmapped_uid_total_groups": unmapped_uid_paginator.count,
+        "unmapped_uid_total_raw": unmapped_total_raw,
+        "uid_page_size": uid_page_size,
+        "uid_q": uid_q,
         "online_minutes": ONLINE_MINUTES,
         "stale_minutes": STALE_MINUTES,
         "agent_online_minutes": AGENT_ONLINE_MINUTES,
