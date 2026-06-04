@@ -1,8 +1,10 @@
-# Giữ để tham khảo gói gốc (dù hiện tại ta dùng requirements.txt thủ công)
+# Giữ để tham khảo gói gốc.
+# Hiện tại project dùng requirements.txt thủ công để dễ triển khai offline/nội bộ.
 Django==5.*
 djangorestframework==3.*
 gunicorn==22.*
 psycopg2-binary==2.*
 whitenoise==6.*
+openpyxl==3.*
 pytest
 pytest-django

@@ -2,24 +2,31 @@
 {% load i18n %}
 {% block title %}{% trans "Cơ cấu tổ chức" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Cơ cấu tổ chức" %}</h2>
+<div class="page-title-block">
+  <div class="page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+  <h2 class="mb-1">{% trans "Cơ cấu tổ chức" %}</h2>
+  <div class="text-muted">{% trans "Quản lý đơn vị, cây tổ chức và cờ đơn vị chấm công." %}</div>
+</div>
 
-<form class="mb-3" method="get">
-  <div class="d-flex flex-wrap align-items-end gap-2">
-    <div style="flex:1 1 200px; max-width:260px;">
-      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="{% trans 'Tìm tên / ký hiệu' %}">
+<form class="card card-body mb-3" method="get">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">{% trans "Tìm kiếm" %}</label>
+      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="{% trans 'Tên / ký hiệu / mã' %}">
     </div>
-    <div style="flex:1 1 160px; max-width:200px;">
+    <div class="col-md-2">
+      <label class="form-label">{% trans "Loại đơn vị" %}</label>
       <select name="type" class="form-select form-select-sm">
-        <option value="">{% trans "— Loại đơn vị —" %}</option>
+        <option value="">{% trans "— Tất cả —" %}</option>
         {% for val,label in type_choices %}
           <option value="{{ val }}"{% if type_selected == val %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
-    <div style="flex:1 1 200px; max-width:260px;">
+    <div class="col-md-3">
+      <label class="form-label">{% trans "Đơn vị cha" %}</label>
       <select name="parent" class="form-select form-select-sm">
-        <option value="">{% trans "— Đơn vị cha —" %}</option>
+        <option value="">{% trans "— Tất cả —" %}</option>
         {% for p in parents %}
           <option value="{{ p.id }}"{% if parent_selected|default:'' == p.id|stringformat:"s" %} selected{% endif %}>
             {{ p.symbol }} — {{ p.name }}
@@ -27,22 +34,25 @@
         {% endfor %}
       </select>
     </div>
-    <div style="flex:1 1 200px; max-width:260px;">
+    <div class="col-md-2">
+      <label class="form-label">{% trans "Chấm công" %}</label>
       <select name="attendance" class="form-select form-select-sm">
-        <option value="">{% trans "— Đơn vị chấm công —" %}</option>
+        <option value="">{% trans "— Tất cả —" %}</option>
         <option value="1"{% if attendance_selected == '1' %} selected{% endif %}>{% trans "Có" %}</option>
         <option value="0"{% if attendance_selected == '0' %} selected{% endif %}>{% trans "Không" %}</option>
       </select>
     </div>
-    <div style="flex:0 0 110px; max-width:130px;">
+    <div class="col-md-2">
+      <label class="form-label">{% trans "Số dòng" %}</label>
       <select name="page_size" class="form-select form-select-sm">
         {% for size in page_size_options %}
           <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}/trang</option>
         {% endfor %}
       </select>
     </div>
-    <div class="d-flex align-items-center gap-2 flex-wrap">
+    <div class="col-12 d-flex flex-wrap gap-2 mt-2">
       <button class="btn btn-primary btn-sm">{% trans "Lọc" %}</button>
+      <a href="{% url 'backoffice:orgunit_list' %}" class="btn btn-outline-secondary btn-sm">{% trans "Xóa lọc" %}</a>
       {% if perms.organization.add_orgunit %}
         <a href="{% url 'backoffice:orgunit_create' %}" class="btn btn-success btn-sm">+ {% trans "Tạo đơn vị" %}</a>
       {% endif %}
@@ -66,26 +76,41 @@
       <th>{% trans "Tên" %}</th>
       <th>{% trans "Loại" %}</th>
       <th>{% trans "Đơn vị cha" %}</th>
-      <th>{% trans "Kích hoạt" %}</th>
-      <th>{% trans "Đơn vị chấm công" %}</th>
-      <th></th>
+      <th>{% trans "Trạng thái" %}</th>
+      <th>{% trans "Chấm công" %}</th>
+      <th class="text-end">{% trans "Thao tác" %}</th>
     </tr>
   </thead>
   <tbody>
     {% for u in units %}
-      <tr>
-        <td>{{ u.symbol }}</td>
+      <tr{% if not u.is_active %} class="table-warning"{% endif %}>
+        <td><strong>{{ u.symbol }}</strong></td>
         <td>{{ u.name }}</td>
         <td>{{ u.get_type_display }}</td>
         <td>{% if u.parent_id %}{{ u.parent.symbol }}{% else %}—{% endif %}</td>
-        <td>{{ u.is_active|yesno:"✓,✗" }}</td>
-        <td>{{ u.is_attendance_unit|yesno:"✓,✗" }}</td>
-        <td class="text-nowrap">
+        <td>
+          {% if u.is_active %}
+            <span class="badge bg-success">{% trans "Hoạt động" %}</span>
+          {% else %}
+            <span class="badge bg-warning text-dark">{% trans "Ngừng hoạt động" %}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if u.is_attendance_unit %}
+            <span class="badge bg-primary">{% trans "Có" %}</span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-end text-nowrap">
           {% if perms.organization.change_orgunit %}
             <a href="{% url 'backoffice:orgunit_edit' u.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
+            {% if not u.is_active %}
+              <a href="{% url 'backoffice:orgunit_restore' u.id %}" class="btn btn-sm btn-outline-success">{% trans "Khôi phục" %}</a>
+            {% endif %}
           {% endif %}
-          {% if perms.organization.delete_orgunit %}
-            <a href="{% url 'backoffice:orgunit_delete' u.id %}" class="btn btn-sm btn-outline-danger">{% trans "Xóa" %}</a>
+          {% if perms.organization.delete_orgunit and u.is_active %}
+            <a href="{% url 'backoffice:orgunit_delete' u.id %}" class="btn btn-sm btn-outline-warning">{% trans "Ngừng/Xóa" %}</a>
           {% endif %}
         </td>
       </tr>
@@ -101,12 +126,8 @@
   <ul class="pagination pagination-sm">
     {% with q=query tp=type_selected pr=parent_selected ps=page_size at=attendance_selected %}
       {% if page_obj.has_previous %}
-        <li class="page-item">
-          <a class="page-link" href="?page=1&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">&laquo;{% trans 'Đầu' %}</a>
-        </li>
-        <li class="page-item">
-          <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">{% trans 'Trước' %}</a>
-        </li>
+        <li class="page-item"><a class="page-link" href="?page=1&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">&laquo;{% trans 'Đầu' %}</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">{% trans 'Trước' %}</a></li>
       {% else %}
         <li class="page-item disabled"><span class="page-link">&laquo;{% trans 'Đầu' %}</span></li>
         <li class="page-item disabled"><span class="page-link">{% trans 'Trước' %}</span></li>
@@ -117,20 +138,14 @@
           {% if p == page_obj.number %}
             <li class="page-item active"><span class="page-link">{{ p }}</span></li>
           {% else %}
-            <li class="page-item">
-              <a class="page-link" href="?page={{ p }}&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">{{ p }}</a>
-            </li>
+            <li class="page-item"><a class="page-link" href="?page={{ p }}&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">{{ p }}</a></li>
           {% endif %}
         {% endif %}
       {% endfor %}
 
       {% if page_obj.has_next %}
-        <li class="page-item">
-          <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">{% trans 'Sau' %}</a>
-        </li>
-        <li class="page-item">
-          <a class="page-link" href="?page={{ paginator.num_pages }}&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">{% trans 'Cuối' %} &raquo;</a>
-        </li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">{% trans 'Sau' %}</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ paginator.num_pages }}&q={{ q }}&type={{ tp }}&parent={{ pr }}&attendance={{ at }}&page_size={{ ps }}">{% trans 'Cuối' %} &raquo;</a></li>
       {% else %}
         <li class="page-item disabled"><span class="page-link">{% trans 'Sau' %}</span></li>
         <li class="page-item disabled"><span class="page-link">{% trans 'Cuối' %} &raquo;</span></li>

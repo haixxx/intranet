@@ -1,2 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
 *.sqlite3
-*.sqlite3
+media/
+staticfiles/
+
+# Environment
+.env
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Backup/archive
+*.bak
+*.zip
+*.rar

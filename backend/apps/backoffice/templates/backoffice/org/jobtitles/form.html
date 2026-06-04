@@ -1,8 +1,8 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}{% if create %}{% trans "Tạo chức vụ" %}{% else %}{% trans "Sửa chức vụ" %}{% endif %}{% endblock %}
+{% block title %}{% if create %}{% trans "Tạo chức danh" %}{% else %}{% trans "Sửa chức danh" %}{% endif %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% if create %}{% trans "Tạo chức vụ" %}{% else %}{% trans "Sửa chức vụ" %}{% endif %}</h2>
+<h2 class="mb-3">{% if create %}{% trans "Tạo chức danh" %}{% else %}{% trans "Sửa chức danh" %}{% endif %}</h2>
 <form method="post" class="card card-body">
   {% csrf_token %}
   {{ form.non_field_errors }}

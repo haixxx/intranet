@@ -2,7 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Nhập Excel - Nhân sự" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Nhập Excel - Nhân sự" %}</h2>
+<div class="page-title-block">
+  <div class="page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+  <h2 class="mb-1">{% trans "Nhập Excel - Nhân sự" %}</h2>
+  <div class="text-muted">{% trans "Nên chạy thử dry-run trước khi ghi dữ liệu thật." %}</div>
+</div>
 
 <form method="post" enctype="multipart/form-data" class="card card-body">
   {% csrf_token %}
@@ -10,32 +14,35 @@
     <div class="col-md-6">
       <label class="form-label">{% trans "File Excel" %}</label>
       <input type="file" name="file" accept=".xlsx,.xls" class="form-control" required>
-      <div class="form-text">Header linh hoạt: full_name, workforce_type, job_title, unit_symbol, team_symbol, employee_code, card_id, ...</div>
+      <div class="form-text">
+        {% trans "Header gợi ý:" %}
+        <code>full_name, workforce_type, job_title, unit_symbol, team_symbol, employee_code, card_id, status, skip_device_attendance</code>
+      </div>
     </div>
 
     <div class="col-md-3">
-      <label class="form-label">{% trans "Khóa khớp (match_by)" %}</label>
+      <label class="form-label">{% trans "Khóa khớp" %}</label>
       <select name="match_by" class="form-select">
         <option value="employee_code">employee_code</option>
         <option value="card_id">card_id</option>
       </select>
-      <div class="form-text">{% trans "Nên chọn card_id nếu đồng bộ với máy chấm công." %}</div>
+      <div class="form-text">{% trans "Nên chọn employee_code để ổn định hồ sơ; card_id dùng khi đồng bộ từ máy chấm công." %}</div>
     </div>
 
     <div class="col-md-3">
-      <label class="form-label">{% trans "Chế độ (mode)" %}</label>
+      <label class="form-label">{% trans "Chế độ" %}</label>
       <select name="mode" class="form-select">
-        <option value="upsert" selected>upsert (tạo mới nếu chưa có, ngược lại cập nhật)</option>
-        <option value="update_only">update_only (chỉ cập nhật, không tạo mới)</option>
-        <option value="create_only">create_only (chỉ tạo mới, không đụng bản ghi cũ)</option>
+        <option value="upsert" selected>upsert</option>
+        <option value="update_only">update_only</option>
+        <option value="create_only">create_only</option>
       </select>
     </div>
 
-    <div class="col-md-3">
-      <div class="form-check mt-4">
+    <div class="col-md-12">
+      <div class="form-check">
         <input class="form-check-input" type="checkbox" value="true" id="dry_run" name="dry_run" {% if default_dry_run %}checked{% endif %}>
         <label class="form-check-label" for="dry_run">
-          {% trans "Chạy thử (dry-run) – chỉ tính toán, không ghi DB" %}
+          {% trans "Chạy thử (dry-run) – chỉ kiểm tra và báo lỗi, không ghi cơ sở dữ liệu" %}
         </label>
       </div>
     </div>
@@ -47,13 +54,16 @@
   </div>
 </form>
 
-<div class="mt-4">
-  <h6>{% trans "Gợi ý" %}</h6>
-  <ul class="small">
-    <li>{% trans "update_only: chỉ sửa các nhân sự đã có theo khóa đã chọn." %}</li>
-    <li>{% trans "create_only: chỉ tạo mới; nếu đụng khóa đã tồn tại sẽ bỏ qua." %}</li>
-    <li>{% trans "upsert: kết hợp cả hai." %}</li>
-    <li>{% trans "Khi tạo mới, hệ thống chặn trùng card_id / citizen_id / email / phone." %}</li>
-  </ul>
+<div class="card mt-4">
+  <div class="card-header"><h3 class="card-title mb-0">{% trans "Lưu ý import" %}</h3></div>
+  <div class="card-body">
+    <ul class="small mb-0">
+      <li>{% trans "unit_symbol không được là Tổ; Tổ nhập ở team_symbol." %}</li>
+      <li>{% trans "team_symbol phải thuộc cây con của unit_symbol." %}</li>
+      <li>{% trans "card_id là mã dùng để map dữ liệu máy chấm công v2 với nhân sự, cần tránh trùng." %}</li>
+      <li>{% trans "skip_device_attendance nhận true/false, dùng cho đối tượng đặc cách không yêu cầu chấm máy." %}</li>
+      <li>{% trans "Tài khoản không có nhóm HR_SENSITIVE_EXPORTER vẫn nhập được file, nhưng cần thận trọng với quyền xem/xuất dữ liệu nhạy cảm." %}</li>
+    </ul>
+  </div>
 </div>
 {% endblock %}

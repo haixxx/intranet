@@ -2,17 +2,26 @@
 {% load i18n %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-  <h2 class="mb-3">{{ title }}</h2>
-  <div class="card card-body">
-    <p class="text-muted">{{ note }}</p>
-    <form method="post" enctype="multipart/form-data" action="{% url post_url %}">
-      {% csrf_token %}
-      <div class="mb-3">
-        <label class="form-label">{% trans "Chọn file Excel (.xlsx)" %}</label>
-        <input type="file" name="file" accept=".xlsx" class="form-control" required>
-      </div>
-      <button class="btn btn-primary">{% trans "Tải lên và nhập" %}</button>
-      <a href="javascript:history.back()" class="btn btn-secondary">{% trans "Hủy" %}</a>
-    </form>
-  </div>
+<div class="page-title-block">
+  <div class="page-pretitle">{% trans "Import dữ liệu" %}</div>
+  <h2 class="mb-1">{{ title }}</h2>
+  <div class="text-muted">{{ note }}</div>
+</div>
+
+<div class="card card-body">
+  <form method="post" enctype="multipart/form-data" action="{% url post_url %}">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label">{% trans "Chọn file Excel (.xlsx)" %}</label>
+      <input type="file" name="file" accept=".xlsx" class="form-control" required>
+    </div>
+    <button class="btn btn-primary">{% trans "Tải lên và nhập" %}</button>
+    <a href="javascript:history.back()" class="btn btn-secondary">{% trans "Hủy" %}</a>
+  </form>
+</div>
+
+<div class="alert alert-info mt-3">
+  <strong>{% trans "Khuyến nghị:" %}</strong>
+  {% trans "Nên xuất file Excel hiện tại làm mẫu trước, chỉnh sửa trên file đó rồi nhập lại để tránh sai header." %}
+</div>
 {% endblock %}

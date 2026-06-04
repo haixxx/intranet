@@ -1,12 +1,14 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Xóa ca" %}{% endblock %}
+{% block title %}{% trans "Ngừng/Xóa ca" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Xóa ca" %}: {{ obj.code }} - {{ obj.name }}</h2>
+<h2 class="mb-3">{% trans "Ngừng/Xóa ca" %}: {{ obj.code }} - {{ obj.name }}</h2>
+<div class="alert alert-warning">
+  {% trans "Nếu ca đang có dữ liệu liên kết, hệ thống sẽ không xóa trực tiếp mà chuyển sang trạng thái ngừng hoạt động." %}
+</div>
 <form method="post" class="card card-body">
   {% csrf_token %}
-  <div class="mb-2 text-warning">{% trans "Bạn có chắc chắn muốn xóa?" %}</div>
-  <button class="btn btn-danger">{% trans "Xóa" %}</button>
+  <button class="btn btn-warning">{% trans "Ngừng/Xóa theo điều kiện" %}</button>
   <a href="{% url 'backoffice:shift_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
 </form>
 {% endblock %}

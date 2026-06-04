@@ -2,10 +2,17 @@
 {% load i18n %}
 {% block title %}{% trans "Bạn chưa được cấp quyền" %}{% endblock %}
 {% block content %}
-  <h2 class="mb-3 text-danger">{% trans "Bạn chưa được cấp quyền" %}</h2>
-  <p class="text-muted">
-    {% trans "Tác vụ bạn vừa yêu cầu cần quyền hệ thống. Vui lòng liên hệ quản trị viên để được cấp." %}
-  </p>
-  <p><strong>{% trans "Mã quyền yêu cầu" %}:</strong> <code>{{ perm_codename }}</code></p>
-  <a href="javascript:history.back()" class="btn btn-secondary">{% trans "Quay lại" %}</a>
+<div class="card border-danger">
+  <div class="card-body">
+    <h2 class="text-danger mb-3">{% trans "Bạn chưa được cấp quyền" %}</h2>
+    <p class="text-muted">
+      {% trans "Tác vụ bạn vừa yêu cầu cần quyền hệ thống hoặc phạm vi đơn vị phù hợp. Vui lòng liên hệ quản trị viên để được cấp thêm quyền." %}
+    </p>
+    {% if perm_codename %}
+      <p><strong>{% trans "Mã quyền yêu cầu" %}:</strong> <code>{{ perm_codename }}</code></p>
+    {% endif %}
+    <a href="javascript:history.back()" class="btn btn-secondary">{% trans "Quay lại" %}</a>
+    <a href="{% url 'backoffice:dashboard' %}" class="btn btn-outline-primary">{% trans "Về tổng quan" %}</a>
+  </div>
+</div>
 {% endblock %}

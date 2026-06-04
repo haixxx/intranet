@@ -15,7 +15,7 @@
       {% trans "Nếu username đã tồn tại sẽ thêm số 2,3,... phía sau." %}
     </small>
   </p>
-  <p class="mb-2"><strong>{% trans "Mật khẩu mặc định" %}:</strong> <code>123456</code></p>
+  <p class="mb-2"><strong>{% trans "Mật khẩu" %}:</strong> {% trans "Hệ thống sẽ sinh mật khẩu tạm thời khi xác nhận tạo user. Mật khẩu chỉ hiển thị một lần trong thông báo sau khi tạo." %}</p>
   <p class="mb-2"><strong>{% trans "Quyền mặc định" %}:</strong> {% trans "Chỉ xem dữ liệu trong đơn vị (UNIT_SUBTREE) của nhân sự" %} – {% trans "nhóm" %} <code>EMPLOYEE_VIEWER</code>.</p>
   <form method="post">
     {% csrf_token %}

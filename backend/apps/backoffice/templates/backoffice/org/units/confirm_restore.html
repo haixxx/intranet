@@ -1,0 +1,14 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Khôi phục đơn vị" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Khôi phục đơn vị" %}: {{ obj.symbol }} - {{ obj.name }}</h2>
+<div class="alert alert-info">
+  {% trans "Sau khi khôi phục, đơn vị sẽ xuất hiện lại trong các danh sách chọn nếu phù hợp điều kiện nghiệp vụ." %}
+</div>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <button class="btn btn-success">{% trans "Khôi phục hoạt động" %}</button>
+  <a href="{% url 'backoffice:orgunit_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+</form>
+{% endblock %}

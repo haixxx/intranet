@@ -2,19 +2,35 @@
 {% load i18n dict_extras %}
 {% block title %}{% trans "Nhân sự" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Nhân sự" %}</h2>
+<div class="page-title-block">
+  <div class="page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+  <h2 class="mb-1">{% trans "Nhân sự" %}</h2>
+  <div class="text-muted">
+    {% trans "Quản lý hồ sơ nhân sự, mã chấm công, đơn vị, tổ, chức danh và trạng thái làm việc." %}
+  </div>
+</div>
 
-<form id="employee-filter-form" class="mb-3" method="get">
+{% if is_privileged %}
+  <div class="alert alert-info py-2">
+    {% trans "Tài khoản của bạn được phép xem thông tin nhạy cảm trên giao diện." %}
+    {% if can_export_sensitive %}
+      {% trans "File Excel xuất ra sẽ bao gồm thông tin nhạy cảm." %}
+    {% else %}
+      {% trans "Tuy nhiên file Excel xuất ra sẽ không bao gồm thông tin nhạy cảm nếu chưa có nhóm HR_SENSITIVE_EXPORTER." %}
+    {% endif %}
+  </div>
+{% endif %}
+
+<form id="employee-filter-form" class="card card-body mb-3" method="get">
   <input type="hidden" name="units" id="units-hidden" value="{{ units_csv }}">
-  <div class="d-flex flex-wrap align-items-start gap-3">
-
-    <div style="flex:1 1 180px; max-width:220px;">
+  <div class="row g-2 align-items-start">
+    <div class="col-md-2">
       <label class="form-label mb-1">{% trans "Tìm kiếm" %}</label>
       <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm"
              placeholder="{% trans 'Tên / Mã / Mã chấm công' %}">
     </div>
 
-    <div style="flex:1 1 300px; max-width:340px;">
+    <div class="col-md-3">
       <label class="form-label mb-1 d-flex justify-content-between align-items-center">
         <span>{% trans "Đơn vị" %}</span>
         <span class="small">
@@ -22,13 +38,10 @@
           <a href="#" id="btn-unselect-all">{% trans "Bỏ chọn hết" %}</a>
         </span>
       </label>
-      <div class="border rounded p-2 bg-light" style="max-height:200px; overflow:auto;">
+      <div class="border rounded p-2 bg-light" style="max-height:190px; overflow:auto;">
         {% for u in units %}
           <div class="form-check form-check-sm">
-            <input class="form-check-input unit-checkbox"
-                   type="checkbox"
-                   id="unit-{{ u.id }}"
-                   value="{{ u.id }}"
+            <input class="form-check-input unit-checkbox" type="checkbox" id="unit-{{ u.id }}" value="{{ u.id }}"
                    {% if units_selected and u.id in units_selected %}checked{% endif %}>
             <label class="form-check-label small" for="unit-{{ u.id }}">
               <strong>{{ u.symbol }}</strong> — {{ u.name }}
@@ -41,7 +54,7 @@
       </div>
     </div>
 
-    <div style="flex:1 1 180px; max-width:220px;">
+    <div class="col-md-2">
       <label class="form-label mb-1">{% trans "Tổ" %}</label>
       <select name="team" class="form-select form-select-sm">
         <option value="">{% trans "— Tất cả —" %}</option>
@@ -51,8 +64,8 @@
       </select>
     </div>
 
-    <div style="flex:1 1 180px; max-width:220px;">
-      <label class="form-label mb-1">{% trans "Chức vụ" %}</label>
+    <div class="col-md-2">
+      <label class="form-label mb-1">{% trans "Chức danh" %}</label>
       <select name="job_title" class="form-select form-select-sm">
         <option value="">{% trans "— Tất cả —" %}</option>
         {% for jt in job_titles %}
@@ -61,30 +74,32 @@
       </select>
     </div>
 
-    <div style="flex:0 0 120px;">
-      <label class="form-label mb-1">{% trans "Số dòng" %}</label>
+    <div class="col-md-1">
+      <label class="form-label mb-1">{% trans "Dòng" %}</label>
       <select name="page_size" class="form-select form-select-sm">
         {% for size in page_size_options %}
-          <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}/trang</option>
+          <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}</option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="d-flex flex-column gap-2" style="flex:0 0 170px;">
+    <div class="col-md-2">
       <label class="form-label mb-1">&nbsp;</label>
-      <div class="btn-group">
+      <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-primary btn-sm" type="submit">{% trans "Lọc" %}</button>
-        <a href="{% url 'backoffice:employee_list' %}" class="btn btn-outline-secondary btn-sm">
-          {% trans "Xóa lọc" %}
-        </a>
+        <a href="{% url 'backoffice:employee_list' %}" class="btn btn-outline-secondary btn-sm">{% trans "Xóa lọc" %}</a>
       </div>
-      <div class="d-flex flex-wrap gap-2 mt-1">
+      <div class="d-flex flex-wrap gap-2 mt-2">
         {% if perms.hr.add_employee %}
           <a href="{% url 'backoffice:employee_create' %}" class="btn btn-success btn-sm">+ {% trans "Tạo" %}</a>
         {% endif %}
         <a href="{% url 'backoffice:export_employees' %}?q={{ query }}&units={{ units_csv }}&team={{ team_selected }}&job_title={{ jt_selected }}"
-           class="btn btn-outline-primary btn-sm">{% trans "Xuất" %}</a>
-        <a href="{% url 'backoffice:import_employees' %}" class="btn btn-outline-secondary btn-sm">{% trans "Nhập" %}</a>
+           class="btn btn-outline-primary btn-sm">
+          {% if can_export_sensitive %}{% trans "Xuất đầy đủ" %}{% else %}{% trans "Xuất cơ bản" %}{% endif %}
+        </a>
+        {% if perms.hr.add_employee %}
+          <a href="{% url 'backoffice:import_employees' %}" class="btn btn-outline-secondary btn-sm">{% trans "Nhập" %}</a>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -100,43 +115,53 @@
       <tr>
         <th>{% trans "Mã NV" %}</th>
         <th>{% trans "Họ tên" %}</th>
-        <th>{% trans "Chức vụ" %}</th>
         <th>{% trans "Đơn vị" %}</th>
         <th>{% trans "Tổ" %}</th>
-        <th>{% trans "Trạng thái bổ sung" %}</th>
-        <th>{% trans "Loại" %}</th>
-        <th>{% trans "TT" %}</th>
+        <th>{% trans "Chức danh" %}</th>
+        <th>{% trans "Mã chấm công" %}</th>
+        <th>{% trans "Đặc cách" %}</th>
+        <th>{% trans "Điều động" %}</th>
+        <th>{% trans "Trạng thái" %}</th>
         {% if is_privileged %}
           <th>{% trans "CCCD" %}</th>
           <th>{% trans "MST" %}</th>
           <th>{% trans "STK" %}</th>
-          <th>{% trans "Ngân hàng" %}</th>
-          <th>{% trans "Ngày vào" %}</th>
-          <th>{% trans "Ngày nghỉ" %}</th>
-          <th>{% trans "Ghi chú" %}</th>
         {% endif %}
-        <th></th>
+        <th class="text-end">{% trans "Thao tác" %}</th>
       </tr>
     </thead>
     <tbody>
       {% for it in items %}
         <tr>
-          <td>{{ it.employee_code }}</td>
+          <td><strong>{{ it.employee_code }}</strong></td>
           <td>{{ it.full_name }}</td>
-          <td>{{ it.job_title.name }}</td>
           <td>{{ it.unit.symbol }}</td>
-          <td>{% if it.team_id %}{{ it.team.symbol }}{% else %}—{% endif %}</td>
+          <td>{% if it.team_id %}{{ it.team.symbol }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td>{{ it.job_title.name }}</td>
+          <td>
+            {% if it.card_id %}
+              <code>{{ it.card_id }}</code>
+            {% else %}
+              <span class="badge bg-warning text-dark">{% trans "Thiếu" %}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if it.skip_device_attendance %}
+              <span class="badge bg-info">{% trans "Có" %}</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
           <td>
             {% with sup=supplement_map|dict_get:it.id %}
-              {% if sup %}Bổ sung ({{ sup }}){% else %}---{% endif %}
+              {% if sup %}<span class="badge bg-primary">{{ sup }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
             {% endwith %}
           </td>
-          <td>{{ it.get_workforce_type_display }}</td>
           <td>
             {% if it.status == 'ACTIVE' %}
               <span class="badge bg-success">{% trans "Đang làm" %}</span>
             {% elif it.status == 'INACTIVE' %}
-              <span class="badge bg-warning">{% trans "Tạm ngưng" %}</span>
+              <span class="badge bg-warning text-dark">{% trans "Tạm ngưng" %}</span>
             {% elif it.status == 'LEFT' %}
               <span class="badge bg-danger">{% trans "Đã nghỉ" %}</span>
             {% else %}
@@ -144,15 +169,11 @@
             {% endif %}
           </td>
           {% if is_privileged %}
-            <td>{{ it.citizen_id }}</td>
-            <td>{{ it.tax_code }}</td>
-            <td>{{ it.bank_account }}</td>
-            <td>{{ it.bank_name }}</td>
-            <td>{% if it.joined_date %}{{ it.joined_date|date:"d/m/Y" }}{% endif %}</td>
-            <td>{% if it.left_date %}{{ it.left_date|date:"d/m/Y" }}{% endif %}</td>
-            <td>{{ it.note }}</td>
+            <td>{{ it.citizen_id|default:"—" }}</td>
+            <td>{{ it.tax_code|default:"—" }}</td>
+            <td>{{ it.bank_account|default:"—" }}</td>
           {% endif %}
-          <td class="text-nowrap">
+          <td class="text-end text-nowrap">
             <a href="{% url 'backoffice:employee_detail' it.id %}" class="btn btn-sm btn-outline-info">{% trans "Chi tiết" %}</a>
             {% if perms.hr.change_employee %}
               <a href="{% url 'backoffice:employee_edit' it.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
@@ -164,9 +185,7 @@
         </tr>
       {% empty %}
         <tr>
-          <td colspan="{% if is_privileged %}16{% else %}9{% endif %}" class="text-muted">
-            {% trans "Chưa có dữ liệu." %}
-          </td>
+          <td colspan="{% if is_privileged %}13{% else %}10{% endif %}" class="text-muted">{% trans "Chưa có dữ liệu." %}</td>
         </tr>
       {% endfor %}
     </tbody>
@@ -178,12 +197,8 @@
   <ul class="pagination pagination-sm">
     {% with q=query units=units_csv team=team_selected jt=jt_selected ps=page_size %}
       {% if page_obj.has_previous %}
-        <li class="page-item">
-          <a class="page-link" href="?page=1&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">&laquo;{% trans 'Đầu' %}</a>
-        </li>
-        <li class="page-item">
-          <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">{% trans 'Trước' %}</a>
-        </li>
+        <li class="page-item"><a class="page-link" href="?page=1&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">&laquo;{% trans 'Đầu' %}</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">{% trans 'Trước' %}</a></li>
       {% else %}
         <li class="page-item disabled"><span class="page-link">&laquo;{% trans 'Đầu' %}</span></li>
         <li class="page-item disabled"><span class="page-link">{% trans 'Trước' %}</span></li>
@@ -194,20 +209,14 @@
           {% if p == page_obj.number %}
             <li class="page-item active"><span class="page-link">{{ p }}</span></li>
           {% else %}
-            <li class="page-item">
-              <a class="page-link" href="?page={{ p }}&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">{{ p }}</a>
-            </li>
+            <li class="page-item"><a class="page-link" href="?page={{ p }}&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">{{ p }}</a></li>
           {% endif %}
         {% endif %}
       {% endfor %}
 
       {% if page_obj.has_next %}
-        <li class="page-item">
-          <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">{% trans 'Sau' %}</a>
-        </li>
-        <li class="page-item">
-          <a class="page-link" href="?page={{ paginator.num_pages }}&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">{% trans 'Cuối' %} &raquo;</a>
-        </li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">{% trans 'Sau' %}</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ paginator.num_pages }}&q={{ q }}&units={{ units }}&team={{ team }}&job_title={{ jt }}&page_size={{ ps }}">{% trans 'Cuối' %} &raquo;</a></li>
       {% else %}
         <li class="page-item disabled"><span class="page-link">{% trans 'Sau' %}</span></li>
         <li class="page-item disabled"><span class="page-link">{% trans 'Cuối' %} &raquo;</span></li>
@@ -227,8 +236,8 @@
     const selected = checkboxes.filter(cb => cb.checked).map(cb => cb.value);
     hidden.value = selected.join(',');
   }
-  btnAll.addEventListener('click', function(e) { e.preventDefault(); checkboxes.forEach(cb => cb.checked = true); syncHidden(); });
-  btnNone.addEventListener('click', function(e) { e.preventDefault(); checkboxes.forEach(cb => cb.checked = false); syncHidden(); });
+  if (btnAll) btnAll.addEventListener('click', function(e) { e.preventDefault(); checkboxes.forEach(cb => cb.checked = true); syncHidden(); });
+  if (btnNone) btnNone.addEventListener('click', function(e) { e.preventDefault(); checkboxes.forEach(cb => cb.checked = false); syncHidden(); });
   checkboxes.forEach(cb => cb.addEventListener('change', syncHidden));
   syncHidden();
 })();

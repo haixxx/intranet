@@ -212,6 +212,12 @@ class AttendanceIngestLogV2(models.Model):
             models.Index(fields=["device", "started_at"]),
             models.Index(fields=["agent", "started_at"]),
             models.Index(fields=["success"]),
+            # Index đã được tạo ở migration 0007_monitor_query_indexes.py.
+            # Cần khai báo lại trong model để Django không sinh migration xóa index.
+            models.Index(
+                fields=["device", "-started_at", "-id"],
+                name="adv2_ing_dev_latest_idx",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -277,6 +283,16 @@ class AttendanceRawPunchV2(models.Model):
             models.Index(fields=["device_user_id", "event_time_utc"]),
             models.Index(fields=["device", "event_time_utc"]),
             models.Index(fields=["ingested_at"]),
+            # Index đã được tạo ở migration 0007_monitor_query_indexes.py.
+            # Cần khai báo lại trong model để Django không sinh migration xóa index.
+            models.Index(
+                fields=["device", "normalized_at"],
+                name="adv2_raw_dev_norm_idx",
+            ),
+            models.Index(
+                fields=["device", "event_time_local"],
+                name="adv2_raw_dev_local_idx",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -343,6 +359,12 @@ class AttendanceNormalizedPunchV2(models.Model):
         indexes = [
             models.Index(fields=["employee", "canonical_time_utc"]),
             models.Index(fields=["canonical_time_utc"]),
+            # Index đã được tạo ở migration 0007_monitor_query_indexes.py.
+            # Cần khai báo lại trong model để Django không sinh migration xóa index.
+            models.Index(
+                fields=["best_device", "canonical_time_utc"],
+                name="adv2_norm_dev_time_idx",
+            ),
         ]
 
     def __str__(self) -> str:

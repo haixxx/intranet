@@ -1,0 +1,12 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Khôi phục chức danh" %}{% endblock %}
+{% block content %}
+<h2 class="mb-3">{% trans "Khôi phục chức danh" %}: {{ obj.name }}</h2>
+<div class="alert alert-info">{% trans "Sau khi khôi phục, chức danh sẽ xuất hiện lại trong form nhân sự." %}</div>
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <button class="btn btn-success">{% trans "Khôi phục hoạt động" %}</button>
+  <a href="{% url 'backoffice:jobtitle_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+</form>
+{% endblock %}

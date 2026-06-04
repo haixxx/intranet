@@ -1,12 +1,42 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Xóa đơn vị" %}{% endblock %}
+{% block title %}{% trans "Ngừng/Xóa đơn vị" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Xóa đơn vị" %}: {{ obj.symbol }} - {{ obj.name }}</h2>
-<div class="alert alert-warning">{% trans "Bạn có chắc chắn muốn xóa? Hành động không thể hoàn tác nếu có ràng buộc." %}</div>
+<h2 class="mb-3">{% trans "Ngừng/Xóa đơn vị" %}: {{ obj.symbol }} - {{ obj.name }}</h2>
+
+{% if total_related %}
+  <div class="alert alert-warning">
+    <strong>{% trans "Đơn vị đang có dữ liệu liên kết." %}</strong>
+    {% trans "Hệ thống sẽ không xóa khỏi cơ sở dữ liệu, chỉ chuyển sang trạng thái ngừng hoạt động để bảo toàn dữ liệu chấm công/nhân sự." %}
+  </div>
+  <div class="card mb-3">
+    <div class="card-header">{% trans "Dữ liệu liên kết" %}</div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <tbody>
+          {% for label, count in related_counts.items %}
+            <tr>
+              <td>{{ label }}</td>
+              <td class="text-end">{{ count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-danger">
+    {% trans "Đơn vị chưa có dữ liệu liên kết. Nếu xác nhận, hệ thống sẽ xóa khỏi cơ sở dữ liệu." %}
+  </div>
+{% endif %}
+
 <form method="post" class="card card-body">
   {% csrf_token %}
-  <button class="btn btn-danger">{% trans "Xóa" %}</button>
+  {% if total_related %}
+    <button class="btn btn-warning">{% trans "Chuyển sang ngừng hoạt động" %}</button>
+  {% else %}
+    <button class="btn btn-danger">{% trans "Xóa vĩnh viễn" %}</button>
+  {% endif %}
   <a href="{% url 'backoffice:orgunit_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
 </form>
 {% endblock %}

@@ -1,17 +1,123 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% load i18n %}
+
+{% block title %}{% trans "Tổng quan" %}{% endblock %}
+
 {% block content %}
-  <h2 class="mb-4">Tổng quan</h2>
-  <div class="row row-cards">
+  <div class="page-title-block">
+    <div class="page-pretitle">{% trans "Backoffice" %}</div>
+    <h2 class="mb-1">{% trans "Tổng quan hệ thống" %}</h2>
+    <div class="text-muted">
+      {% trans "Khu vực điều hướng nhanh tới các nhóm chức năng chính của hệ thống Intranet." %}
+    </div>
+  </div>
+
+  <div class="row row-cards mb-4">
     {% for c in cards %}
       <div class="col-sm-6 col-lg-4">
         <div class="card">
           <div class="card-body">
             <div class="subheader">{{ c.title }}</div>
-            <div class="h1">{{ c.value }}</div>
+            <div class="h1 mb-0">{{ c.value }}</div>
+            {% if c.description %}
+              <div class="text-muted small mt-2">{{ c.description }}</div>
+            {% endif %}
           </div>
         </div>
       </div>
     {% endfor %}
+  </div>
+
+  <div class="row row-cards">
+    {% if perms.hr.view_employee or perms.organization.view_orgunit %}
+      <div class="col-md-6 col-xl-4">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title">{% trans "Tổ chức - Nhân sự" %}</h3>
+            <p class="text-muted">{% trans "Quản lý cơ cấu tổ chức, chức danh, ca làm việc, hồ sơ nhân sự và điều động tạm thời." %}</p>
+            <div class="d-flex flex-wrap gap-2">
+              {% if perms.hr.view_employee %}
+                <a class="btn btn-primary btn-sm" href="{% url 'backoffice:employee_list' %}">{% trans "Nhân sự" %}</a>
+              {% endif %}
+              {% if perms.organization.view_orgunit %}
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:orgunit_list' %}">{% trans "Đơn vị" %}</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if perms.attendance.view_attendancebatch or perms.attendance.view_attendancecommit %}
+      <div class="col-md-6 col-xl-4">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title">{% trans "Chấm công" %}</h3>
+            <p class="text-muted">{% trans "Đăng ký/chốt công, xem công chốt và tổng hợp công theo tháng." %}</p>
+            <div class="d-flex flex-wrap gap-2">
+              {% if perms.attendance.view_attendancebatch %}
+                <a class="btn btn-primary btn-sm" href="{% url 'backoffice:attendance_batch_create_or_load' %}">{% trans "Chốt công" %}</a>
+              {% endif %}
+              {% if perms.attendance.view_attendancecommit %}
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:attendance_monthly_view' %}">{% trans "Công tháng" %}</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if perms.attendance_devices_v2.view_attendancedevicev2 or perms.attendance_devices_v2.view_attendancedeviceagentv2 %}
+      <div class="col-md-6 col-xl-4">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title">{% trans "Thiết bị chấm công" %}</h3>
+            <p class="text-muted">{% trans "Báo cáo, thống kê, giám sát thiết bị, quản lý thiết bị và Agent." %}</p>
+            <div class="d-flex flex-wrap gap-2">
+              {% if perms.attendance.view_attendancecommit %}
+                <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices_v2:bao_cao' %}">{% trans "Báo cáo" %}</a>
+              {% endif %}
+              {% if perms.attendance_devices_v2.view_attendancedevicev2 %}
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices_v2:giam_sat_thiet_bi' %}">{% trans "Giám sát" %}</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if request.user.is_superuser or perms.approvals.view_approvalrequest %}
+      <div class="col-md-6 col-xl-4">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title">{% trans "Phê duyệt" %}</h3>
+            <p class="text-muted">{% trans "Theo dõi yêu cầu của tôi và danh sách yêu cầu cần duyệt." %}</p>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approvals_inbox' %}">{% trans "Tôi cần duyệt" %}</a>
+              <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:approvals_my_requests' %}">{% trans "Yêu cầu của tôi" %}</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if request.user.is_superuser or perms.core.view_user or perms.auth.view_group %}
+      <div class="col-md-6 col-xl-4">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title">{% trans "Quản trị hệ thống" %}</h3>
+            <p class="text-muted">{% trans "Quản lý người dùng, vai trò, ma trận quyền và nhật ký hệ thống." %}</p>
+            <div class="d-flex flex-wrap gap-2">
+              {% if request.user.is_superuser or perms.core.view_user %}
+                <a class="btn btn-primary btn-sm" href="{% url 'backoffice:user_list' %}">{% trans "Người dùng" %}</a>
+              {% endif %}
+              {% if request.user.is_superuser or perms.auth.view_group %}
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:role_list' %}">{% trans "Vai trò" %}</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
   </div>
 {% endblock %}

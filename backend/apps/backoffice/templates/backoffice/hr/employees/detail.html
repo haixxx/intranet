@@ -1,89 +1,135 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}Chi tiết nhân sự{% endblock %}
+{% block title %}{% trans "Chi tiết nhân sự" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">Chi tiết nhân sự</h2>
+<div class="page-title-block">
+  <div class="page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+  <h2 class="mb-1">{% trans "Chi tiết nhân sự" %}</h2>
+  <div class="text-muted">{% trans "Thông tin hồ sơ, tổ chức, chấm công, tài khoản và lịch sử điều động." %}</div>
+</div>
 
-<div class="card mb-3">
-  <div class="card-body">
-    <h5>{{ emp.employee_code }} - {{ emp.full_name }}</h5>
-    <p>
-      <strong>Chức vụ:</strong> {{ emp.job_title.name }}<br>
-      <strong>Đơn vị:</strong> {{ emp.unit.symbol }}{% if emp.team %} / {{ emp.team.symbol }}{% endif %}<br>
-      <strong>Loại:</strong> {{ emp.get_workforce_type_display }}<br>
-      <strong>Trạng thái:</strong>
-      {% if emp.status == 'ACTIVE' %}Đang làm
-      {% elif emp.status == 'INACTIVE' %}Tạm ngưng
-      {% elif emp.status == 'LEFT' %}Đã nghỉ
-      {% else %}{{ emp.status }}{% endif %}
-    </p>
-    {% if is_privileged %}
-      <p class="small text-muted">
-        CCCD: {{ emp.citizen_id|default:"-" }} |
-        MST: {{ emp.tax_code|default:"-" }} |
-        STK: {{ emp.bank_account|default:"-" }} ({{ emp.bank_name|default:"-" }})<br>
-        Ngày vào: {% if emp.joined_date %}{{ emp.joined_date|date:"d/m/Y" }}{% else %}-{% endif %} |
-        Ngày nghỉ: {% if emp.left_date %}{{ emp.left_date|date:"d/m/Y" }}{% else %}-{% endif %}<br>
-        Ghi chú: {{ emp.note|default:"(Không)" }}
-      </p>
-    {% endif %}
-    <div class="mt-2">
-      {% if perms.hr.change_employee %}
-        <a href="{% url 'backoffice:employee_edit' emp.id %}" class="btn btn-sm btn-outline-primary">Sửa</a>
-      {% endif %}
-      {% if not emp.user_id and perms.auth.add_user %}
-        <a href="{% url 'backoffice:employee_create_user' emp.id %}" class="btn btn-sm btn-outline-success">Tạo user</a>
-      {% endif %}
+<div class="row row-cards">
+  <div class="col-xl-8">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0">{% trans "Thông tin chính" %}</h3></div>
+      <div class="card-body">
+        <h3 class="mb-2">{{ emp.employee_code }} - {{ emp.full_name }}</h3>
+        <div class="row">
+          <div class="col-md-6">
+            <p class="mb-2"><strong>{% trans "Chức danh" %}:</strong> {{ emp.job_title.name|default:"—" }}</p>
+            <p class="mb-2"><strong>{% trans "Đơn vị" %}:</strong> {{ emp.unit.symbol }} - {{ emp.unit.name }}</p>
+            <p class="mb-2"><strong>{% trans "Tổ" %}:</strong> {% if emp.team %}{{ emp.team.symbol }} - {{ emp.team.name }}{% else %}—{% endif %}</p>
+          </div>
+          <div class="col-md-6">
+            <p class="mb-2"><strong>{% trans "Loại nhân sự" %}:</strong> {{ emp.get_workforce_type_display }}</p>
+            <p class="mb-2"><strong>{% trans "Mã chấm công" %}:</strong> {% if emp.card_id %}<code>{{ emp.card_id }}</code>{% else %}<span class="badge bg-warning text-dark">{% trans "Thiếu" %}</span>{% endif %}</p>
+            <p class="mb-2"><strong>{% trans "Đặc cách chấm máy" %}:</strong> {% if emp.skip_device_attendance %}<span class="badge bg-info">{% trans "Có" %}</span>{% else %}<span class="text-muted">—</span>{% endif %}</p>
+          </div>
+        </div>
+        <p class="mb-0">
+          <strong>{% trans "Trạng thái" %}:</strong>
+          {% if emp.status == 'ACTIVE' %}
+            <span class="badge bg-success">{% trans "Đang làm" %}</span>
+          {% elif emp.status == 'INACTIVE' %}
+            <span class="badge bg-warning text-dark">{% trans "Tạm ngưng" %}</span>
+          {% elif emp.status == 'LEFT' %}
+            <span class="badge bg-danger">{% trans "Đã nghỉ" %}</span>
+          {% else %}
+            {{ emp.status }}
+          {% endif %}
+        </p>
+      </div>
+      <div class="card-footer d-flex flex-wrap gap-2">
+        {% if perms.hr.change_employee %}
+          <a href="{% url 'backoffice:employee_edit' emp.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
+        {% endif %}
+        {% if not emp.user_id and perms.auth.add_user %}
+          <a href="{% url 'backoffice:employee_create_user' emp.id %}" class="btn btn-sm btn-outline-success">{% trans "Tạo user" %}</a>
+        {% endif %}
+        <a href="{% url 'backoffice:employee_list' %}" class="btn btn-sm btn-secondary">{% trans "Quay lại" %}</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0">{% trans "Tài khoản liên kết" %}</h3></div>
+      <div class="card-body">
+        {% if emp.user_id %}
+          <p class="mb-1"><strong>{% trans "Username" %}:</strong> {{ emp.user.username }}</p>
+          <p class="mb-0"><strong>{% trans "Trạng thái user" %}:</strong> {% if emp.user.is_active %}<span class="badge bg-success">{% trans "Hoạt động" %}</span>{% else %}<span class="badge bg-warning text-dark">{% trans "Khóa" %}</span>{% endif %}</p>
+        {% else %}
+          <div class="text-muted">{% trans "Chưa liên kết tài khoản đăng nhập." %}</div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
 
-<h4 class="mt-4 mb-2">Lịch sử điều động tạm thời</h4>
-<div class="table-responsive">
-  <table class="table table-sm table-striped">
-    <thead>
-      <tr>
-        <th>Đơn vị gốc</th>
-        <th>Đơn vị đến</th>
-        <th>Bắt đầu</th>
-        <th>Kết thúc</th>
-        <th>Trạng thái</th>
-        <th>Lý do</th>
-        <th>Tính quân số?</th>
-        <th>Số ngày</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for a in assignments %}
-        <tr>
-          <td>{{ a.from_unit.symbol }}</td>
-          <td>{{ a.to_unit.symbol }}</td>
-          <td>{{ a.start_date|date:"d/m/Y" }}</td>
-          <td>{% if a.end_date %}{{ a.end_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-          <td>
-            {% if a.status == 'ACTIVE' %}
-              {% if a.end_date and a.end_date < today %}
-                Hết hạn bổ sung
-              {% else %}
-                Đang bổ sung
-              {% endif %}
-            {% elif a.status == 'CANCELLED' %}
-              Đã hủy
-            {% elif a.status == 'EXPIRED' %}
-              Hết hạn bổ sung
-            {% else %}
-              {{ a.status }}
-            {% endif %}
-          </td>
-          <td>{{ a.get_reason_code_display }}</td>
-          <td>{% if a.apply_flag %}Có{% else %}Không{% endif %}</td>
-          <td>{{ a.duration_days }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="8" class="text-muted">Chưa có điều động.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% if is_privileged %}
+  <div class="card mb-3">
+    <div class="card-header"><h3 class="card-title mb-0">{% trans "Thông tin nhạy cảm" %}</h3></div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4"><strong>CCCD:</strong> {{ emp.citizen_id|default:"—" }}</div>
+        <div class="col-md-4"><strong>MST:</strong> {{ emp.tax_code|default:"—" }}</div>
+        <div class="col-md-4"><strong>STK:</strong> {{ emp.bank_account|default:"—" }} {% if emp.bank_name %}({{ emp.bank_name }}){% endif %}</div>
+        <div class="col-md-4 mt-2"><strong>Email:</strong> {{ emp.email|default:"—" }}</div>
+        <div class="col-md-4 mt-2"><strong>Điện thoại:</strong> {{ emp.phone|default:"—" }}</div>
+        <div class="col-md-4 mt-2"><strong>Ngày vào:</strong> {% if emp.joined_date %}{{ emp.joined_date|date:"d/m/Y" }}{% else %}—{% endif %}</div>
+      </div>
+      <div class="text-muted small mt-3">{% trans "Khối thông tin này chỉ hiển thị với nhóm HR_ADMIN, HR_SENSITIVE_VIEWER hoặc HR_SENSITIVE_EXPORTER." %}</div>
+    </div>
+  </div>
+{% endif %}
 
+<div class="card">
+  <div class="card-header"><h3 class="card-title mb-0">{% trans "Lịch sử điều động tạm thời" %}</h3></div>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped mb-0">
+      <thead>
+        <tr>
+          <th>{% trans "Đơn vị gốc" %}</th>
+          <th>{% trans "Đơn vị đến" %}</th>
+          <th>{% trans "Bắt đầu" %}</th>
+          <th>{% trans "Kết thúc" %}</th>
+          <th>{% trans "Trạng thái" %}</th>
+          <th>{% trans "Lý do" %}</th>
+          <th>{% trans "Tính quân số" %}</th>
+          <th>{% trans "Số ngày" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in assignments %}
+          <tr>
+            <td>{{ a.from_unit.symbol }}</td>
+            <td>{{ a.to_unit.symbol }}</td>
+            <td>{{ a.start_date|date:"d/m/Y" }}</td>
+            <td>{% if a.end_date %}{{ a.end_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td>
+              {% if a.status == 'ACTIVE' %}
+                {% if a.end_date and a.end_date < today %}
+                  <span class="badge bg-warning text-dark">{% trans "Hết hạn bổ sung" %}</span>
+                {% else %}
+                  <span class="badge bg-success">{% trans "Đang bổ sung" %}</span>
+                {% endif %}
+              {% elif a.status == 'CANCELLED' %}
+                <span class="badge bg-secondary">{% trans "Đã hủy" %}</span>
+              {% elif a.status == 'EXPIRED' %}
+                <span class="badge bg-warning text-dark">{% trans "Hết hạn" %}</span>
+              {% else %}
+                {{ a.status }}
+              {% endif %}
+            </td>
+            <td>{{ a.get_reason_code_display }}</td>
+            <td>{% if a.apply_flag %}{% trans "Có" %}{% else %}{% trans "Không" %}{% endif %}</td>
+            <td>{{ a.duration_days }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8" class="text-muted">{% trans "Chưa có điều động." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
