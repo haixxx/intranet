@@ -54,12 +54,12 @@ class AttendanceRegistration(models.Model):
 
     def clean(self):
         # Validate mốc theo code segments
-        # WORK ở AM yêu cầu in1/out1; WORK ở PM yêu cầu in2/out2
+        # WORK ở Phần 1 yêu cầu in1/out1; WORK ở Phần 2 yêu cầu in2/out2
         if self.code.segments_am_type == AttendanceCode.SegmentType.WORK and self.code.requires_am_work:
             if not self.in1 or not self.out1:
                 from django.core.exceptions import ValidationError
-                raise ValidationError("Thiếu mốc sáng (IN1/OUT1) cho mã chế độ yêu cầu WORK buổi sáng.")
+                raise ValidationError("Thiếu mốc 1 (Giờ vào 1/Giờ ra 1) cho mã chế độ yêu cầu WORK ở Phần 1.")
         if self.code.segments_pm_type == AttendanceCode.SegmentType.WORK and self.code.requires_pm_work:
             if not self.in2 or not self.out2:
                 from django.core.exceptions import ValidationError
-                raise ValidationError("Thiếu mốc chiều (IN2/OUT2) cho mã chế độ yêu cầu WORK buổi chiều.")
+                raise ValidationError("Thiếu mốc 2 (Giờ vào 2/Giờ ra 2) cho mã chế độ yêu cầu WORK ở Phần 2.")

@@ -1,44 +1,63 @@
 {% extends "backoffice/base.html" %}
 {% block title %}Điều động tạm thời{% endblock %}
 {% block content %}
-<h2 class="mb-3">Điều động tạm thời</h2>
+<div class="page-title-block">
+  <div class="page-pretitle">Tổ chức - Nhân sự</div>
+  <h2 class="mb-1">Điều động tạm thời</h2>
+  <div class="text-muted">
+    Dữ liệu điều động dùng để xác định đơn vị hiệu lực theo ngày khi lập bảng chấm công.
+  </div>
+</div>
 
 <form method="get" class="card card-body mb-3">
   <div class="row g-2">
     <div class="col-md-3">
-      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="Tìm mã / tên nhân sự">
+      <label class="form-label">Tìm kiếm</label>
+      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="Mã / tên / mã chấm công">
     </div>
     <div class="col-md-3">
+      <label class="form-label">Đơn vị nhận</label>
       <select name="to_unit" class="form-select form-select-sm">
-        <option value="">-- Đơn vị nhận --</option>
+        <option value="">-- Tất cả --</option>
         {% for u in units %}
-          <option value="{{ u.id }}"{% if to_unit_selected == u.id|stringformat:"s" %} selected{% endif %}>{{ u.symbol }}</option>
+          <option value="{{ u.id }}"{% if to_unit_selected == u.id|stringformat:"s" %} selected{% endif %}>{{ u.symbol }} - {{ u.name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="col-md-2">
+      <label class="form-label">Trạng thái</label>
       <select name="status" class="form-select form-select-sm">
-        <option value="">-- Trạng thái --</option>
-        <option value="ACTIVE"{% if status_selected == 'ACTIVE' %} selected{% endif %}>Đang bổ sung</option>
-        <option value="CANCELLED"{% if status_selected == 'CANCELLED' %} selected{% endif %}>Đã hủy</option>
-        <option value="EXPIRED"{% if status_selected == 'EXPIRED' %} selected{% endif %}>Hết hạn bổ sung</option>
+        <option value="">-- Tất cả --</option>
+        {% for code,label in status_choices %}
+          <option value="{{ code }}"{% if status_selected == code %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
       </select>
     </div>
     <div class="col-md-2">
+      <label class="form-label">&nbsp;</label>
       <div class="form-check mt-1">
         <input class="form-check-input" type="checkbox" value="1" id="over60" name="over60"{% if over60 == '1' %} checked{% endif %}>
-        <label class="form-check-label small" for="over60">&gt; 60 ngày (Đang bổ sung)</label>
+        <label class="form-check-label small" for="over60">&gt; 60 ngày</label>
       </div>
     </div>
-    <div class="col-md-2 d-flex align-items-center gap-2">
-      <button class="btn btn-primary btn-sm">Lọc</button>
-      <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-outline-secondary btn-sm">Xóa lọc</a>
-      {% if manage_allowed %}
-        <a href="{% url 'backoffice:temp_assignment_create' %}" class="btn btn-success btn-sm">+ Tạo</a>
-      {% endif %}
+    <div class="col-md-2">
+      <label class="form-label">&nbsp;</label>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary btn-sm">Lọc</button>
+        <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-outline-secondary btn-sm">Xóa lọc</a>
+        {% if manage_allowed %}
+          <a href="{% url 'backoffice:temp_assignment_create' %}" class="btn btn-success btn-sm">+ Tạo</a>
+        {% endif %}
+      </div>
     </div>
   </div>
 </form>
+
+<div class="alert alert-info py-2">
+  <strong>Lưu ý:</strong>
+  ACTIVE, COMPLETED và EXPIRED vẫn có hiệu lực lịch sử trong khoảng ngày điều động.
+  CANCELLED được coi là không còn hiệu lực cho chấm công.
+</div>
 
 <div class="table-responsive">
 <table class="table table-sm table-striped align-middle">
@@ -48,43 +67,66 @@
       <th>Đơn vị gốc</th>
       <th>Đơn vị nhận</th>
       <th>Bắt đầu</th>
-      <th>Kết thúc</th>
+      <th>Kết thúc hiệu lực</th>
+      <th>Dự kiến cũ</th>
       <th>Trạng thái</th>
       <th>Lý do</th>
       <th>Số ngày</th>
       <th>Tính quân số?</th>
-      <th>Đơn vị tính quân số</th>
-      <th></th>
+      <th>Ảnh hưởng công</th>
+      <th class="text-end">Thao tác</th>
     </tr>
   </thead>
   <tbody>
     {% for it in items %}
       <tr>
-        <td>{{ it.employee.employee_code }} - {{ it.employee.full_name }}</td>
+        <td>
+          <strong>{{ it.employee.employee_code }}</strong><br>
+          <span class="small">{{ it.employee.full_name }}</span>
+        </td>
         <td>{{ it.from_unit.symbol }}</td>
         <td>{{ it.to_unit.symbol }}</td>
         <td>{{ it.start_date|date:'d/m/Y' }}</td>
-        <td>{% if it.end_date %}{{ it.end_date|date:'d/m/Y' }}{% else %}—{% endif %}</td>
+        <td>{% if it.end_date %}{{ it.end_date|date:'d/m/Y' }}{% else %}<span class="badge" style="background:#cff4fc;color:#055160;">Chưa xác định</span>{% endif %}</td>
+        <td>{% if it.planned_end_date %}{{ it.planned_end_date|date:'d/m/Y' }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
         <td>
-          {% if it.status == 'ACTIVE' %}Đang bổ sung
-          {% elif it.status == 'CANCELLED' %}Đã hủy
-          {% else %}Hết hạn bổ sung{% endif %}
+          {% if it.status == 'ACTIVE' %}
+            <span class="badge bg-success text-white">Đang điều động</span>
+          {% elif it.status == 'COMPLETED' %}
+            <span class="badge bg-primary text-white">Đã hoàn thành</span>
+          {% elif it.status == 'CANCELLED' %}
+            <span class="badge bg-secondary text-white">Đã hủy</span>
+          {% elif it.status == 'EXPIRED' %}
+            <span class="badge" style="background:#fff3cd;color:#664d03;">Hết hạn</span>
+          {% else %}
+            {{ it.status }}
+          {% endif %}
         </td>
         <td>{{ it.get_reason_code_display }}</td>
         <td>{{ it.duration_days }}</td>
-        <td>{% if it.apply_flag %}Có{% else %}Không{% endif %}</td>
-        <td>{% if it.apply_flag %}{{ it.to_unit.symbol }}{% else %}—{% endif %}</td>
-        <td class="text-nowrap d-flex gap-2">
-          {% if manage_allowed %}
-            <a href="{% url 'backoffice:temp_assignment_edit' it.id %}" class="btn btn-sm btn-outline-primary">Sửa</a>
-          {% endif %}
+        <td>{% if it.apply_flag %}<span class="badge" style="background:#cfe2ff;color:#084298;">Có</span>{% else %}<span class="text-muted">Không</span>{% endif %}</td>
+        <td>
+          {% with s=it.last_impact_summary %}
+            {% if s.draft_batches or s.committed_batches %}
+              <span class="badge" style="background:#fff3cd;color:#664d03;">Nháp: {{ s.draft_batches|default:0 }}</span>
+              <span class="badge bg-danger text-white">Chốt: {{ s.committed_batches|default:0 }}</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          {% endwith %}
+        </td>
+        <td class="text-end text-nowrap">
           {% if manage_allowed and it.status == 'ACTIVE' %}
-            <a href="{% url 'backoffice:temp_assignment_cancel' it.id %}" class="btn btn-sm btn-outline-danger">Huỷ</a>
+            <a href="{% url 'backoffice:temp_assignment_edit' it.id %}" class="btn btn-sm btn-outline-primary">Sửa</a>
+            <a href="{% url 'backoffice:temp_assignment_complete' it.id %}" class="btn btn-sm btn-outline-success">Hoàn thành</a>
+            <a href="{% url 'backoffice:temp_assignment_cancel' it.id %}" class="btn btn-sm btn-outline-danger">Hủy</a>
+          {% else %}
+            <span class="text-muted small">Chỉ tra cứu</span>
           {% endif %}
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="11" class="text-muted">Không có dữ liệu.</td></tr>
+      <tr><td colspan="12" class="text-muted">Không có dữ liệu.</td></tr>
     {% endfor %}
   </tbody>
 </table>

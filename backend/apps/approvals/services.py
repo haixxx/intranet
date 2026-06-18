@@ -44,7 +44,9 @@ def create_request(flow_key: str, requester: User, object_type: str, object_id: 
     if allowed_units and unit_id and int(unit_id) not in [int(x) for x in allowed_units]:
         raise ValueError("Đơn vị hiện tại không được phép tạo yêu cầu theo luồng này.")
 
-    # Chuẩn bị payload_changes để render snapshot nội dung (tuỳ object_type)
+    # Chuẩn bị payload_changes để render snapshot nội dung (tuỳ object_type).
+    # Với attendance_correction, ưu tiên payload_json thật của ACR để không mất NOTE/ADD/REMOVE.
+    # metadata.payload_changes chỉ là dữ liệu tóm tắt phục vụ thống kê, không được ghi đè payload thật.
     payload_changes: List[Dict[str, Any]] = []
     try:
         if object_type == "attendance_correction":
@@ -52,8 +54,8 @@ def create_request(flow_key: str, requester: User, object_type: str, object_id: 
             acr = AttendanceCorrectionRequest.objects.filter(id=int(object_id)).first()
             if acr and isinstance(acr.payload_json, list):
                 payload_changes = [x for x in acr.payload_json if isinstance(x, dict)]
-        if metadata_json and isinstance(metadata_json, dict) and metadata_json.get("payload_changes"):
-            payload_changes = metadata_json.get("payload_changes") or payload_changes
+        if not payload_changes and metadata_json and isinstance(metadata_json, dict) and metadata_json.get("payload_changes"):
+            payload_changes = [x for x in (metadata_json.get("payload_changes") or []) if isinstance(x, dict)]
     except Exception:
         payload_changes = payload_changes or []
 

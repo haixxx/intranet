@@ -33,7 +33,13 @@
       <div class="col-md-6">
         <div><strong>{% trans "Tiêu đề" %}:</strong> {{ req.title }}</div>
         <div><strong>{% trans "Luồng" %}:</strong> {{ req.flow.name }} (v{{ req.flow_version.version }})</div>
-        <div><strong>{% trans "Trạng thái" %}:</strong> {{ req.status }}</div>
+        <div><strong>{% trans "Trạng thái" %}:</strong>
+          {% if req.status == "APPROVED" %}<span class="badge text-bg-success">{{ req.get_status_display }}</span>
+          {% elif req.status == "REJECTED" %}<span class="badge text-bg-danger">{{ req.get_status_display }}</span>
+          {% elif req.status == "CANCELLED" %}<span class="badge text-bg-secondary">{{ req.get_status_display }}</span>
+          {% elif req.status == "IN_PROGRESS" or req.status == "SUBMITTED" %}<span class="badge text-bg-warning">{{ req.get_status_display }}</span>
+          {% else %}<span class="badge text-bg-light text-dark">{{ req.get_status_display }}</span>{% endif %}
+        </div>
       </div>
       <div class="col-md-6">
         <div><strong>{% trans "Người lập" %}:</strong> {{ req.requester.get_full_name|default:req.requester.username }}</div>

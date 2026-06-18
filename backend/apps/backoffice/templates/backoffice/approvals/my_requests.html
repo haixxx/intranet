@@ -45,7 +45,13 @@
         <tr>
           <td>{{ it.title }}</td>
           <td>{{ it.flow.name }}</td>
-          <td>{{ it.status }}</td>
+          <td>
+            {% if it.status == "APPROVED" %}<span class="badge text-bg-success">{{ it.get_status_display }}</span>
+            {% elif it.status == "REJECTED" %}<span class="badge text-bg-danger">{{ it.get_status_display }}</span>
+            {% elif it.status == "CANCELLED" %}<span class="badge text-bg-secondary">{{ it.get_status_display }}</span>
+            {% elif it.status == "IN_PROGRESS" or it.status == "SUBMITTED" %}<span class="badge text-bg-warning">{{ it.get_status_display }}</span>
+            {% else %}<span class="badge text-bg-light text-dark">{{ it.get_status_display }}</span>{% endif %}
+          </td>
           <td>—</td>
           <td>{% if it.submitted_at %}{{ it.submitted_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
           <td>

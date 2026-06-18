@@ -85,6 +85,7 @@ urlpatterns = [
     path("assignments/create/", views_temp_assignments.temp_assignment_create, name="temp_assignment_create"),
     path("assignments/<int:pk>/edit/", views_temp_assignments.temp_assignment_edit, name="temp_assignment_edit"),
     path("assignments/<int:pk>/cancel/", views_temp_assignments.temp_assignment_cancel, name="temp_assignment_cancel"),
+    path("assignments/<int:pk>/complete/", views_temp_assignments.temp_assignment_complete, name="temp_assignment_complete"),
 
     # Attendance catalog/settings
     path("attendance/codes/", views_attendance_codes.attendance_code_list, name="attendance_code_list"),
@@ -96,6 +97,7 @@ urlpatterns = [
     # Attendance batch/commit
     path("attendance/batch/", views_attendance_batch.batch_create_or_load, name="attendance_batch_create_or_load"),
     path("attendance/batch/<int:batch_id>/save/", views_attendance_batch.batch_save, name="attendance_batch_save"),
+    path("attendance/batch/<int:batch_id>/bulk-apply/", views_attendance_batch.batch_bulk_apply, name="attendance_batch_bulk_apply"),
     path("attendance/batch/<int:batch_id>/commit/", views_attendance_batch.batch_commit, name="attendance_batch_commit"),
     path("attendance/batch/<int:batch_id>/refresh/", views_attendance_batch.batch_refresh_roster, name="attendance_batch_refresh"),
     path("attendance/committed/", views_attendance_batch.committed_view, name="attendance_committed_view"),

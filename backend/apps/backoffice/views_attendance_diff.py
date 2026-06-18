@@ -1,9 +1,8 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from datetime import date
 from apps.organization.models import OrgUnit
 from apps.attendance.models_batch import AttendanceBatch, AttendanceCommit
-from .views_attendance_batch import _time_to_str
+from .views_attendance_batch import _time_to_str, _parse_work_date
 
 @login_required
 def batch_diff_api(request):
@@ -17,10 +16,8 @@ def batch_diff_api(request):
     if not work_date_str or not unit_id:
         return JsonResponse({"ok": False, "error": "Thiếu tham số"}, status=400)
 
-    try:
-        y, m, d = map(int, work_date_str.split("-"))
-        work_date = date(y, m, d)
-    except Exception:
+    work_date = _parse_work_date(work_date_str)
+    if not work_date:
         return JsonResponse({"ok": False, "error": "Ngày không hợp lệ"}, status=400)
 
     unit = OrgUnit.objects.filter(id=int(unit_id), is_attendance_unit=True, is_active=True).first()
@@ -37,9 +34,11 @@ def batch_diff_api(request):
 
     items = []
 
-    # ADD_EMPLOYEE (trong batch nhưng không có trong commit và include=True)
+    # ADD_EMPLOYEE: nháp có nhân sự mà công chốt chưa có.
+    # Lưu ý: BS đi có include_in_unit=False nhưng vẫn là một dòng công hợp lệ,
+    # không được bỏ qua như “xóa khỏi danh sách”.
     for emp_id, bi in batch_items.items():
-        if emp_id not in commit_items and bool(bi.include_in_unit):
+        if emp_id not in commit_items:
             items.append({
                 "employee_id": emp_id,
                 "employee_code": bi.employee.employee_code,
@@ -47,12 +46,16 @@ def batch_diff_api(request):
                 "field": "ADD_EMPLOYEE",
                 "old": None,
                 "new": bi.code.code if bi.code else None,
+                "bs_direction": bi.bs_direction,
+                "bs_peer_unit_id": bi.bs_peer_unit_id,
+                "include_in_unit": bool(bi.include_in_unit),
             })
 
-    # REMOVE_EMPLOYEE (trong commit nhưng không còn/được exclude trong batch)
+    # REMOVE_EMPLOYEE: chỉ khi công chốt có nhân sự mà nháp không còn dòng đó.
+    # include_in_unit=False là nghiệp vụ BS đi, không phải tín hiệu xóa.
     for emp_id, ci in commit_items.items():
         bi = batch_items.get(emp_id)
-        if (bi is None) or (bi is not None and not bool(bi.include_in_unit)):
+        if bi is None:
             items.append({
                 "employee_id": emp_id,
                 "employee_code": ci.employee.employee_code,
@@ -76,8 +79,16 @@ def batch_diff_api(request):
         for fname, old_v, new_v in [("in1", ci.in1, bi.in1), ("out1", ci.out1, bi.out1), ("in2", ci.in2, bi.in2), ("out2", ci.out2, bi.out2)]:
             if _time_to_str(old_v) != _time_to_str(new_v):
                 items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": fname, "old": _time_to_str(old_v), "new": _time_to_str(new_v)})
+        old_ot = int(getattr(ci, "overtime_hours", 0) or 0)
+        new_ot = int(getattr(bi, "overtime_hours", 0) or 0)
+        if old_ot != new_ot:
+            items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "overtime_hours", "old": old_ot, "new": new_ot})
         if (ci.notes or "") != (bi.notes or ""):
             items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "notes", "old": ci.notes or "", "new": bi.notes or ""})
         if bool(ci.include_in_unit) != bool(bi.include_in_unit):
             items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "include_in_unit", "old": bool(ci.include_in_unit), "new": bool(bi.include_in_unit)})
+        if str(ci.bs_direction or "NONE") != str(bi.bs_direction or "NONE"):
+            items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "bs_direction", "old": ci.bs_direction or "NONE", "new": bi.bs_direction or "NONE"})
+        if (ci.bs_peer_unit_id or None) != (bi.bs_peer_unit_id or None):
+            items.append({"employee_id": emp_id, "employee_code": emp_code, "employee_name": emp_name, "field": "bs_peer_unit_id", "old": ci.bs_peer_unit_id, "new": bi.bs_peer_unit_id})
     return JsonResponse({"ok": True, "items": items})

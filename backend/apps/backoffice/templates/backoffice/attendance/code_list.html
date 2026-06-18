@@ -4,11 +4,11 @@
 {% block content %}
 <h2 class="mb-3">Mã chế độ</h2>
 <form method="get" class="card card-body mb-3">
-  <div class="row g-2">
+  <div class="row g-2 align-items-center">
     <div class="col-md-4">
-      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="Tìm mã / nhãn">
+      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="Tìm mã / tên mã">
     </div>
-    <div class="col-md-8 d-flex gap-2 align-items-start">
+    <div class="col-md-8 d-flex gap-2 flex-wrap">
       {% if can_add %}
         <a href="{% url 'backoffice:attendance_code_create' %}" class="btn btn-success btn-sm">+ Tạo mã</a>
       {% endif %}
@@ -24,18 +24,18 @@
   <thead>
     <tr>
       <th>Mã</th>
-      <th>Nhãn</th>
-      <th>AM</th>
-      <th>PM</th>
-      <th>Đi làm</th>
-      <th>Yêu cầu AM</th>
-      <th>Yêu cầu PM</th>
-      <th>IN1</th>
-      <th>OUT1</th>
-      <th>IN2</th>
-      <th>OUT2</th>
-      <th>Ưu tiên</th>
-      <th>Kích hoạt</th>
+      <th>Tên mã</th>
+      <th>Phần 1</th>
+      <th>Phần 2</th>
+      <th>Mốc 1</th>
+      <th>Mốc 2</th>
+      <th>Công làm</th>
+      <th>Công lương</th>
+      <th>Công thưởng</th>
+      <th>Giờ ĐK</th>
+      <th>Cơm ca</th>
+      <th>Vai trò</th>
+      <th>TT</th>
       <th></th>
     </tr>
   </thead>
@@ -43,18 +43,36 @@
     {% for it in items %}
       <tr>
         <td><code>{{ it.code }}</code></td>
-        <td>{{ it.label_vi }}</td>
-        <td>{{ it.segments_am_type }}</td>
-        <td>{{ it.segments_pm_type }}</td>
-        <td>{{ it.is_work|yesno:"Có,Không" }}</td>
-        <td>{{ it.requires_am_work|yesno:"Có,Không" }}</td>
-        <td>{{ it.requires_pm_work|yesno:"Có,Không" }}</td>
-        <td>{% if it.default_in1 %}{{ it.default_in1|time:"H:i" }}{% else %}—{% endif %}</td>
-        <td>{% if it.default_out1 %}{{ it.default_out1|time:"H:i" }}{% else %}—{% endif %}</td>
-        <td>{% if it.default_in2 %}{{ it.default_in2|time:"H:i" }}{% else %}—{% endif %}</td>
-        <td>{% if it.default_out2 %}{{ it.default_out2|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>
+          {{ it.label_vi }}
+          {% if it.is_system %}<span class="badge bg-light text-dark border ms-1">Hệ thống</span>{% endif %}
+          {% if not it.is_active %}<span class="badge bg-secondary ms-1">Ngừng</span>{% endif %}
+        </td>
+        <td>{{ it.get_segments_am_type_display }}</td>
+        <td>{{ it.get_segments_pm_type_display }}</td>
+        <td>
+          {% if it.requires_am_work %}
+            <span class="badge bg-light text-dark border">Có</span>
+            {% if it.default_in1 and it.default_out1 %}<div class="small text-muted">{{ it.default_in1|time:"H:i" }}-{{ it.default_out1|time:"H:i" }}</div>{% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if it.requires_pm_work %}
+            <span class="badge bg-light text-dark border">Có</span>
+            {% if it.default_in2 and it.default_out2 %}<div class="small text-muted">{{ it.default_in2|time:"H:i" }}-{{ it.default_out2|time:"H:i" }}</div>{% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td>{{ it.work_credit }}</td>
+        <td>{{ it.paid_credit }}</td>
+        <td>{{ it.bonus_credit }}</td>
+        <td>{{ it.registered_hours }}</td>
+        <td>{{ it.meal_allowance_count }}</td>
+        <td><span class="small">{{ it.get_system_role_display }}</span></td>
         <td>{{ it.priority }}</td>
-        <td>{{ it.is_active|yesno:"Có,Không" }}</td>
         <td class="text-nowrap">
           {% if can_change %}
             <a href="{% url 'backoffice:attendance_code_edit' it.id %}" class="btn btn-sm btn-outline-primary">Sửa</a>

@@ -16,7 +16,7 @@ from .models import AttendanceNormalizedPunchV2, AttendancePunchMatchV2
 
 SourceMode = Literal["commit"]
 
-OVERNIGHT_OUT2_CUTOFF = dt_time(4, 0)
+OVERNIGHT_END_CUTOFF = dt_time(8, 0)
 
 
 @dataclass
@@ -43,13 +43,23 @@ def _make_local_dt(work_date, t: dt_time) -> datetime:
     return dj_timezone.make_aware(naive, tz)
 
 
-def _make_target_dt(work_date, t: dt_time | None, field: str) -> datetime | None:
+def _make_target_dt(work_date, t: dt_time | None, *, next_day: bool = False) -> datetime | None:
     if not t:
         return None
-    target_date = work_date
-    if field == "OUT2" and t < OVERNIGHT_OUT2_CUTOFF:
-        target_date = work_date + timedelta(days=1)
+    target_date = work_date + timedelta(days=1) if next_day else work_date
     return _make_local_dt(target_date, t)
+
+
+def _pair_targets(work_date, in_time: dt_time | None, out_time: dt_time | None, in_field: str, out_field: str):
+    """
+    Tạo target cho một cặp vào/ra. Nếu giờ ra <= giờ vào thì hiểu giờ ra là ngày hôm sau.
+    Quy tắc này xử lý đúng L3 dạng 22:00-06:00 ở mốc 1, không chỉ riêng OUT2.
+    """
+    out_next_day = bool(in_time and out_time and out_time <= in_time)
+    return [
+        (in_field, _make_target_dt(work_date, in_time)),
+        (out_field, _make_target_dt(work_date, out_time, next_day=out_next_day)),
+    ]
 
 
 def _pick_nearest_punch(
@@ -79,7 +89,26 @@ def _iter_targets_from_code_and_item(code: AttendanceCode, item, work_date) -> t
     targets: list[tuple[str, datetime]] = []
     missing_required: list[str] = []
 
-    if not code or not code.is_work:
+    # Sau Phase 5C, thiết bị v2 ưu tiên snapshot của công chốt:
+    # - is_work_snapshot cho biết dòng có đi làm theo thời điểm chốt;
+    # - registered_*_snapshot là mốc đăng ký đã chốt, lấy từ BatchItem khi bấm Chốt công.
+    # Với dữ liệu cũ chưa có snapshot, fallback về code.requires_* + item.in/out như trước.
+    has_snapshot = bool(getattr(item, "code_snapshot", ""))
+    is_work = bool(getattr(item, "is_work_snapshot", False)) if has_snapshot else bool(code and code.is_work)
+    if not is_work:
+        return targets, missing_required
+
+    if has_snapshot:
+        in1 = getattr(item, "registered_in1_snapshot", None)
+        out1 = getattr(item, "registered_out1_snapshot", None)
+        in2 = getattr(item, "registered_in2_snapshot", None)
+        out2 = getattr(item, "registered_out2_snapshot", None)
+        for field, target_dt in _pair_targets(work_date, in1, out1, "IN1", "OUT1") + _pair_targets(work_date, in2, out2, "IN2", "OUT2"):
+            if target_dt:
+                targets.append((field, target_dt))
+        return targets, missing_required
+
+    if not code:
         return targets, missing_required
 
     expected_fields: list[tuple[str, dt_time | None]] = []
@@ -94,8 +123,11 @@ def _iter_targets_from_code_and_item(code: AttendanceCode, item, work_date) -> t
             ("OUT2", getattr(item, "out2", None)),
         ])
 
+    expected_time_map = {field: t for field, t in expected_fields}
+    target_map = dict(_pair_targets(work_date, expected_time_map.get("IN1"), expected_time_map.get("OUT1"), "IN1", "OUT1"))
+    target_map.update(dict(_pair_targets(work_date, expected_time_map.get("IN2"), expected_time_map.get("OUT2"), "IN2", "OUT2")))
     for field, t in expected_fields:
-        target_dt = _make_target_dt(work_date, t, field)
+        target_dt = target_map.get(field)
         if target_dt:
             targets.append((field, target_dt))
         else:
@@ -142,7 +174,7 @@ def compute_audit_for_unit_date(
 
     tz = dj_timezone.get_current_timezone()
     day_start_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(0, 0, 0)), tz) - window
-    day_end_local = dj_timezone.make_aware(datetime.combine(work_date + timedelta(days=1), OVERNIGHT_OUT2_CUTOFF), tz) + window
+    day_end_local = dj_timezone.make_aware(datetime.combine(work_date + timedelta(days=1), OVERNIGHT_END_CUTOFF), tz) + window
     start_utc = day_start_local.astimezone(datetime_timezone.utc)
     end_utc = day_end_local.astimezone(datetime_timezone.utc)
 

@@ -40,7 +40,13 @@
         <td>{{ r.id }}</td>
         <td>{{ r.title }}</td>
         <td>{{ r.flow.name }} (v{{ r.flow_version.version }})</td>
-        <td>{{ r.status }}</td>
+        <td>
+          {% if r.status == "APPROVED" %}<span class="badge text-bg-success">{{ r.get_status_display }}</span>
+          {% elif r.status == "REJECTED" %}<span class="badge text-bg-danger">{{ r.get_status_display }}</span>
+          {% elif r.status == "CANCELLED" %}<span class="badge text-bg-secondary">{{ r.get_status_display }}</span>
+          {% elif r.status == "IN_PROGRESS" or r.status == "SUBMITTED" %}<span class="badge text-bg-warning">{{ r.get_status_display }}</span>
+          {% else %}<span class="badge text-bg-light text-dark">{{ r.get_status_display }}</span>{% endif %}
+        </td>
         <td>{{ r.requester.get_full_name|default:r.requester.username }}</td>
         <td>{% if r.submitted_at %}{{ r.submitted_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
         <td>{{ r.unit_id|default:"—" }}</td>

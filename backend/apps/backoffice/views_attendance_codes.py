@@ -2,9 +2,23 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Q
+
 from apps.audit.utils import audit_log
 from apps.attendance.models import AttendanceCode, AttendanceSettings
 from apps.attendance.forms import AttendanceCodeForm, AttendanceSettingsForm
+
+
+ATTENDANCE_CODE_AUDIT_FIELDS = [
+    "code", "label_vi", "segments_am_type", "segments_pm_type",
+    "is_work", "requires_am_work", "requires_pm_work",
+    "default_in1", "default_out1", "default_in2", "default_out2",
+    "work_credit", "paid_credit", "bonus_credit", "registered_hours", "meal_allowance_count",
+    "is_system", "system_role", "priority", "is_active", "notes",
+]
+
+
+def _snapshot_code_for_audit(obj: AttendanceCode) -> dict:
+    return {field: getattr(obj, field) for field in ATTENDANCE_CODE_AUDIT_FIELDS}
 
 
 @login_required
@@ -47,11 +61,7 @@ def attendance_code_create(request):
             obj = form.save()
             audit_log(action_verb="CREATE", object_type="attendance_code", object_id=obj.id,
                       object_repr=obj.code, actor=request.user,
-                      changes={'fields': {
-                          'code': obj.code, 'label_vi': obj.label_vi, 'priority': obj.priority,
-                          'is_work': obj.is_work, 'requires_am_work': obj.requires_am_work,
-                          'requires_pm_work': obj.requires_pm_work
-                      }},
+                      changes={'fields': {k: str(v) for k, v in _snapshot_code_for_audit(obj).items()}},
                       request=request, action_code="ATT_CODE_CREATE")
             messages.success(request, "Đã tạo mã chế độ.")
             return redirect('backoffice:attendance_code_list')
@@ -60,7 +70,8 @@ def attendance_code_create(request):
 
     return render(request, 'backoffice/attendance/code_form.html', {
         'form': form,
-        'create': True
+        'create': True,
+        'usage': None,
     })
 
 
@@ -73,22 +84,9 @@ def attendance_code_edit(request, pk):
         }, status=403)
 
     obj = get_object_or_404(AttendanceCode, pk=pk)
+    usage = obj.usage_summary()
     if request.method == 'POST':
-        old = {
-            'code': obj.code,
-            'label_vi': obj.label_vi,
-            'segments_am_type': obj.segments_am_type,
-            'segments_pm_type': obj.segments_pm_type,
-            'is_work': obj.is_work,
-            'requires_am_work': obj.requires_am_work,
-            'requires_pm_work': obj.requires_pm_work,
-            'default_in1': obj.default_in1,
-            'default_out1': obj.default_out1,
-            'default_in2': obj.default_in2,
-            'default_out2': obj.default_out2,
-            'priority': obj.priority,
-            'is_active': obj.is_active
-        }
+        old = _snapshot_code_for_audit(obj)
         form = AttendanceCodeForm(request.POST, instance=obj)
         if form.is_valid():
             updated = form.save()
@@ -109,7 +107,8 @@ def attendance_code_edit(request, pk):
     return render(request, 'backoffice/attendance/code_form.html', {
         'form': form,
         'obj': obj,
-        'create': False
+        'create': False,
+        'usage': usage,
     })
 
 
@@ -122,16 +121,31 @@ def attendance_code_delete(request, pk):
         }, status=403)
 
     obj = get_object_or_404(AttendanceCode, pk=pk)
+    usage = obj.usage_summary()
+    should_deactivate_only = bool(obj.is_system or usage["total"] > 0)
+
     if request.method == 'POST':
         code = obj.code
-        obj.delete()
-        audit_log(action_verb="DELETE", object_type="attendance_code", object_id=pk,
-                  object_repr=code, actor=request.user, request=request, action_code="ATT_CODE_DELETE")
-        messages.success(request, "Đã xoá mã chế độ.")
+        if should_deactivate_only:
+            if obj.is_active:
+                obj.is_active = False
+                obj.save(update_fields=["is_active", "updated_at"])
+            audit_log(action_verb="DEACTIVATE", object_type="attendance_code", object_id=pk,
+                      object_repr=code, actor=request.user,
+                      changes={"reason": "system_or_used", "usage": usage},
+                      request=request, action_code="ATT_CODE_DEACTIVATE")
+            messages.success(request, "Mã đã được dùng hoặc là mã hệ thống nên không xóa vật lý; hệ thống đã chuyển sang ngừng kích hoạt.")
+        else:
+            obj.delete()
+            audit_log(action_verb="DELETE", object_type="attendance_code", object_id=pk,
+                      object_repr=code, actor=request.user, request=request, action_code="ATT_CODE_DELETE")
+            messages.success(request, "Đã xoá mã chế độ.")
         return redirect('backoffice:attendance_code_list')
 
     return render(request, 'backoffice/attendance/code_confirm_delete.html', {
-        'obj': obj
+        'obj': obj,
+        'usage': usage,
+        'deactivate_only': should_deactivate_only,
     })
 
 

@@ -151,7 +151,6 @@ def employee_list(request):
     units = OrgUnit.objects.filter(
         id__in=scope_unit_ids,
         type__in=[
-            OrgUnit.Type.PLANT,
             OrgUnit.Type.DEPARTMENT,
             OrgUnit.Type.DIVISION,
             OrgUnit.Type.WORKSHOP,

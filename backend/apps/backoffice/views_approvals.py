@@ -178,11 +178,17 @@ def _sync_acr_status_for_request(req: ApprovalRequest):
     if not acr:
         return
     try:
+        applied_status = getattr(ACR.Status, "APPLIED", "APPLIED")
+        # APPLIED là trạng thái cuối cao nhất: không ghi ngược về APPROVED_BY_HR/REJECTED/CANCELLED.
+        if acr.status == applied_status:
+            return
+
         if req.status == ApprovalRequest.Status.REJECTED:
             acr.status = getattr(ACR.Status, "REJECTED", "REJECTED")
             acr.save(update_fields=["status"])
         elif req.status == ApprovalRequest.Status.APPROVED:
-            # Khi toàn bộ luồng đã APPROVED -> coi như đã duyệt xong bởi HR
+            # Nếu apply tự động thành công, apply_correction_request đã set APPLIED.
+            # Nếu apply lỗi/chưa chạy, giữ ở APPROVED_BY_HR để người quản trị biết: đã duyệt nhưng chưa áp dụng.
             acr.status = getattr(ACR.Status, "APPROVED_BY_HR", "APPROVED_BY_HR")
             acr.save(update_fields=["status"])
         elif req.status == ApprovalRequest.Status.CANCELLED:

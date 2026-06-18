@@ -51,6 +51,7 @@ def sync_batch_with_commit(unit_id: int, work_date: dt_date) -> dict:
             bi.out1 = ci.out1
             bi.in2 = ci.in2
             bi.out2 = ci.out2
+            bi.overtime_hours = int(getattr(ci, "overtime_hours", 0) or 0)
             bi.notes = ci.notes
             bi.bs_direction = ci.bs_direction
             bi.bs_peer_unit = ci.bs_peer_unit

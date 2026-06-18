@@ -3,10 +3,25 @@
 {% block content %}
 <h2 class="mb-3">Xoá mã chế độ</h2>
 <div class="card card-body">
-  <p>Bạn có chắc muốn xoá mã: <strong>{{ obj.code }}</strong> - {{ obj.label_vi }}?</p>
+  <p>Bạn đang thao tác với mã: <strong>{{ obj.code }}</strong> - {{ obj.label_vi }}.</p>
+
+  {% if deactivate_only %}
+    <div class="alert alert-warning py-2">
+      Mã này là mã hệ thống hoặc đã phát sinh dữ liệu
+      ({{ usage.batch_items }} dòng nháp, {{ usage.commit_items }} dòng đã chốt), nên không xóa vật lý.
+      Khi xác nhận, hệ thống sẽ chuyển mã sang <strong>ngừng kích hoạt</strong> để dữ liệu cũ vẫn hiển thị đúng.
+    </div>
+  {% else %}
+    <p>Bạn có chắc muốn xoá mã này?</p>
+  {% endif %}
+
   <form method="post">
     {% csrf_token %}
-    <button class="btn btn-danger btn-sm">Xác nhận xoá</button>
+    {% if deactivate_only %}
+      <button class="btn btn-warning btn-sm">Ngừng kích hoạt</button>
+    {% else %}
+      <button class="btn btn-danger btn-sm">Xác nhận xoá</button>
+    {% endif %}
     <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Quay lại</a>
   </form>
 </div>

@@ -1,0 +1,38 @@
+{% extends "backoffice/base.html" %}
+{% block title %}Hoàn thành điều động{% endblock %}
+{% block content %}
+<h2 class="mb-3">Hoàn thành điều động</h2>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <p><strong>Nhân sự:</strong> {{ obj.employee.employee_code }} - {{ obj.employee.full_name }}</p>
+    <p><strong>Đơn vị gốc:</strong> {{ obj.from_unit.symbol }} - {{ obj.from_unit.name }}</p>
+    <p><strong>Đơn vị nhận:</strong> {{ obj.to_unit.symbol }} - {{ obj.to_unit.name }}</p>
+    <p><strong>Khoảng hiện tại:</strong> {{ obj.start_date|date:'d/m/Y' }} → {% if obj.end_date %}{{ obj.end_date|date:'d/m/Y' }}{% else %}Chưa xác định{% endif %}</p>
+  </div>
+</div>
+
+<div class="alert alert-warning">
+  Sau khi hoàn thành, hệ thống sẽ cập nhật ngày kết thúc hiệu lực thực tế.
+  Nếu các bảng công nháp/đã chốt sau ngày này đã tồn tại, hệ thống chỉ cảnh báo, không tự sửa công đã chốt.
+</div>
+
+<form method="post" class="card card-body">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Ngày hoàn thành thực tế</label>
+      <input type="date" name="actual_end_date" class="form-control" value="{{ default_actual_end_date|date:'Y-m-d' }}" required>
+      <div class="form-text">Nhân sự được tính tại đơn vị nhận đến hết ngày này.</div>
+    </div>
+    <div class="col-md-8">
+      <label class="form-label">Ghi chú hoàn thành</label>
+      <textarea name="completed_note" rows="3" class="form-control" placeholder="Ví dụ: hoàn thành nhiệm vụ, quay về đơn vị gốc từ ngày hôm sau..."></textarea>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-success">Xác nhận hoàn thành</button>
+      <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-secondary">Hủy</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

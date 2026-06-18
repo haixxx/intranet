@@ -691,8 +691,8 @@ def import_employees(request):
                         raise ValueError(f"Bạn không có quyền nhập nhân sự vào đơn vị '{unit_symbol}'.")
                     if not unit.is_active:
                         raise ValueError(f"Đơn vị '{unit_symbol}' đã ngừng hoạt động.")
-                    if unit.type == OrgUnit.Type.TEAM:
-                        raise ValueError("unit_symbol không được là Tổ. Hãy nhập Tổ ở cột team_symbol.")
+                    if unit.type not in [OrgUnit.Type.DEPARTMENT, OrgUnit.Type.DIVISION, OrgUnit.Type.WORKSHOP]:
+                        raise ValueError("unit_symbol phải là Phòng/Ban/Phân xưởng; không được là Nhà máy hoặc Tổ.")
 
                     team = unit_cache.get(team_symbol) if team_symbol else None
                     if team:

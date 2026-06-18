@@ -7,6 +7,11 @@ from django.utils import timezone
 from apps.approvals.models import ApprovalRequest, ApprovalStep, ApprovalSigner, ApprovalAction
 from apps.audit.utils import audit_log
 
+try:
+    from apps.attendance.models_batch import AttendanceCorrectionRequest
+except Exception:
+    AttendanceCorrectionRequest = None
+
 
 @login_required
 def approval_request_cancel(request, request_id: int):
@@ -52,6 +57,16 @@ def approval_request_cancel(request, request_id: int):
         req.status = ApprovalRequest.Status.CANCELLED
         req.completed_at = timezone.now()
         req.save(update_fields=["status", "completed_at"])
+
+        # Đồng bộ trạng thái phiếu sửa công tương ứng để nháp không còn bị khóa.
+        if AttendanceCorrectionRequest and req.object_type == "attendance_correction":
+            try:
+                acr = AttendanceCorrectionRequest.objects.filter(id=int(req.object_id)).first()
+                if acr and acr.status != AttendanceCorrectionRequest.Status.APPLIED:
+                    acr.status = AttendanceCorrectionRequest.Status.CANCELLED
+                    acr.save(update_fields=["status"])
+            except Exception:
+                pass
 
         # Ghi hành động
         ApprovalAction.objects.create(

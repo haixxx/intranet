@@ -79,7 +79,6 @@ class EmployeeForm(forms.ModelForm):
         unit_qs = OrgUnit.objects.filter(
             is_active=True,
             type__in=[
-                OrgUnit.Type.PLANT,
                 OrgUnit.Type.DEPARTMENT,
                 OrgUnit.Type.DIVISION,
                 OrgUnit.Type.WORKSHOP,
@@ -157,12 +156,11 @@ class EmployeeForm(forms.ModelForm):
 
         if unit:
             if unit.type not in {
-                OrgUnit.Type.PLANT,
                 OrgUnit.Type.DEPARTMENT,
                 OrgUnit.Type.DIVISION,
                 OrgUnit.Type.WORKSHOP,
             }:
-                raise forms.ValidationError("Đơn vị quản lý không được là Tổ.")
+                raise forms.ValidationError("Đơn vị quản lý phải là Phòng/Ban/Phân xưởng, không được là Nhà máy hoặc Tổ.")
 
             if not unit.is_active and not (self.instance and self.instance.pk and self.instance.unit_id == unit.id):
                 raise forms.ValidationError("Đơn vị đã ngừng hoạt động, không thể gán mới.")

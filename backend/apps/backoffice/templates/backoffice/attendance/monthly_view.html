@@ -2,11 +2,65 @@
 {% load i18n %}
 {% block title %}Xem công theo tháng{% endblock %}
 {% block content %}
+<style>
+  .attendance-monthly-filter .form-label {
+    margin-bottom: .2rem;
+    font-size: .82rem;
+    font-weight: 600;
+  }
+  .attendance-monthly-table {
+    font-size: .82rem;
+    white-space: nowrap;
+  }
+  .attendance-monthly-table th,
+  .attendance-monthly-table td {
+    padding: .22rem .32rem;
+    vertical-align: middle;
+  }
+  .attendance-monthly-table .col-stt { min-width: 46px; width: 46px; }
+  .attendance-monthly-table .col-name { min-width: 190px; max-width: 240px; }
+  .attendance-monthly-table .col-day { min-width: 34px; width: 34px; }
+  .attendance-monthly-table .col-total { min-width: 66px; width: 66px; }
+  .attendance-monthly-table .day-weekend {
+    background: #fff3cd;
+    color: #664d03;
+  }
+  .attendance-monthly-table .total-head {
+    background: #e7f1ff;
+    color: #084298;
+  }
+  .attendance-monthly-table .total-cell {
+    background: #f8fbff;
+    font-weight: 700;
+  }
+  .attendance-monthly-table .bs-cell-in {
+    background: #e7f1ff;
+    color: #084298;
+    font-weight: 700;
+  }
+  .attendance-monthly-table .bs-cell-out {
+    background: #fff3cd;
+    color: #664d03;
+    font-weight: 700;
+  }
+  .monthly-legend .badge {
+    border: 1px solid transparent;
+    font-weight: 600;
+  }
+  .bs-warning-card {
+    border: 1px solid #ffecb5;
+    background: #fff8e1;
+    color: #664d03;
+    border-radius: .5rem;
+    padding: .65rem .75rem;
+  }
+</style>
+
 <h5 class="mb-3">Xem công theo tháng</h5>
 
-<form method="get" class="card card-body mb-3" id="monthlyFilterForm">
-  <div class="row g-2">
-    <div class="col-md-3">
+<form method="get" class="card card-body mb-3 attendance-monthly-filter" id="monthlyFilterForm">
+  <div class="row g-2 align-items-end">
+    <div class="col-xl-3 col-lg-3 col-md-4">
       <label class="form-label">Đơn vị</label>
       <select name="unit" class="form-select form-select-sm" id="unitSelect">
         <option value="">— Chọn đơn vị —</option>
@@ -15,7 +69,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-xl-2 col-lg-2 col-md-3">
       <label class="form-label">Tổ</label>
       <select name="team" class="form-select form-select-sm" id="teamSelect">
         <option value="">— Tất cả —</option>
@@ -24,16 +78,16 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2">
+    <div class="col-xl-1 col-lg-2 col-md-2">
       <label class="form-label">Tháng</label>
       <input type="number" name="month" value="{{ month }}" min="1" max="12" class="form-control form-control-sm">
     </div>
-    <div class="col-md-2">
+    <div class="col-xl-1 col-lg-2 col-md-2">
       <label class="form-label">Năm</label>
       <input type="number" name="year" value="{{ year }}" min="2000" max="2100" class="form-control form-control-sm">
     </div>
-    <div class="col-md-2 d-flex align-items-end gap-2">
-      <button class="btn btn-primary btn-sm">Xem</button>
+    <div class="col-xl-5 col-lg-3 col-md-12 d-flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" type="submit">Xem</button>
       {% if has_data %}
         <a class="btn btn-success btn-sm"
            href="{% url 'backoffice:attendance_monthly_export' %}?unit={{ unit_id }}&team={{ team_id }}&month={{ month }}&year={{ year }}">
@@ -45,19 +99,43 @@
 </form>
 
 {% if has_data %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2 small monthly-legend">
+  <span class="text-muted">Ghi chú:</span>
+  <span class="badge" style="background:#fff3cd;color:#664d03;border-color:#ffecb5;">BS</span>
+  <span class="text-muted">Bổ sung đi</span>
+  <span class="badge" style="background:#e7f1ff;color:#084298;border-color:#b6d4fe;">LL +</span>
+  <span class="text-muted">Bổ sung đến, mã hiển thị là mã làm thực tế</span>
+</div>
+{% if bs_warnings %}
+  <div class="bs-warning-card mb-2 small">
+    <div class="fw-bold mb-1">Cảnh báo BS đi/BS đến theo điều động</div>
+    <ul class="mb-0 ps-3">
+      {% for warning in bs_warnings %}
+        <li>{{ warning }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
 <div class="table-responsive">
-  <table class="table table-sm table-bordered align-middle">
+  <table class="table table-sm table-bordered align-middle attendance-monthly-table">
     <thead>
       <tr>
-        <th rowspan="2" style="width:6%">STT</th>
-        <th rowspan="2" style="width:24%">Họ và tên</th>
+        <th rowspan="2" class="text-center col-stt">STT</th>
+        <th rowspan="2" class="col-name">Họ và tên</th>
         {% for d in days %}
-          <th class="text-center" style="width:4%">{{ d.d }}</th>
+          <th class="text-center col-day {% if d.is_weekend %}day-weekend{% endif %}">{{ d.d }}</th>
         {% endfor %}
+        <th rowspan="2" class="text-center col-total total-head" title="Tổng công làm tại đơn vị, gồm cả người bổ sung đến">T.Làm</th>
+        <th rowspan="2" class="text-center col-total total-head" title="Tổng công bổ sung đi, lấy theo công thực tế của đơn vị đến">T.BS đi</th>
+        <th rowspan="2" class="text-center col-total total-head" title="Tổng công thưởng = T.Làm + T.BS đi">T.Thưởng</th>
+        <th rowspan="2" class="text-center col-total total-head" title="Tổng thêm giờ">T.Thêm</th>
+        <th rowspan="2" class="text-center col-total total-head" title="Tổng công làm thứ 7/chủ nhật tại đơn vị">T.T7CN</th>
+        <th rowspan="2" class="text-center col-total total-head" title="Tổng công nghỉ">T.Nghỉ</th>
+        <th rowspan="2" class="text-center col-total total-head" title="Tổng công bổ sung đến">T.BS đến</th>
       </tr>
       <tr>
         {% for d in days %}
-          <th class="text-center text-muted">{{ d.wd }}</th>
+          <th class="text-center text-muted col-day {% if d.is_weekend %}day-weekend{% endif %}">{{ d.wd }}</th>
         {% endfor %}
       </tr>
     </thead>
@@ -66,12 +144,28 @@
         <tr>
           <td class="text-center">{{ row.idx }}</td>
           <td class="text-truncate" style="max-width:240px">{{ row.emp.full_name }}</td>
-          {% for c in row.codes %}
-            <td class="text-center">{{ c|default:"" }}</td>
+          {% for cell in row.cells %}
+            <td class="text-center {% if cell.is_weekend %}day-weekend{% endif %} {% if cell.bs_direction == 'IN' %}bs-cell-in{% elif cell.bs_direction == 'OUT' %}bs-cell-out{% endif %}"
+                {% if cell.bs_direction == 'IN' %}title="Bổ sung đến{% if cell.peer_unit %} từ {{ cell.peer_unit.name }}{% endif %}"
+                {% elif cell.bs_direction == 'OUT' %}title="Bổ sung đi{% if cell.peer_unit %} đến {{ cell.peer_unit.name }}{% endif %}"
+                {% endif %}>
+              {% if cell.bs_direction == 'IN' and cell.code %}
+                {{ cell.code }}<sup>+</sup>
+              {% else %}
+                {{ cell.code|default:"" }}
+              {% endif %}
+            </td>
           {% endfor %}
+          <td class="text-center total-cell">{{ row.total_work }}</td>
+          <td class="text-center total-cell">{{ row.total_bs_out }}</td>
+          <td class="text-center total-cell">{{ row.total_reward }}</td>
+          <td class="text-center total-cell">{{ row.total_overtime }}</td>
+          <td class="text-center total-cell">{{ row.total_weekend_work }}</td>
+          <td class="text-center total-cell">{{ row.total_leave }}</td>
+          <td class="text-center total-cell">{{ row.total_bs_in }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="{{ 2|add:days|length }}" class="text-muted">Không có dữ liệu.</td></tr>
+        <tr><td colspan="{{ days|length|add:9 }}" class="text-muted">Không có dữ liệu.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -83,7 +177,6 @@
 <script>
   // Tự động load danh sách tổ khi chọn đơn vị: submit form để server render lại teams
   document.getElementById('unitSelect')?.addEventListener('change', function(){
-    // Reset team về 'Tất cả' để tránh filter sai khi đổi đơn vị
     const teamSel = document.getElementById('teamSelect');
     if (teamSel) teamSel.value = '';
     document.getElementById('monthlyFilterForm').submit();

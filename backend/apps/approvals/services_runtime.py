@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from .models import ApprovalRequest, ApprovalStep, ApprovalSigner, ApprovalAction
+from apps.audit.utils import audit_log
 
 # HR/Org dữ liệu thực
 try:
@@ -150,12 +151,33 @@ def activate_next_step_if_any(request: ApprovalRequest) -> None:
         request.completed_at = timezone.now()
         request.save(update_fields=["status", "completed_at"])
         if apply_correction_request and request.object_type == "attendance_correction":
+            actor = request.requester
+            acr_id = None
             try:
-                actor = request.requester
                 acr_id = int(request.object_id)
-                apply_correction_request(acr_id=acr_id, actor=actor)
-            except Exception:
-                pass
+                result = apply_correction_request(acr_id=acr_id, actor=actor)
+                if not result or not result.get("ok"):
+                    audit_log(
+                        action_verb="APPLY_FAILED",
+                        object_type="attendance_correction",
+                        object_id=acr_id,
+                        object_repr=f"ApprovalRequest#{request.id}",
+                        actor=actor,
+                        changes={"result": result or {}, "approval_request_id": request.id},
+                        severity="ERROR",
+                        action_code="ATT_CORRECTION_APPLY_FAILED",
+                    )
+            except Exception as exc:
+                audit_log(
+                    action_verb="APPLY_ERROR",
+                    object_type="attendance_correction",
+                    object_id=acr_id or request.object_id,
+                    object_repr=f"ApprovalRequest#{request.id}",
+                    actor=actor,
+                    changes={"error": str(exc), "approval_request_id": request.id},
+                    severity="ERROR",
+                    action_code="ATT_CORRECTION_APPLY_ERROR",
+                )
         return
 
     with transaction.atomic():

@@ -22,9 +22,9 @@ MANUAL_SOURCE_MAY_HONG = "MAY_HONG"
 MANUAL_SOURCE_SUA_DU_LIEU = "SUA_DU_LIEU"
 MANUAL_SOURCE_DEFAULT = MANUAL_SOURCE_MAY_HONG
 
-# OUT2 nhỏ hơn mốc này được hiểu là R2 của ngày hôm sau.
-# Quy ước này phải đồng bộ với nhập bổ sung và import Excel.
-OVERNIGHT_OUT2_CUTOFF = dt_time(4, 0)
+# Lấy log qua ngày đến sau giờ ra ca 3.
+# Target qua ngày được xác định theo từng cặp IN/OUT: nếu OUT <= IN thì OUT thuộc ngày hôm sau.
+OVERNIGHT_END_CUTOFF = dt_time(8, 0)
 
 
 @dataclass
@@ -52,30 +52,35 @@ def _make_local_dt(work_date, t: dt_time) -> datetime:
     return dj_timezone.make_aware(naive, tz)
 
 
-def _make_target_dt(work_date, t: dt_time | None, field: str) -> datetime | None:
-    """
-    Tạo datetime local cho mốc đăng ký từ AttendanceCommitItem.
-
-    Quy ước:
-    - IN1/OUT1/IN2 lấy theo work_date.
-    - OUT2 < 04:00 được coi là ngày hôm sau, phục vụ ca qua ngày.
-    """
+def _make_target_dt(work_date, t: dt_time | None, *, next_day: bool = False) -> datetime | None:
+    """Tạo datetime local cho một mốc đăng ký đã biết có thuộc ngày hôm sau hay không."""
     if not t:
         return None
-    target_date = work_date
-    if field == "OUT2" and t < OVERNIGHT_OUT2_CUTOFF:
-        target_date = work_date + timedelta(days=1)
+    target_date = work_date + timedelta(days=1) if next_day else work_date
     return _make_local_dt(target_date, t)
+
+
+def _pair_targets(work_date, in_time: dt_time | None, out_time: dt_time | None, in_field: str, out_field: str):
+    """
+    Tạo target cho một cặp vào/ra. Nếu giờ ra <= giờ vào thì hiểu giờ ra là ngày hôm sau.
+    Quy tắc này xử lý đúng L3 dạng 22:00-06:00 ở mốc 1, không chỉ riêng OUT2.
+    """
+    out_next_day = bool(in_time and out_time and out_time <= in_time)
+    return {
+        in_field: _make_target_dt(work_date, in_time),
+        out_field: _make_target_dt(work_date, out_time, next_day=out_next_day),
+    }
 
 
 def _expected_flags_and_targets(code: AttendanceCode, item, work_date) -> tuple[dict, dict[str, datetime | None], list[str]]:
     """
     Xác định mốc kỳ vọng và target thực tế.
 
-    Lưu ý:
-    - code.requires_* cho biết mốc đáng lẽ phải có.
-    - Nếu AttendanceCommitItem thiếu giờ target, không tính expected=True một cách mù,
-      vì không có giờ chuẩn để đối chiếu. Ghi warning để kiểm tra lại công chốt.
+    Ưu tiên snapshot của AttendanceCommitItem nếu đã có Phase 5C:
+    - Mốc đăng ký đã chốt nằm ở registered_*_snapshot.
+    - Có mốc nào thì đối chiếu mốc đó; không join ngược AttendanceCode hiện tại để quyết định lịch sử.
+
+    Với dữ liệu cũ chưa có snapshot, fallback theo code.requires_* + item.in/out như trước.
     """
     targets: dict[str, datetime | None] = {
         "IN1": None,
@@ -84,15 +89,45 @@ def _expected_flags_and_targets(code: AttendanceCode, item, work_date) -> tuple[
         "OUT2": None,
     }
     missing_required: list[str] = []
+    empty_expected = {
+        "expected_in1": False,
+        "expected_out1": False,
+        "expected_in2": False,
+        "expected_out2": False,
+        "expected_marks": 0,
+    }
 
-    if not code or not code.is_work:
+    has_snapshot = bool(getattr(item, "code_snapshot", ""))
+    is_work = bool(getattr(item, "is_work_snapshot", False)) if has_snapshot else bool(code and code.is_work)
+    if not is_work:
+        return empty_expected, targets, missing_required
+
+    if has_snapshot:
+        item_times = {
+            "IN1": getattr(item, "registered_in1_snapshot", None),
+            "OUT1": getattr(item, "registered_out1_snapshot", None),
+            "IN2": getattr(item, "registered_in2_snapshot", None),
+            "OUT2": getattr(item, "registered_out2_snapshot", None),
+        }
+        pair_target_map = {}
+        pair_target_map.update(_pair_targets(work_date, item_times["IN1"], item_times["OUT1"], "IN1", "OUT1"))
+        pair_target_map.update(_pair_targets(work_date, item_times["IN2"], item_times["OUT2"], "IN2", "OUT2"))
+        expected: dict[str, bool] = {}
+        for field, t in item_times.items():
+            expected[field] = bool(t)
+            if t:
+                targets[field] = pair_target_map.get(field)
+        expected_marks = sum(1 for v in expected.values() if v)
         return {
-            "expected_in1": False,
-            "expected_out1": False,
-            "expected_in2": False,
-            "expected_out2": False,
-            "expected_marks": 0,
+            "expected_in1": expected["IN1"],
+            "expected_out1": expected["OUT1"],
+            "expected_in2": expected["IN2"],
+            "expected_out2": expected["OUT2"],
+            "expected_marks": expected_marks,
         }, targets, missing_required
+
+    if not code:
+        return empty_expected, targets, missing_required
 
     requires = {
         "IN1": bool(code.requires_am_work),
@@ -107,12 +142,16 @@ def _expected_flags_and_targets(code: AttendanceCode, item, work_date) -> tuple[
         "OUT2": getattr(item, "out2", None),
     }
 
+    pair_target_map = {}
+    pair_target_map.update(_pair_targets(work_date, item_times["IN1"], item_times["OUT1"], "IN1", "OUT1"))
+    pair_target_map.update(_pair_targets(work_date, item_times["IN2"], item_times["OUT2"], "IN2", "OUT2"))
+
     expected: dict[str, bool] = {}
     for field, required in requires.items():
         t = item_times[field]
         if required and t:
             expected[field] = True
-            targets[field] = _make_target_dt(work_date, t, field)
+            targets[field] = pair_target_map.get(field)
         elif required and not t:
             expected[field] = False
             missing_required.append(field)
@@ -257,10 +296,10 @@ def compute_master_list_for_unit_date(
 
     # Lấy punches trong khoảng đủ rộng cho ngày công:
     # - 00:00 work_date - window_minutes;
-    # - 04:00 ngày hôm sau + window_minutes để không mất OUT2 qua ngày.
+    # - 08:00 ngày hôm sau + window_minutes để không mất giờ ra ca 3 (22:00-06:00).
     # Đây là window đối chiếu ca, khác hoàn toàn với cluster_minutes của normalize.
     day_start_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(0, 0, 0)), tz) - window
-    day_end_local = dj_timezone.make_aware(datetime.combine(work_date + timedelta(days=1), OVERNIGHT_OUT2_CUTOFF), tz) + window
+    day_end_local = dj_timezone.make_aware(datetime.combine(work_date + timedelta(days=1), OVERNIGHT_END_CUTOFF), tz) + window
     start_utc = day_start_local.astimezone(datetime_timezone.utc)
     end_utc = day_end_local.astimezone(datetime_timezone.utc)
 
@@ -380,7 +419,7 @@ def compute_master_list_for_unit_date(
         punches = punches_by_emp.get(emp.id, [])
         manual_overrides = manual_override_by_emp.get(emp.id, {})
 
-        # target đã được build từ công chốt, trong đó OUT2 < 04:00 là ngày hôm sau.
+        # target đã được build từ công chốt, trong đó OUT nhỏ hơn/ bằng IN thì thuộc ngày hôm sau.
         t_in1 = targets["IN1"]
         t_out1 = targets["OUT1"]
         t_in2 = targets["IN2"]

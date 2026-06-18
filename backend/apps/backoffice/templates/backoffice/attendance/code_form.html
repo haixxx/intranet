@@ -2,88 +2,159 @@
 {% block title %}{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}{% endblock %}
 {% block content %}
 <h2 class="mb-3">{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}</h2>
+
+{% if form.non_field_errors %}
+  <div class="alert alert-danger py-2">
+    {{ form.non_field_errors }}
+  </div>
+{% endif %}
+
+{% if usage and usage.total > 0 %}
+  <div class="alert alert-warning py-2">
+    Mã này đã phát sinh dữ liệu: {{ usage.batch_items }} dòng nháp, {{ usage.commit_items }} dòng đã chốt.
+    Không được đổi <strong>Mã</strong>; nếu cần đổi bản chất nghiệp vụ, nên tạo mã mới.
+  </div>
+{% endif %}
+
 <form method="post" class="card card-body" id="attendance-code-form">
   {% csrf_token %}
-  <div class="row g-3">
-    <div class="col-md-3">
-      <label class="form-label">Mã</label>
-      {{ form.code }}
-    </div>
-    <div class="col-md-5">
-      <label class="form-label">Nhãn</label>
-      {{ form.label_vi }}
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Kích hoạt</label>
-      {{ form.is_active }}
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Ưu tiên</label>
-      {{ form.priority }}
-      <div class="form-text">Số lớn hiển thị trước trong danh sách chọn.</div>
-    </div>
 
-    <div class="col-md-3">
-      <label class="form-label">AM (buổi sáng)</label>
-      {{ form.segments_am_type }}
+  <div class="mb-3 pb-2 border-bottom">
+    <h6 class="fw-bold mb-2">1. Thông tin chung</h6>
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Mã</label>
+        {{ form.code }}
+        {% if form.code.errors %}<div class="text-danger small">{{ form.code.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Tên mã</label>
+        {{ form.label_vi }}
+        {% if form.label_vi.errors %}<div class="text-danger small">{{ form.label_vi.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Thứ tự hiển thị</label>
+        {{ form.priority }}
+        {% if form.priority.errors %}<div class="text-danger small">{{ form.priority.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <div class="form-check mb-1">
+          {{ form.is_active }}
+          <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Kích hoạt</label>
+        </div>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <div class="form-check mb-1">
+          {{ form.is_system }}
+          <label class="form-check-label" for="{{ form.is_system.id_for_label }}">Mã hệ thống</label>
+        </div>
+      </div>
     </div>
-    <div class="col-md-3">
-      <label class="form-label">PM (buổi chiều)</label>
-      {{ form.segments_pm_type }}
-    </div>
+  </div>
 
-    <div class="col-md-3">
-      <label class="form-label">Đi làm</label>
-      {{ form.is_work }}
-      <div class="form-text">Nếu không đi làm, sẽ disable toàn bộ IN/OUT.</div>
-    </div>
+  <div class="mb-3 pb-2 border-bottom">
+    <h6 class="fw-bold mb-2">2. Phân loại và mốc giờ</h6>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Phần 1 <span class="text-muted" title="Tên kỹ thuật cũ là AM, nhưng nghiệp vụ mới hiểu là mốc/phần 1.">?</span></label>
+        {{ form.segments_am_type }}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Phần 2 <span class="text-muted" title="Tên kỹ thuật cũ là PM, nhưng nghiệp vụ mới hiểu là mốc/phần 2.">?</span></label>
+        {{ form.segments_pm_type }}
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <div class="form-check mb-1">
+          {{ form.is_work }}
+          <label class="form-check-label" for="{{ form.is_work.id_for_label }}">Có đi làm</label>
+        </div>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <div class="form-check mb-1">
+          {{ form.requires_am_work }}
+          <label class="form-check-label" for="{{ form.requires_am_work.id_for_label }}">Yêu cầu mốc 1</label>
+        </div>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <div class="form-check mb-1">
+          {{ form.requires_pm_work }}
+          <label class="form-check-label" for="{{ form.requires_pm_work.id_for_label }}">Yêu cầu mốc 2</label>
+        </div>
+      </div>
 
-    <div class="col-md-3">
-      <label class="form-label">Yêu cầu AM (IN1/OUT1)</label>
-      {{ form.requires_am_work }}
+      <div class="col-md-3">
+        <label class="form-label">Giờ vào 1</label>
+        {{ form.default_in1 }}
+        {% if form.default_in1.errors %}<div class="text-danger small">{{ form.default_in1.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Giờ ra 1</label>
+        {{ form.default_out1 }}
+        {% if form.default_out1.errors %}<div class="text-danger small">{{ form.default_out1.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Giờ vào 2</label>
+        {{ form.default_in2 }}
+        {% if form.default_in2.errors %}<div class="text-danger small">{{ form.default_in2.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Giờ ra 2</label>
+        {{ form.default_out2 }}
+        {% if form.default_out2.errors %}<div class="text-danger small">{{ form.default_out2.errors }}</div>{% endif %}
+      </div>
     </div>
-    <div class="col-md-3">
-      <label class="form-label">Yêu cầu PM (IN2/OUT2)</label>
-      {{ form.requires_pm_work }}
-    </div>
+  </div>
 
-    <div class="col-md-3">
-      <label class="form-label">Mặc định IN1</label>
-      {{ form.default_in1 }}
-      <div class="form-text">Định dạng HH:MM, nhập theo giờ (phút tự về 00).</div>
+  <div class="mb-3 pb-2 border-bottom">
+    <h6 class="fw-bold mb-2">3. Chỉ tiêu tính công</h6>
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Công làm <span class="text-muted" title="Số công lao động thực tế.">?</span></label>
+        {{ form.work_credit }}
+        {% if form.work_credit.errors %}<div class="text-danger small">{{ form.work_credit.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Công hưởng lương <span class="text-muted" title="Số công hưởng lương/chế độ.">?</span></label>
+        {{ form.paid_credit }}
+        {% if form.paid_credit.errors %}<div class="text-danger small">{{ form.paid_credit.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Công nhận thưởng <span class="text-muted" title="Số công phục vụ báo cáo/tính thưởng riêng.">?</span></label>
+        {{ form.bonus_credit }}
+        {% if form.bonus_credit.errors %}<div class="text-danger small">{{ form.bonus_credit.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Giờ đăng ký <span class="text-muted" title="Số giờ theo mã; không phải giờ thực tế lấy từ máy.">?</span></label>
+        {{ form.registered_hours }}
+        {% if form.registered_hours.errors %}<div class="text-danger small">{{ form.registered_hours.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Số suất cơm ca <span class="text-muted" title="0 = không, 1 = một suất; có thể dùng 0.5 hoặc 2 nếu quy chế cần.">?</span></label>
+        {{ form.meal_allowance_count }}
+        {% if form.meal_allowance_count.errors %}<div class="text-danger small">{{ form.meal_allowance_count.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Vai trò hệ thống</label>
+        {{ form.system_role }}
+        {% if form.system_role.errors %}<div class="text-danger small">{{ form.system_role.errors }}</div>{% endif %}
+      </div>
     </div>
-    <div class="col-md-3">
-      <label class="form-label">Mặc định OUT1</label>
-      {{ form.default_out1 }}
-      <div class="form-text">Định dạng HH:MM, nhập theo giờ (phút tự về 00).</div>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Mặc định IN2</label>
-      {{ form.default_in2 }}
-      <div class="form-text">Định dạng HH:MM, nhập theo giờ (phút tự về 00).</div>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Mặc định OUT2</label>
-      {{ form.default_out2 }}
-      <div class="form-text">Định dạng HH:MM, nhập theo giờ (phút tự về 00).</div>
-    </div>
+  </div>
 
-    <div class="col-md-12">
-      <label class="form-label">Ghi chú</label>
-      {{ form.notes }}
-    </div>
+  <div class="mb-3">
+    <h6 class="fw-bold mb-2">4. Ghi chú</h6>
+    {{ form.notes }}
+    {% if form.notes.errors %}<div class="text-danger small">{{ form.notes.errors }}</div>{% endif %}
+  </div>
 
-    <div class="col-12">
-      <button class="btn btn-primary btn-sm">Lưu</button>
-      <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Huỷ</a>
-    </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary btn-sm">Lưu</button>
+    <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Huỷ</a>
   </div>
 </form>
 
 <script>
-  // Đảm bảo script chạy sau khi DOM sẵn sàng
   document.addEventListener('DOMContentLoaded', function() {
-    // Lấy phần tử an toàn bằng id hoặc name (tuỳ cách render của Django)
     const isWork = document.getElementById('id_is_work') || document.querySelector('[name="is_work"]');
     const reqAM  = document.getElementById('id_requires_am_work') || document.querySelector('[name="requires_am_work"]');
     const reqPM  = document.getElementById('id_requires_pm_work') || document.querySelector('[name="requires_pm_work"]');
@@ -95,13 +166,12 @@
 
     function asBool(el) {
       if (!el) return false;
-      // checkbox -> .checked; select -> value in ("True","true","1")
       if (el.type === 'checkbox') return el.checked;
       const v = (el.value || '').toString().toLowerCase();
       return v === 'true' || v === '1' || v === 'yes' || v === 'on';
     }
 
-    function disable(el, flag) {
+    function disableTime(el, flag) {
       if (!el) return;
       el.disabled = !!flag;
       if (flag) el.value = '';
@@ -112,34 +182,19 @@
       const needAM = asBool(reqAM);
       const needPM = asBool(reqPM);
 
-      // Không đi làm: disable toàn bộ
-      disable(in1,  !work);
-      disable(out1, !work);
-      disable(in2,  !work);
-      disable(out2, !work);
-
-      if (work) {
-        // AM
-        disable(in1,  !needAM);
-        disable(out1, !needAM);
-        if (!needAM) { if (in1) in1.value=''; if (out1) out1.value=''; }
-
-        // PM
-        disable(in2,  !needPM);
-        disable(out2, !needPM);
-        if (!needPM) { if (in2) in2.value=''; if (out2) out2.value=''; }
+      if (!work) {
+        disableTime(in1, true); disableTime(out1, true); disableTime(in2, true); disableTime(out2, true);
+        return;
       }
+      disableTime(in1, !needAM); disableTime(out1, !needAM);
+      disableTime(in2, !needPM); disableTime(out2, !needPM);
     }
 
-    // Gắn sự kiện thay đổi cho cả checkbox và select
     [isWork, reqAM, reqPM].forEach(function(el) {
       if (!el) return;
       el.addEventListener('change', sync);
-      // Một số trình duyệt cần 'input' cho checkbox
       el.addEventListener('input', sync);
     });
-
-    // Khởi tạo lần đầu
     sync();
   });
 </script>

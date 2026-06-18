@@ -1,42 +1,69 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}Tạo/Xem chấm công{% endblock %}
+{% block title %}Đăng ký / Chốt công{% endblock %}
 {% block content %}
-<h2 class="mb-3">Tạo/Xem chấm công</h2>
+<div class="page-title-block"><div class="page-pretitle">Chấm công</div><h2 class="mb-1">Đăng ký / Chốt công</h2></div>
 
 <form method="get" class="card card-body mb-3">
-  <div class="row g-2">
-    <div class="col-md-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-2">
       <label class="form-label">Ngày</label>
-      <input type="date" name="date" value="{{ work_date }}" class="form-control form-control-sm">
+      <input type="text" name="date" value="{{ work_date }}" class="form-control form-control-sm" placeholder="dd/mm/yyyy" inputmode="numeric">
     </div>
     <div class="col-md-4">
-      <label class="form-label">Đơn vị (chỉ Phòng/Ban/Phân xưởng)</label>
+      <label class="form-label">Đơn vị</label>
       <select name="unit" class="form-select form-select-sm">
         {% for u in units_qs %}
-          <option value="{{ u.id }}"{% if unit_id|stringformat:"s" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.name }}</option>
+          <option value="{{ u.id }}"{% if unit_id|stringformat:"s" == u.id|stringformat:"s" %} selected{% endif %}>{{ u.symbol }} - {{ u.name }}</option>
         {% empty %}
-          <option value="">-- Chưa có đơn vị chấm công --</option>
+          <option value="">-- Chưa có Phòng/Ban/Phân xưởng chấm công --</option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3 d-flex align-items-end gap-2">
+    <div class="col-md-6 d-flex align-items-end gap-2 flex-wrap">
       <button class="btn btn-primary btn-sm">Xem</button>
-      <a class="btn btn-success btn-sm" href="?date={{ work_date }}&unit={{ unit_id }}&init=1">Lập danh sách đăng ký công</a>
+      <a class="btn btn-success btn-sm" href="?date={{ work_date }}&unit={{ unit_id }}&init=1">Lập danh sách chấm công</a>
     </div>
   </div>
 </form>
 
 {% if batch %}
+{% if bs_in_list %}
+  <div class="alert alert-info">
+    Người bổ sung đến theo ngày {{ work_date }}: {{ bs_in_list|join:", " }}
+  </div>
+{% endif %}
+
+{% if roster_has_diff %}
+  <div class="alert alert-warning d-flex justify-content-between align-items-center">
+    <div>Danh sách chấm công nháp <strong>khác</strong> với danh sách dự kiến ngày {{ work_date }}.</div>
+    <form method="post" action="{% url 'backoffice:attendance_batch_refresh' batch.id %}">
+      {% csrf_token %}
+      <button class="btn btn-primary btn-sm" type="submit" {% if not roster_can_refresh %}disabled{% endif %}>
+        Cập nhật lại danh sách chấm công
+      </button>
+    </form>
+  </div>
+{% else %}
+  <div class="alert alert-success">Danh sách chấm công nháp <strong>trùng</strong> với danh sách dự kiến ngày {{ work_date }}.</div>
+{% endif %}
+
+{% if pending_locked %}
+  <div class="alert alert-warning">
+    Đang có Phiếu đề nghị sửa chấm công <strong>chờ duyệt</strong> cho ngày {{ work_date }} ({{ pending_acr_count }} phiếu).
+    Danh sách chấm công nháp tạm <strong>bị khóa</strong>: không thể Lưu nháp hay Cập nhật lại danh sách chấm công cho tới khi phiếu được xử lý.
+  </div>
+{% endif %}
+
 <form method="get" class="card card-body mb-3">
   <input type="hidden" name="date" value="{{ work_date }}">
   <input type="hidden" name="unit" value="{{ unit_id }}">
   <div class="row g-2">
     <div class="col-md-3">
-      <label class="form-label">Lọc nhanh (Tên/Mã)</label>
+      <label class="form-label">Lọc nhanh</label>
       <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm mã / tên NV">
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label">Tổ</label>
       <select name="team" class="form-select form-select-sm">
         <option value="">— Tất cả —</option>
@@ -45,7 +72,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label">Số dòng</label>
       <select name="page_size" class="form-select form-select-sm">
         {% for size in page_size_options %}
@@ -53,50 +80,30 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3 d-flex align-items-end gap-2">
+    <div class="col-md-5 d-flex align-items-end gap-2">
       <button class="btn btn-outline-secondary btn-sm">Lọc</button>
       <a href="?date={{ work_date }}&unit={{ unit_id }}" class="btn btn-outline-secondary btn-sm">Xóa lọc</a>
     </div>
   </div>
 </form>
 
-{% if bs_in_list %}
-  <div class="alert alert-info">
-    Người bổ sung đến (BS IN) theo ngày {{ work_date }}: {{ bs_in_list|join:", " }}
-  </div>
-{% endif %}
-
-{% if roster_has_diff %}
-  <div class="alert alert-warning d-flex justify-content-between align-items-center">
-    <div>Danh sách nháp <strong>khác</strong> với danh sách theo ngày {{ work_date }}.</div>
-    <form method="post" action="{% url 'backoffice:attendance_batch_refresh' batch.id %}">
-      {% csrf_token %}
-      <button class="btn btn-primary btn-sm" type="submit" {% if not roster_can_refresh %}disabled{% endif %}>
-        Cập nhật danh sách
-      </button>
-    </form>
-  </div>
-{% else %}
-  <div class="alert alert-success">Danh sách nháp <strong>trùng</strong> với danh sách theo ngày {{ work_date }}.</div>
-{% endif %}
-
-{% if pending_locked %}
-  <div class="alert alert-warning">
-    Đang có Phiếu đề nghị sửa chấm công <strong>chờ duyệt</strong> cho ngày {{ work_date }} ({{ pending_acr_count }} phiếu).
-    Danh sách nháp tạm <strong>bị khóa</strong>: không thể Lưu nháp hay Cập nhật danh sách cho tới khi phiếu được xử lý.
-  </div>
-{% endif %}
-
 <!-- Truyền trạng thái/giá trị sang JS an toàn -->
 <input type="hidden" id="pendingLockedVal" value="{{ pending_locked|yesno:'true,false' }}">
 <input type="hidden" id="currentUnitId" value="{{ unit_id }}">
-<input type="hidden" id="currentWorkDate" value="{{ work_date }}">
+<input type="hidden" id="currentWorkDate" value="{{ work_date_iso|default:work_date }}">
 
-<div class="card card-body mb-3">
+<form method="post" action="{% url 'backoffice:attendance_batch_bulk_apply' batch.id %}" class="card card-body mb-3" id="bulkApplyForm">
+  {% csrf_token %}
+  <input type="hidden" name="date" value="{{ work_date }}">
+  <input type="hidden" name="unit" value="{{ unit_id }}">
+  <input type="hidden" name="q" value="{{ q }}">
+  <input type="hidden" name="team" value="{{ team_id }}">
+  <input type="hidden" name="page" value="{{ current_page }}">
+  <input type="hidden" name="page_size" value="{{ page_size }}">
   <div class="row g-2 align-items-end">
     <div class="col-md-2">
       <label class="form-label mb-1">Áp dụng mã chế độ</label>
-      <select class="form-select form-select-sm" id="bulkCode">
+      <select class="form-select form-select-sm" id="bulkCode" name="bulk_code">
         <option value="">-- giữ nguyên --</option>
         {% for c in codes_qs %}
           <option
@@ -112,31 +119,50 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-8">
+    <div class="col-md-7">
       <div class="row g-2">
         <div class="col-3">
-          <label class="form-label mb-1">IN1</label>
-          <input type="time" class="form-control form-control-sm" id="bulkIn1" step="60">
+          <label class="form-label mb-1">Giờ vào 1</label>
+          <input type="time" class="form-control form-control-sm" id="bulkIn1" name="bulk_in1" step="60">
         </div>
         <div class="col-3">
-          <label class="form-label mb-1">OUT1</label>
-          <input type="time" class="form-control form-control-sm" id="bulkOut1" step="60">
+          <label class="form-label mb-1">Giờ ra 1</label>
+          <input type="time" class="form-control form-control-sm" id="bulkOut1" name="bulk_out1" step="60">
         </div>
         <div class="col-3">
-          <label class="form-label mb-1">IN2</label>
-          <input type="time" class="form-control form-control-sm" id="bulkIn2" step="60">
+          <label class="form-label mb-1">Giờ vào 2</label>
+          <input type="time" class="form-control form-control-sm" id="bulkIn2" name="bulk_in2" step="60">
         </div>
         <div class="col-3">
-          <label class="form-label mb-1">OUT2</label>
-          <input type="time" class="form-control form-control-sm" id="bulkOut2" step="60">
+          <label class="form-label mb-1">Giờ ra 2</label>
+          <input type="time" class="form-control form-control-sm" id="bulkOut2" name="bulk_out2" step="60">
         </div>
       </div>
     </div>
-    <div class="col-md-2 d-flex">
-      <button type="button" class="btn btn-warning btn-sm ms-auto" id="btnBulkApply" {% if not can_save %}disabled{% endif %}>Áp dụng hàng loạt</button>
+    <div class="col-md-1">
+      <label class="form-label mb-1">Thêm giờ</label>
+      <select class="form-select form-select-sm" name="bulk_overtime_hours">
+        <option value="">—</option>
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end justify-content-end gap-2">
+      <span
+        class="badge rounded-pill bg-light text-dark border"
+        role="button"
+        tabindex="0"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        title="Áp dụng hàng loạt theo bộ lọc hiện tại (Tổ/Tìm kiếm), không phụ thuộc trang đang xem. Nếu không lọc Tổ/Tìm kiếm thì áp dụng toàn bộ danh sách chấm công của đơn vị."
+      >?</span>
+      <button type="submit" class="btn btn-warning btn-sm" {% if not can_save %}disabled{% endif %} onclick="return confirm('Áp dụng hàng loạt cho các dòng thuộc bộ lọc hiện tại (Tổ/Tìm kiếm), không chỉ trang đang xem?');">Áp dụng theo bộ lọc hiện tại</button>
     </div>
   </div>
-</div>
+</form>
 {% endif %}
 
 {% if batch %}
@@ -158,8 +184,9 @@
           <th style="width:8%">Tổ</th>
           <th style="width:8%">BS</th>
           <th style="width:14%">Mã chế độ</th>
-          <th style="width:42%">Mốc thời gian</th>
-          <th style="width:8%">Ghi chú</th>
+          <th style="width:36%">Mốc thời gian</th>
+          <th style="width:7%">Thêm giờ</th>
+          <th style="width:7%">Ghi chú</th>
         </tr>
       </thead>
       <tbody>
@@ -170,7 +197,7 @@
             <td class="text-truncate" style="max-width:160px">{{ it.employee.full_name }}</td>
             <td>{% if it.employee.team %}{{ it.employee.team.name }}{% else %}—{% endif %}</td>
             <td>
-              {% if it.bs_direction == 'IN' %}BS đến{% elif it.bs_direction == 'OUT' %}BS đi{% else %}—{% endif %}
+              {% if it.bs_direction == 'IN' %}<span class="badge bg-primary text-white">BS đến</span>{% elif it.bs_direction == 'OUT' %}<span class="badge" style="background:#fff3cd;color:#664d03;">BS đi</span>{% else %}<span class="text-muted">—</span>{% endif %}
               {% if it.bs_peer_unit %} ({{ it.bs_peer_unit.code }}){% endif %}
             </td>
             <td>
@@ -199,34 +226,43 @@
                 <div class="col-3">
                   <input type="time" name="in1_{{ it.id }}" value="{% if it.in1 %}{{ it.in1|time:'H:i' }}{% endif %}"
                          class="form-control form-control-sm row-in1"
-                         data-row="{{ it.id }}" step="60" placeholder="IN1"
+                         data-row="{{ it.id }}" step="60" placeholder="Vào 1"
                          {% if not work or not am_req %}disabled{% endif %}>
                 </div>
                 <div class="col-3">
                   <input type="time" name="out1_{{ it.id }}" value="{% if it.out1 %}{{ it.out1|time:'H:i' }}{% endif %}"
                          class="form-control form-control-sm row-out1"
-                         data-row="{{ it.id }}" step="60" placeholder="OUT1"
+                         data-row="{{ it.id }}" step="60" placeholder="Ra 1"
                          {% if not work or not am_req %}disabled{% endif %}>
                 </div>
                 <div class="col-3">
                   <input type="time" name="in2_{{ it.id }}" value="{% if it.in2 %}{{ it.in2|time:'H:i' }}{% endif %}"
                          class="form-control form-control-sm row-in2"
-                         data-row="{{ it.id }}" step="60" placeholder="IN2"
+                         data-row="{{ it.id }}" step="60" placeholder="Vào 2"
                          {% if not work or not pm_req %}disabled{% endif %}>
                 </div>
                 <div class="col-3">
                   <input type="time" name="out2_{{ it.id }}" value="{% if it.out2 %}{{ it.out2|time:'H:i' }}{% endif %}"
                          class="form-control form-control-sm row-out2"
-                         data-row="{{ it.id }}" step="60" placeholder="OUT2"
+                         data-row="{{ it.id }}" step="60" placeholder="Ra 2"
                          {% if not work or not pm_req %}disabled{% endif %}>
                 </div>
               </div>
+            </td>
+            <td>
+              <select name="overtime_hours_{{ it.id }}" class="form-select form-select-sm" title="Số giờ làm thêm dùng để thống kê">
+                <option value="0"{% if it.overtime_hours == 0 %} selected{% endif %}>0</option>
+                <option value="1"{% if it.overtime_hours == 1 %} selected{% endif %}>1</option>
+                <option value="2"{% if it.overtime_hours == 2 %} selected{% endif %}>2</option>
+                <option value="3"{% if it.overtime_hours == 3 %} selected{% endif %}>3</option>
+                <option value="4"{% if it.overtime_hours == 4 %} selected{% endif %}>4</option>
+              </select>
             </td>
             <td><input type="text" name="notes_{{ it.id }}" value="{{ it.notes }}" class="form-control form-control-sm"></td>
           </tr>
           {% endwith %}
         {% empty %}
-          <tr><td colspan="7" class="text-muted">Chưa có dữ liệu.</td></tr>
+          <tr><td colspan="8" class="text-muted">Chưa có dữ liệu.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -266,9 +302,16 @@
           {% endif %}
         {% endwith %}
 
-        <button class="btn btn-primary btn-sm" id="btnSave" {% if not can_save %}disabled{% endif %}>Lưu nháp</button>
+        <button type="submit" class="btn btn-primary btn-sm" id="btnSave" {% if not can_save %}disabled{% endif %}>Lưu nháp</button>
         {% if not has_committed and can_commit %}
-          <a class="btn btn-success btn-sm" href="{% url 'backoffice:attendance_batch_commit' batch.id %}">Chốt danh sách</a>
+          <button type="submit"
+                  class="btn btn-success btn-sm"
+                  id="btnCommit"
+                  formaction="{% url 'backoffice:attendance_batch_commit' batch.id %}"
+                  formmethod="post"
+                  {% if not can_save %}disabled{% endif %}>
+            Chốt công
+          </button>
         {% endif %}
       </div>
     </div>
@@ -320,7 +363,7 @@
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h6 class="modal-title">Khác biệt giữa Nháp và Công đã chốt</h6>
+        <h6 class="modal-title">Khác biệt giữa nháp và công đã chốt</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
       </div>
       <div class="modal-body">
@@ -353,6 +396,15 @@
           el.disabled = true;
         });
       }
+    }
+  })();
+
+  // Kích hoạt tooltip cho các icon hướng dẫn ngắn.
+  (function () {
+    if (window.bootstrap && bootstrap.Tooltip) {
+      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
+      });
     }
   })();
 
@@ -433,36 +485,6 @@
     });
   });
 
-  // Áp dụng hàng loạt
-  const btnBulkApply = document.getElementById('btnBulkApply');
-  if (btnBulkApply) {
-    btnBulkApply.addEventListener('click', function() {
-      const bulkCode = document.getElementById('bulkCode').value;
-      const bIn1  = document.getElementById('bulkIn1').value;
-      const bOut1 = document.getElementById('bulkOut1').value;
-      const bIn2  = document.getElementById('bulkIn2').value;
-      const bOut2 = document.getElementById('bulkOut2').value;
-
-      document.querySelectorAll('.row-code').forEach(function(sel) {
-        const rowId = sel.dataset.row;
-        if (bulkCode) {
-          sel.value = bulkCode;
-          applyCodeBehaviorToRow(rowId, bulkCode, true);
-        }
-        const in1  = document.querySelector('.row-in1[data-row="' + rowId + '"]');
-        const out1 = document.querySelector('.row-out1[data-row="' + rowId + '"]');
-        const in2  = document.querySelector('.row-in2[data-row="' + rowId + '"]');
-        const out2 = document.querySelector('.row-out2[data-row="' + rowId + '"]');
-
-        if (bIn1  && in1  && !in1.disabled)  in1.value  = bIn1;
-        if (bOut1 && out1 && !out1.disabled) out1.value = bOut1;
-        if (bIn2  && in2  && !in2.disabled)  in2.value  = bIn2;
-        if (bOut2 && out2 && !out2.disabled) out2.value = bOut2;
-      });
-      window.unsavedChanges = true;
-    });
-  }
-
   // Đánh dấu có thay đổi
   document.querySelectorAll('input[type="time"], select, input[type="text"]').forEach(function(el) {
     el.addEventListener('change', function() { window.unsavedChanges = true; });
@@ -479,11 +501,21 @@
     });
   });
 
-  // Nút lưu
-  const btnSave = document.getElementById('btnSave');
-  if (btnSave) {
-    btnSave.addEventListener('click', function() {
-      document.getElementById('listForm').submit();
+  // Nút chốt công: chỉ cho chốt dữ liệu đã lưu trong DB.
+  const btnCommit = document.getElementById('btnCommit');
+  if (btnCommit) {
+    btnCommit.addEventListener('click', function(e) {
+      if (window.unsavedChanges) {
+        e.preventDefault();
+        alert('Bạn có thay đổi chưa lưu. Vui lòng bấm Lưu nháp trước khi chốt công.');
+        return false;
+      }
+      const ok = confirm('Chốt công cho ngày/đơn vị hiện tại? Sau khi chốt, nếu sửa sẽ phải tạo phiếu đề nghị.');
+      if (!ok) {
+        e.preventDefault();
+        return false;
+      }
+      return true;
     });
   }
 
