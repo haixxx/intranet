@@ -2,90 +2,102 @@
 {% load i18n %}
 {% block title %}Mã chế độ{% endblock %}
 {% block content %}
-<h2 class="mb-3">Mã chế độ</h2>
-<form method="get" class="card card-body mb-3">
-  <div class="row g-2 align-items-center">
-    <div class="col-md-4">
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Quản lý công</div>
+    <h2 class="bo-page-title"><i class="ti ti-id-badge-2"></i>Mã chế độ</h2>
+    <div class="bo-page-subtitle">Quản lý mã công, mốc thời gian, công làm, công hưởng lương, công thưởng, giờ đăng ký và cơm ca.</div>
+  </div>
+  <div class="bo-page-actions">
+    {% if can_add %}
+      <a href="{% url 'backoffice:attendance_code_create' %}" class="btn btn-success btn-sm"><i class="ti ti-plus"></i> Tạo mã</a>
+    {% endif %}
+    <a href="{% url 'backoffice:attendance_settings' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-settings"></i> Cấu hình đối chiếu</a>
+  </div>
+</div>
+
+<form method="get" class="card card-body bo-filter-card mb-3">
+  <div class="bo-filter-grid bo-filter-grid-attendance-code">
+    <div>
+      <label class="form-label bo-filter-label">Tìm kiếm</label>
       <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="Tìm mã / tên mã">
     </div>
-    <div class="col-md-8 d-flex gap-2 flex-wrap">
-      {% if can_add %}
-        <a href="{% url 'backoffice:attendance_code_create' %}" class="btn btn-success btn-sm">+ Tạo mã</a>
-      {% endif %}
-      <a href="{% url 'backoffice:attendance_settings' %}" class="btn btn-outline-secondary btn-sm">Cấu hình đối chiếu</a>
-      <button class="btn btn-primary btn-sm">Lọc</button>
-      <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-outline-secondary btn-sm">Xóa lọc</a>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm"><i class="ti ti-filter"></i> Lọc</button>
+      <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-rotate-clockwise"></i> Xóa lọc</a>
     </div>
   </div>
 </form>
 
-<div class="table-responsive">
-<table class="table table-sm table-striped align-middle">
-  <thead>
-    <tr>
-      <th>Mã</th>
-      <th>Tên mã</th>
-      <th>Phần 1</th>
-      <th>Phần 2</th>
-      <th>Mốc 1</th>
-      <th>Mốc 2</th>
-      <th>Công làm</th>
-      <th>Công lương</th>
-      <th>Công thưởng</th>
-      <th>Giờ ĐK</th>
-      <th>Cơm ca</th>
-      <th>Vai trò</th>
-      <th>TT</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for it in items %}
-      <tr>
-        <td><code>{{ it.code }}</code></td>
-        <td>
-          {{ it.label_vi }}
-          {% if it.is_system %}<span class="badge bg-light text-dark border ms-1">Hệ thống</span>{% endif %}
-          {% if not it.is_active %}<span class="badge bg-secondary ms-1">Ngừng</span>{% endif %}
-        </td>
-        <td>{{ it.get_segments_am_type_display }}</td>
-        <td>{{ it.get_segments_pm_type_display }}</td>
-        <td>
-          {% if it.requires_am_work %}
-            <span class="badge bg-light text-dark border">Có</span>
-            {% if it.default_in1 and it.default_out1 %}<div class="small text-muted">{{ it.default_in1|time:"H:i" }}-{{ it.default_out1|time:"H:i" }}</div>{% endif %}
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if it.requires_pm_work %}
-            <span class="badge bg-light text-dark border">Có</span>
-            {% if it.default_in2 and it.default_out2 %}<div class="small text-muted">{{ it.default_in2|time:"H:i" }}-{{ it.default_out2|time:"H:i" }}</div>{% endif %}
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
-        </td>
-        <td>{{ it.work_credit }}</td>
-        <td>{{ it.paid_credit }}</td>
-        <td>{{ it.bonus_credit }}</td>
-        <td>{{ it.registered_hours }}</td>
-        <td>{{ it.meal_allowance_count }}</td>
-        <td><span class="small">{{ it.get_system_role_display }}</span></td>
-        <td>{{ it.priority }}</td>
-        <td class="text-nowrap">
-          {% if can_change %}
-            <a href="{% url 'backoffice:attendance_code_edit' it.id %}" class="btn btn-sm btn-outline-primary">Sửa</a>
-          {% endif %}
-          {% if can_delete %}
-            <a href="{% url 'backoffice:attendance_code_delete' it.id %}" class="btn btn-sm btn-outline-danger">Xoá</a>
-          {% endif %}
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="14" class="text-muted">Chưa có mã.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="card bo-table-card">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle bo-table-compact bo-attendance-code-table mb-0">
+      <thead>
+        <tr>
+          <th>Mã</th>
+          <th>Tên mã</th>
+          <th>Phần 1</th>
+          <th>Phần 2</th>
+          <th>Mốc 1</th>
+          <th>Mốc 2</th>
+          <th class="text-end">Công làm</th>
+          <th class="text-end">Công lương</th>
+          <th class="text-end">Công thưởng</th>
+          <th class="text-end">Giờ ĐK</th>
+          <th class="text-end">Cơm ca</th>
+          <th>Vai trò</th>
+          <th class="text-end">TT</th>
+          <th class="bo-col-actions"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+          <tr>
+            <td><code>{{ it.code }}</code></td>
+            <td>
+              <strong>{{ it.label_vi }}</strong>
+              {% if it.is_system %}<span class="bo-badge bo-badge-secondary ms-1">Hệ thống</span>{% endif %}
+              {% if not it.is_active %}<span class="bo-badge bo-badge-warning ms-1">Ngừng</span>{% endif %}
+            </td>
+            <td>{{ it.get_segments_am_type_display }}</td>
+            <td>{{ it.get_segments_pm_type_display }}</td>
+            <td>
+              {% if it.requires_am_work %}
+                <span class="bo-badge bo-badge-info">Có</span>
+                {% if it.default_in1 and it.default_out1 %}<div class="small text-muted">{{ it.default_in1|time:"H:i" }}-{{ it.default_out1|time:"H:i" }}</div>{% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if it.requires_pm_work %}
+                <span class="bo-badge bo-badge-info">Có</span>
+                {% if it.default_in2 and it.default_out2 %}<div class="small text-muted">{{ it.default_in2|time:"H:i" }}-{{ it.default_out2|time:"H:i" }}</div>{% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end">{{ it.work_credit }}</td>
+            <td class="text-end">{{ it.paid_credit }}</td>
+            <td class="text-end">{{ it.bonus_credit }}</td>
+            <td class="text-end">{{ it.registered_hours }}</td>
+            <td class="text-end">{{ it.meal_allowance_count }}</td>
+            <td><span class="small">{{ it.get_system_role_display }}</span></td>
+            <td class="text-end">{{ it.priority }}</td>
+            <td class="bo-actions-cell">
+              {% if can_change %}
+                <a href="{% url 'backoffice:attendance_code_edit' it.id %}" class="btn btn-sm btn-outline-primary"><i class="ti ti-edit"></i> Sửa</a>
+              {% endif %}
+              {% if can_delete %}
+                <a href="{% url 'backoffice:attendance_code_delete' it.id %}" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i> Xóa</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="14" class="bo-empty-cell">Chưa có mã chế độ.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

@@ -1,58 +1,56 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
 
-{% block title %}
-  {% if create %}{% trans "Tạo nhân sự" %}{% else %}{% trans "Sửa nhân sự" %}{% endif %}
-{% endblock %}
+{% block title %}{% if create %}{% trans "Tạo nhân sự" %}{% else %}{% trans "Sửa nhân sự" %}{% endif %}{% endblock %}
 
 {% block content %}
-<h2 class="mb-3">{% if create %}{% trans "Tạo nhân sự" %}{% else %}{% trans "Sửa nhân sự" %}{% endif %}</h2>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-user"></i> {% if create %}{% trans "Tạo nhân sự" %}{% else %}{% trans "Sửa nhân sự" %}{% endif %}</h2>
+    <div class="bo-page-subtitle">{% trans "Cập nhật hồ sơ nhân sự dùng chung cho tổ chức, phân quyền và chấm công." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    <a href="{% url 'backoffice:employee_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a>
+  </div>
+</div>
 
-<form method="post" class="card card-body">
+<form method="post" class="card card-body bo-form-card">
   {% csrf_token %}
 
   {% if form.non_field_errors %}
-    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    <div class="bo-alert bo-alert-danger">{{ form.non_field_errors }}</div>
   {% endif %}
 
-  <div class="row">
+  <div class="bo-form-grid">
     {% for field in form %}
-
-      {# Checkbox rendering #}
       {% if field.field.widget.input_type == "checkbox" %}
-        <div class="col-12 mb-3">
+        <div class="bo-form-field-full">
           <div class="form-check">
             {{ field }}
-            <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            <label class="form-check-label" for="{{ field.id_for_label }}">
+              {{ field.label }}
+              {% if field.help_text %}<span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ field.help_text|striptags }}">?</span>{% endif %}
+            </label>
           </div>
-          {% if field.help_text %}
-            <div class="text-muted small">{{ field.help_text }}</div>
-          {% endif %}
-          {% for error in field.errors %}
-            <div class="text-danger small">{{ error }}</div>
-          {% endfor %}
+          {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
         </div>
-
-      {# Normal inputs #}
       {% else %}
-        <div class="col-md-6 mb-3">
-          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        <div>
+          <label class="form-label" for="{{ field.id_for_label }}">
+            {{ field.label }}
+            {% if field.help_text %}<span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ field.help_text|striptags }}">?</span>{% endif %}
+          </label>
           {{ field }}
-          {% if field.help_text %}
-            <div class="text-muted small">{{ field.help_text }}</div>
-          {% endif %}
-          {% for error in field.errors %}
-            <div class="text-danger small">{{ error }}</div>
-          {% endfor %}
+          {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
         </div>
       {% endif %}
-
     {% endfor %}
   </div>
 
-  <div class="d-flex gap-2">
-    <button class="btn btn-primary">{% trans "Lưu" %}</button>
-    <a href="{% url 'backoffice:employee_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+  <div class="bo-form-actions">
+    <button class="btn btn-primary btn-sm"><i class="ti ti-device-floppy"></i> {% trans "Lưu" %}</button>
+    <a href="{% url 'backoffice:employee_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-x"></i> {% trans "Hủy" %}</a>
   </div>
 </form>
 {% endblock %}

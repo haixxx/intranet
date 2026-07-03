@@ -2,33 +2,32 @@
 {% load i18n %}
 
 {% block title %}
-  {% if create %}{% trans "Thêm thiết bị (v2)" %}{% else %}{% trans "Sửa thiết bị (v2)" %}{% endif %}
+  {% if create %}{% trans "Thêm thiết bị" %}{% else %}{% trans "Sửa thiết bị" %}{% endif %}
 {% endblock %}
 
 {% block content %}
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <div>
-      <h2 class="mb-0">
-        {% if create %}{% trans "Thêm thiết bị (v2)" %}{% else %}{% trans "Sửa thiết bị (v2)" %}{% endif %}
-      </h2>
-      <div class="text-muted small">
-        {% trans "Cấu hình thiết bị và policy Agent V2. Các giá trị mặc định đã đặt theo hướng an toàn: PULL, port 4370, Asia/Ho_Chi_Minh, realtime bật, backfill 22:00/15 ngày, time sync tắt." %}
-      </div>
+  <div class="bo-page-header">
+    <div class="bo-page-heading">
+      <div class="bo-page-pretitle">{% trans "Quản lý chấm công" %}</div>
+      <h2 class="bo-page-title"><i class="ti ti-fingerprint"></i>{% if create %}{% trans "Thêm thiết bị" %}{% else %}{% trans "Sửa thiết bị" %}{% endif %}</h2>
+      <div class="bo-page-subtitle">{% trans "Cấu hình thiết bị và policy Agent theo hướng an toàn: PULL, port 4370, Asia/Ho_Chi_Minh, realtime/backfill bật, time sync tắt ở giai đoạn đầu." %}</div>
     </div>
-    <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}">
-      {% trans "Quay lại" %}
-    </a>
+    <div class="bo-page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}">
+        <i class="ti ti-arrow-left me-1"></i>{% trans "Quay lại" %}
+      </a>
+    </div>
   </div>
 
-  <form method="post" class="card card-body">
+  <form method="post" class="card card-body bo-form-card">
     {% csrf_token %}
     {% if form.non_field_errors %}
-      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      <div class="bo-alert bo-alert-danger">{{ form.non_field_errors }}</div>
     {% endif %}
 
-    <div class="card mb-3">
+    <div class="card bo-card mb-3">
       <div class="card-header py-2">
-        <h3 class="card-title mb-0">{% trans "Thông tin thiết bị" %}</h3>
+        <h3 class="bo-section-title"><i class="ti ti-device-desktop"></i>{% trans "Thông tin thiết bị" %}</h3>
       </div>
       <div class="card-body">
         <div class="row g-3">
@@ -43,9 +42,8 @@
             {% if form.brand.errors %}<div class="text-danger small">{{ form.brand.errors }}</div>{% endif %}
           </div>
           <div class="col-md-3">
-            <label class="form-label">{{ form.connect_mode.label }}</label>
+            <label class="form-label">{{ form.connect_mode.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Agent hiện dùng chế độ PULL để chủ động kết nối thiết bị và gửi dữ liệu về server.' %}">?</button></label>
             {{ form.connect_mode }}
-            <div class="form-hint">{% trans "Agent V2 hiện dùng PULL." %}</div>
             {% if form.connect_mode.errors %}<div class="text-danger small">{{ form.connect_mode.errors }}</div>{% endif %}
           </div>
 
@@ -60,9 +58,8 @@
             {% if form.serial_no.errors %}<div class="text-danger small">{{ form.serial_no.errors }}</div>{% endif %}
           </div>
           <div class="col-md-4">
-            <label class="form-label">{{ form.timezone.label }}</label>
+            <label class="form-label">{{ form.timezone.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Mặc định dùng Asia/Ho_Chi_Minh để thống nhất giờ chấm công trong hệ thống nội bộ.' %}">?</button></label>
             {{ form.timezone }}
-            <div class="form-hint">{% trans "Mặc định: Asia/Ho_Chi_Minh." %}</div>
             {% if form.timezone.errors %}<div class="text-danger small">{{ form.timezone.errors }}</div>{% endif %}
           </div>
 
@@ -72,15 +69,13 @@
             {% if form.host.errors %}<div class="text-danger small">{{ form.host.errors }}</div>{% endif %}
           </div>
           <div class="col-md-2">
-            <label class="form-label">{{ form.port.label }}</label>
+            <label class="form-label">{{ form.port.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'ZKTeco/Ronald Jack thường dùng port 4370.' %}">?</button></label>
             {{ form.port }}
-            <div class="form-hint">ZKTeco/Ronald Jack thường dùng 4370.</div>
             {% if form.port.errors %}<div class="text-danger small">{{ form.port.errors }}</div>{% endif %}
           </div>
           <div class="col-md-4">
-            <label class="form-label">{{ form.org_unit.label }}</label>
+            <label class="form-label">{{ form.org_unit.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Chỉ thể hiện vị trí hoặc đơn vị quản lý máy, không quyết định phạm vi nhân sự được chấm trên máy.' %}">?</button></label>
             {{ form.org_unit }}
-            <div class="form-hint">{% trans "Chỉ là vị trí/quản lý máy, không phải phạm vi nhân sự chấm trên máy." %}</div>
             {% if form.org_unit.errors %}<div class="text-danger small">{{ form.org_unit.errors }}</div>{% endif %}
           </div>
 
@@ -105,52 +100,48 @@
       </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card bo-card mb-3">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
-        <h3 class="card-title mb-0">{% trans "SDK / kết nối máy" %}</h3>
-        <span class="badge bg-blue-lt">{% trans "Lưu trong sdk_profile" %}</span>
+        <h3 class="bo-section-title"><i class="ti ti-plug-connected"></i>{% trans "SDK / kết nối máy" %}</h3>
+        <span class="bo-badge bo-badge-info">{% trans "Lưu trong sdk_profile" %}</span>
       </div>
       <div class="card-body">
         <div class="row g-3">
           <div class="col-md-3">
-            <label class="form-label">{{ form.machine_number.label }}</label>
+            <label class="form-label">{{ form.machine_number.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{{ form.machine_number.help_text }}">?</button></label>
             {{ form.machine_number }}
-            <div class="form-hint">{{ form.machine_number.help_text }}</div>
             {% if form.machine_number.errors %}<div class="text-danger small">{{ form.machine_number.errors }}</div>{% endif %}
           </div>
           <div class="col-md-3">
-            <label class="form-label">{{ form.comm_password.label }}</label>
+            <label class="form-label">{{ form.comm_password.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{{ form.comm_password.help_text }}">?</button></label>
             {{ form.comm_password }}
-            <div class="form-hint">{{ form.comm_password.help_text }}</div>
             {% if form.comm_password.errors %}<div class="text-danger small">{{ form.comm_password.errors }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <div class="alert alert-info mb-0 py-2">
-              {% trans "Nếu máy không đặt mật khẩu giao tiếp, giữ Comm password = 0. Không cần nhập JSON thủ công." %}
+            <div class="bo-alert bo-alert-info mb-0 py-2">
+              <i class="ti ti-info-circle me-1"></i>{% trans "Nếu máy không đặt mật khẩu giao tiếp, giữ Comm password = 0. Không cần nhập JSON thủ công." %}
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card bo-card mb-3">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
-        <h3 class="card-title mb-0">{% trans "Sync Policy cho Agent V2" %}</h3>
-        <span class="text-muted small">{% trans "Agent nhận policy khi gọi GET devices" %}</span>
+        <h3 class="bo-section-title"><i class="ti ti-arrows-sync"></i>{% trans "Sync Policy cho Agent" %}</h3>
+        <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Agent nhận policy khi gọi API GET devices, vì vậy thay đổi ở đây sẽ được áp dụng ở lần Agent đồng bộ cấu hình tiếp theo.' %}">?</button>
       </div>
       <div class="card-body">
         <div class="row g-3">
           <div class="col-md-3">
             <div class="form-check mt-2">
-              {{ form.realtime_enabled }} <label class="form-check-label">{{ form.realtime_enabled.label }}</label>
+              {{ form.realtime_enabled }} <label class="form-check-label">{{ form.realtime_enabled.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Luồng chính, nên bật để nhận dữ liệu gần thời gian thực.' %}">?</button></label>
             </div>
-            <div class="form-hint">{% trans "Luồng chính, nên bật." %}</div>
           </div>
           <div class="col-md-3">
             <div class="form-check mt-2">
-              {{ form.backfill_enabled }} <label class="form-check-label">{{ form.backfill_enabled.label }}</label>
+              {{ form.backfill_enabled }} <label class="form-check-label">{{ form.backfill_enabled.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Luồng bù/đối soát, nên bật để đọc lại dữ liệu cũ theo cửa sổ backfill.' %}">?</button></label>
             </div>
-            <div class="form-hint">{% trans "Luồng bù/đối soát, nên bật." %}</div>
           </div>
           <div class="col-md-3">
             <label class="form-label">{{ form.backfill_time.label }}</label>
@@ -185,25 +176,24 @@
           </div>
 
           <div class="col-12">
-            <div class="alert alert-warning mb-0 py-2">
-              {% trans "Backfill mặc định chạy tuần tự lúc 22:00, lấy 15 ngày. Duplicate do backfill gửi lại là bình thường và server sẽ dedupe." %}
+            <div class="bo-alert bo-alert-warning mb-0 py-2">
+              <i class="ti ti-alert-triangle me-1"></i>{% trans "Backfill mặc định chạy tuần tự lúc 22:00, lấy 15 ngày. Duplicate do backfill gửi lại là bình thường và server sẽ dedupe." %}
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card bo-card mb-3">
       <div class="card-header py-2">
-        <h3 class="card-title mb-0">{% trans "Time Sync" %}</h3>
+        <h3 class="bo-section-title"><i class="ti ti-clock-cog"></i>{% trans "Time Sync" %}</h3>
       </div>
       <div class="card-body">
         <div class="row g-3">
           <div class="col-md-3">
             <div class="form-check mt-2">
-              {{ form.time_sync_enabled }} <label class="form-check-label">{{ form.time_sync_enabled.label }}</label>
+              {{ form.time_sync_enabled }} <label class="form-check-label">{{ form.time_sync_enabled.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Khuyến nghị để tắt ở giai đoạn đầu; chỉ bật khi đã xác nhận luồng chấm công ổn định.' %}">?</button></label>
             </div>
-            <div class="form-hint">{% trans "Khuyến nghị để tắt giai đoạn đầu." %}</div>
           </div>
           <div class="col-md-3">
             <label class="form-label">{{ form.time_sync_warn_seconds.label }}</label>
@@ -228,17 +218,17 @@
             {% if form.time_sync_to.errors %}<div class="text-danger small">{{ form.time_sync_to.errors }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <div class="alert alert-secondary mb-0 py-2">
-              {% trans "Khi time sync bật, Agent chỉ nên đồng bộ trong khung giờ ít người chấm công. Mặc định chỉ cảnh báo drift, chưa auto sync." %}
+            <div class="bo-alert bo-alert-info mb-0 py-2">
+              <i class="ti ti-info-circle me-1"></i>{% trans "Khi time sync bật, Agent chỉ nên đồng bộ trong khung giờ ít người chấm công. Mặc định chỉ cảnh báo drift, chưa auto sync." %}
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="mt-3 d-flex gap-2">
-      <button class="btn btn-primary btn-sm" type="submit">{% trans "Lưu" %}</button>
-      <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}">{% trans "Hủy" %}</a>
+    <div class="bo-form-actions">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-device-floppy me-1"></i>{% trans "Lưu" %}</button>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}"><i class="ti ti-x me-1"></i>{% trans "Hủy" %}</a>
     </div>
   </form>
 {% endblock %}

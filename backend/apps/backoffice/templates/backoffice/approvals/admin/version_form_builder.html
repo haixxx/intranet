@@ -2,48 +2,59 @@
 {% load i18n %}
 {% block title %}{% if create %}Tạo{% else %}Sửa{% endif %} Phiên bản (Builder){% endblock %}
 {% block content %}
-<h5 class="mb-3">{% if create %}Tạo{% else %}Sửa{% endif %} Phiên bản (Builder) cho <code>{{ flow.flow_key }}</code></h5>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-route"></i>{% if create %}{% trans "Tạo phiên bản Builder" %}{% else %}{% trans "Sửa phiên bản Builder" %}{% endif %}</h2>
+    <div class="bo-page-subtitle"><code>{{ flow.flow_key }}</code> · {% trans "Cấu hình thứ tự bước, ngưỡng ký và resolver người ký." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_list' flow.id %}"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a>
+  </div>
+</div>
 
 {% if form.non_field_errors %}
-  <div class="alert alert-danger">
+  <div class="bo-alert bo-alert-danger">
     {% for e in form.non_field_errors %}
       <div>{{ e }}</div>
     {% endfor %}
   </div>
 {% endif %}
 
-<form method="post" id="builderForm">
+<form method="post" id="builderForm" class="card bo-form-card approval-builder-card">
   {% csrf_token %}
-
-  <div class="mb-2">
-    <label class="form-label">Phiên bản</label>
-    {{ form.version }}
-    <div class="form-text">Nếu để trống khi tạo mới, hệ thống tự tăng version.</div>
-  </div>
-  <div class="mb-2">
-    <label class="form-label">Ghi chú</label>
-    {{ form.notes }}
-  </div>
-  <div class="mb-2">
-    <label class="form-label">Kích hoạt</label>
-    {{ form.is_active }}
-  </div>
-
-  <hr>
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <h6 class="mb-0">Các bước trong luồng</h6>
-    <div class="d-flex gap-2">
-      <input type="number" min="1" id="stepsCount" class="form-control form-control-sm" placeholder="Số bước" style="width:120px" value="{{ form.steps_count.value|default:'' }}">
-      <button class="btn btn-outline-secondary btn-sm" type="button" id="btnInitSteps">Khởi tạo</button>
-      <button class="btn btn-primary btn-sm" type="button" id="btnAddStep">Thêm bước</button>
+  <div class="card-body">
+    <div class="bo-form-grid">
+      <div>
+        <label class="form-label">Phiên bản</label>
+        {{ form.version }}
+        <div class="text-muted small mt-1">Nếu để trống khi tạo mới, hệ thống tự tăng version.</div>
+      </div>
+      <div>
+        <label class="form-label">Kích hoạt</label>
+        <div class="form-check mt-2">{{ form.is_active }}</div>
+      </div>
+      <div class="bo-form-field-full">
+        <label class="form-label">Ghi chú</label>
+        {{ form.notes }}
+      </div>
     </div>
-  </div>
+
+    <hr>
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <h3 class="bo-section-title"><i class="ti ti-list-check"></i>Các bước trong luồng</h3>
+      <div class="d-flex gap-2 flex-wrap">
+        <input type="number" min="1" id="stepsCount" class="form-control form-control-sm approval-steps-count" placeholder="Số bước" value="{{ form.steps_count.value|default:'' }}">
+        <button class="btn btn-outline-secondary btn-sm" type="button" id="btnInitSteps">Khởi tạo</button>
+        <button class="btn btn-primary btn-sm" type="button" id="btnAddStep"><i class="ti ti-plus"></i> Thêm bước</button>
+      </div>
+    </div>
 
   <div id="stepsContainer">
     {% if initial_steps %}
       {% for st in initial_steps %}
         {% with idx=forloop.counter %}
-        <div class="card mb-2 step-card" data-idx="{{ idx }}">
+        <div class="card mb-2 step-card approval-step-card" data-idx="{{ idx }}">
           <div class="card-header d-flex justify-content-between align-items-center">
             <strong>Bước #{{ idx }}</strong>
             <button class="btn btn-outline-danger btn-sm" type="button" onclick="removeStep(this)">Xóa</button>
@@ -87,7 +98,7 @@
             <div class="mb-2"><strong>Tham số theo loại bước</strong></div>
 
             <!-- EXPLICIT_USERS params -->
-            <div class="row g-2 type-explicit-users" data-idx="{{ idx }}" {% if st.type != 'EXPLICIT_USERS' %}style="display:none"{% endif %}>
+            <div class="row g-2 type-explicit-users {% if st.type != 'EXPLICIT_USERS' %}bo-js-hidden{% endif %}" data-idx="{{ idx }}">
               <div class="col-md-8">
                 <label class="form-label">User IDs</label>
                 <div class="input-group input-group-sm">
@@ -99,7 +110,7 @@
             </div>
 
             <!-- UNIT_LEADERS params -->
-            <div class="row g-2 mt-1 type-unit-leaders" data-idx="{{ idx }}" {% if st.type != 'UNIT_LEADERS' %}style="display:none"{% endif %}>
+            <div class="row g-2 mt-1 type-unit-leaders {% if st.type != 'UNIT_LEADERS' %}bo-js-hidden{% endif %}" data-idx="{{ idx }}">
               <div class="col-md-4">
                 <div class="form-check mt-4">
                   <input type="checkbox" class="form-check-input" id="step_{{ idx }}_use_requester_unit" name="step_{{ idx }}_use_requester_unit" {% if st.type == 'UNIT_LEADERS' and st.resolver.use_requester_unit %}checked{% endif %}>
@@ -130,9 +141,10 @@
     {% endif %}
   </div>
 
-  <div class="d-flex gap-2 mt-3">
-    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
-    <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_list' flow.id %}">Hủy</a>
+  </div>
+  <div class="card-footer bo-form-actions">
+    <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-device-floppy"></i> Lưu</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_list' flow.id %}">Hủy</a>
   </div>
 </form>
 
@@ -146,8 +158,8 @@
       </div>
       <div class="modal-body">
         <input type="text" class="form-control form-control-sm mb-2" id="userSearch" placeholder="Tìm theo username / họ tên">
-        <div style="max-height: 60vh; overflow:auto">
-          <table class="table table-sm table-hover">
+        <div class="bo-modal-scroll table-responsive">
+          <table class="table table-sm table-hover bo-table bo-table-compact mb-0">
             <thead><tr><th></th><th>Username</th><th>Họ tên</th><th>Email</th></tr></thead>
             <tbody id="usersTableBody">
               {% for u in users_qs %}
@@ -180,8 +192,8 @@
       </div>
       <div class="modal-body">
         <input type="text" class="form-control form-control-sm mb-2" id="unitSearch" placeholder="Tìm theo tên / mã">
-        <div style="max-height: 60vh; overflow:auto">
-          <table class="table table-sm table-hover">
+        <div class="bo-modal-scroll table-responsive">
+          <table class="table table-sm table-hover bo-table bo-table-compact mb-0">
             <thead><tr><th></th><th>Tên đơn vị</th></tr></thead>
             <tbody id="unitsTableBody">
               {% for u in units_qs %}
@@ -217,7 +229,7 @@ function addStep(idx) {
   const container = document.getElementById('stepsContainer');
   const unitOptions = (window.__unitsOptionsHtml || '');
   const html = `
-    <div class="card mb-2 step-card" data-idx="${idx}">
+    <div class="card mb-2 step-card approval-step-card" data-idx="${idx}">
       <div class="card-header d-flex justify-content-between align-items-center">
         <strong>Bước #${idx}</strong>
         <button class="btn btn-outline-danger btn-sm" type="button" onclick="removeStep(this)">Xóa</button>
@@ -273,7 +285,7 @@ function addStep(idx) {
         </div>
 
         <!-- UNIT_LEADERS -->
-        <div class="row g-2 mt-1 type-unit-leaders" data-idx="${idx}" style="display:none">
+        <div class="row g-2 mt-1 type-unit-leaders bo-js-hidden" data-idx="${idx}">
           <div class="col-md-4">
             <div class="form-check mt-4">
               <input type="checkbox" class="form-check-input" id="step_${idx}_use_requester_unit" name="step_${idx}_use_requester_unit">
@@ -316,8 +328,8 @@ function updateStepParamsVisibility(idx, typeVal) {
   const leaders = card.querySelector('.type-unit-leaders');
 
   if (typeVal === 'EXPLICIT_USERS') {
-    explicit.style.display = '';
-    leaders.style.display = 'none';
+    explicit.classList.remove('bo-js-hidden');
+    leaders.classList.add('bo-js-hidden');
     // disable unit inputs
     const unitSelect = card.querySelector('[name="step_'+idx+'_unit_id"]');
     const useReq = card.querySelector('#step_'+idx+'_use_requester_unit');
@@ -327,8 +339,8 @@ function updateStepParamsVisibility(idx, typeVal) {
     const userIds = card.querySelector('[name="step_'+idx+'_user_ids"]');
     if (userIds) userIds.disabled = false;
   } else {
-    explicit.style.display = 'none';
-    leaders.style.display = '';
+    explicit.classList.add('bo-js-hidden');
+    leaders.classList.remove('bo-js-hidden');
     // disable user ids
     const userIds = card.querySelector('[name="step_'+idx+'_user_ids"]');
     if (userIds) userIds.disabled = true;

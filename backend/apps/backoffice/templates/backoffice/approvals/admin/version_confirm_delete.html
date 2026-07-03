@@ -1,0 +1,28 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Xóa phiên bản luồng" %}{% endblock %}
+{% block content %}
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-trash"></i>{% trans "Xóa phiên bản luồng" %}</h2>
+    <div class="bo-page-subtitle"><code>{{ flow.flow_key }}</code></div>
+  </div>
+</div>
+<div class="card bo-confirm-card">
+  <div class="card-body">
+    <h3 class="bo-confirm-title">{% trans "Bạn chắc chắn muốn xóa phiên bản này?" %}</h3>
+    <dl class="bo-confirm-summary">
+      <dt>{% trans "Luồng" %}</dt><dd>{{ flow.name }}</dd>
+      <dt>{% trans "Phiên bản" %}</dt><dd><strong>v{{ obj.version }}</strong></dd>
+    </dl>
+  </div>
+  <div class="card-footer bo-form-actions">
+    <form method="post" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-danger btn-sm" type="submit"><i class="ti ti-trash"></i> {% trans "Xóa" %}</button>
+    </form>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_list' flow.id %}">{% trans "Hủy" %}</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,56 +1,86 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Nhật ký (Audit)" %}{% endblock %}
+{% block title %}{% trans "Nhật ký hệ thống" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Nhật ký (Audit)" %}</h2>
-<form method="get" class="mb-3">
-  <div class="input-group">
-    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="{% trans 'Tìm action/object/user' %}">
-    <button class="btn btn-primary">{% trans "Tìm" %}</button>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-history"></i>{% trans "Nhật ký hệ thống" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Tra cứu thao tác, đối tượng bị tác động, người thực hiện và thông tin bổ sung." %}</div>
+  </div>
+</div>
+
+<form method="get" class="card card-body bo-filter-card mb-3">
+  <div class="bo-filter-grid bo-filter-grid-3">
+    <div>
+      <label class="form-label">{% trans "Tìm kiếm" %}</label>
+      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="{% trans 'Tìm action / object / user' %}">
+    </div>
+    <div>
+      <label class="form-label">{% trans "Dòng" %}</label>
+      <select name="page_size" class="form-select form-select-sm">
+        {% for size in page_size_options %}
+          <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}/trang</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm" type="submit">{% trans "Lọc" %}</button>
+      <a href="{% url 'backoffice:audit_list' %}" class="btn btn-outline-secondary btn-sm">{% trans "Xóa lọc" %}</a>
+    </div>
   </div>
 </form>
-<div class="table-responsive">
-  <table class="table table-sm table-striped">
-    <thead>
-      <tr>
-        <th>{% trans "Thời gian" %}</th>
-        <th>{% trans "Người thực hiện" %}</th>
-        <th>{% trans "Hành động" %}</th>
-        <th>{% trans "Đối tượng" %}</th>
-        <th>{% trans "Mã" %}</th>
-        <th>{% trans "Thay đổi/Bổ sung" %}</th>
-        <th>{% trans "IP" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for log in logs %}
-        <tr>
-          <td style="white-space:nowrap">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
-          <td>
-            {% if log.actor %}
-              {{ log.actor.username }}
-            {% else %}
-              —
-            {% endif %}
-          </td>
-          <td><code>{{ log.action_verb }}</code></td>
-          <td>{{ log.object_type }}: {{ log.object_id }}<br><small class="text-muted">{{ log.object_repr }}</small></td>
-          <td><code>{{ log.action_code }}</code></td>
-          <td style="max-width:380px; font-size:12px;">
-            {% if log.changes %}
-              <pre class="mb-0">{{ log.changes }}</pre>
-            {% elif log.extra %}
-              <pre class="mb-0">{{ log.extra }}</pre>
-            {% else %}
-              —
-            {% endif %}
-          </td>
-          <td>{{ log.ip_address|default:"" }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="7" class="text-muted">{% trans "Không có log." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+
+<div class="bo-list-meta">
+  {% trans "Tổng" %}: {{ total_count }} | {% trans "Trang" %} {{ current_page }}/{{ paginator.num_pages }}
 </div>
+
+<div class="card bo-table-card">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle bo-table-compact mb-0">
+      <thead>
+        <tr>
+          <th>{% trans "Thời gian" %}</th>
+          <th>{% trans "Người thực hiện" %}</th>
+          <th>{% trans "Hành động" %}</th>
+          <th>{% trans "Đối tượng" %}</th>
+          <th>{% trans "Mã" %}</th>
+          <th>{% trans "Thay đổi/Bổ sung" %}</th>
+          <th>{% trans "IP" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+          <tr>
+            <td class="bo-text-nowrap">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+              {% if log.actor %}
+                {{ log.actor.username }}
+              {% else %}
+                <span class="bo-muted-dash">—</span>
+              {% endif %}
+            </td>
+            <td><code>{{ log.action_verb }}</code></td>
+            <td>{{ log.object_type }}: {{ log.object_id }}<br><small class="text-muted">{{ log.object_repr }}</small></td>
+            <td><code>{{ log.action_code }}</code></td>
+            <td>
+              {% if log.changes %}
+                <pre class="mb-0 bo-pre-wrap">{{ log.changes }}</pre>
+              {% elif log.extra %}
+                <pre class="mb-0 bo-pre-wrap">{{ log.extra }}</pre>
+              {% else %}
+                <span class="bo-muted-dash">—</span>
+              {% endif %}
+            </td>
+            <td>{{ log.ip_address|default:"" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="bo-empty-cell">{% trans "Không có log." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "backoffice/includes/pagination.html" %}
 {% endblock %}

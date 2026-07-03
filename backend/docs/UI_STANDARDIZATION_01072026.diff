@@ -1,0 +1,1015 @@
+diff -ruN ui_original_clean/apps/backoffice/services/dashboard/daily.py ui_patch_work/apps/backoffice/services/dashboard/daily.py
+--- ui_original_clean/apps/backoffice/services/dashboard/daily.py	2026-06-30 20:35:40.000000000 +0000
++++ ui_patch_work/apps/backoffice/services/dashboard/daily.py	2026-07-01 07:59:49.331519148 +0000
+@@ -200,16 +200,16 @@
+             rate = percent_value(present, planned_count)
+             if (unit.id, self.work_date) in commit_keys:
+                 status = "Đã chốt"
+-                badge = "bg-success text-white"
++                badge = "bo-badge-success"
+             elif (unit.id, self.work_date) in batch_keys:
+                 status = "Đang nháp"
+-                badge = "bg-primary text-white"
++                badge = "bo-badge-primary"
+             elif (unit.id, self.work_date) in locked_keys:
+                 status = "Cần kiểm tra"
+-                badge = "badge-soft-danger"
++                badge = "bo-badge-danger"
+             else:
+                 status = "Chưa tạo"
+-                badge = "badge-soft-neutral"
++                badge = "bo-badge-secondary"
+             rows.append({
+                 "unit_symbol": unit_symbol(unit),
+                 "unit_label": unit_label(unit),
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/approvals/admin/version_form_builder.html ui_patch_work/apps/backoffice/templates/backoffice/approvals/admin/version_form_builder.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/approvals/admin/version_form_builder.html	2026-07-01 14:42:42.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/approvals/admin/version_form_builder.html	2026-07-01 08:00:19.051528435 +0000
+@@ -44,7 +44,7 @@
+     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+       <h3 class="bo-section-title"><i class="ti ti-list-check"></i>Các bước trong luồng</h3>
+       <div class="d-flex gap-2 flex-wrap">
+-        <input type="number" min="1" id="stepsCount" class="form-control form-control-sm" placeholder="Số bước" style="width:120px" value="{{ form.steps_count.value|default:'' }}">
++        <input type="number" min="1" id="stepsCount" class="form-control form-control-sm approval-steps-count" placeholder="Số bước" value="{{ form.steps_count.value|default:'' }}">
+         <button class="btn btn-outline-secondary btn-sm" type="button" id="btnInitSteps">Khởi tạo</button>
+         <button class="btn btn-primary btn-sm" type="button" id="btnAddStep"><i class="ti ti-plus"></i> Thêm bước</button>
+       </div>
+@@ -98,7 +98,7 @@
+             <div class="mb-2"><strong>Tham số theo loại bước</strong></div>
+ 
+             <!-- EXPLICIT_USERS params -->
+-            <div class="row g-2 type-explicit-users" data-idx="{{ idx }}" {% if st.type != 'EXPLICIT_USERS' %}style="display:none"{% endif %}>
++            <div class="row g-2 type-explicit-users {% if st.type != 'EXPLICIT_USERS' %}bo-js-hidden{% endif %}" data-idx="{{ idx }}">
+               <div class="col-md-8">
+                 <label class="form-label">User IDs</label>
+                 <div class="input-group input-group-sm">
+@@ -110,7 +110,7 @@
+             </div>
+ 
+             <!-- UNIT_LEADERS params -->
+-            <div class="row g-2 mt-1 type-unit-leaders" data-idx="{{ idx }}" {% if st.type != 'UNIT_LEADERS' %}style="display:none"{% endif %}>
++            <div class="row g-2 mt-1 type-unit-leaders {% if st.type != 'UNIT_LEADERS' %}bo-js-hidden{% endif %}" data-idx="{{ idx }}">
+               <div class="col-md-4">
+                 <div class="form-check mt-4">
+                   <input type="checkbox" class="form-check-input" id="step_{{ idx }}_use_requester_unit" name="step_{{ idx }}_use_requester_unit" {% if st.type == 'UNIT_LEADERS' and st.resolver.use_requester_unit %}checked{% endif %}>
+@@ -158,8 +158,8 @@
+       </div>
+       <div class="modal-body">
+         <input type="text" class="form-control form-control-sm mb-2" id="userSearch" placeholder="Tìm theo username / họ tên">
+-        <div style="max-height: 60vh; overflow:auto">
+-          <table class="table table-sm table-hover bo-table bo-table-compact">
++        <div class="bo-modal-scroll table-responsive">
++          <table class="table table-sm table-hover bo-table bo-table-compact mb-0">
+             <thead><tr><th></th><th>Username</th><th>Họ tên</th><th>Email</th></tr></thead>
+             <tbody id="usersTableBody">
+               {% for u in users_qs %}
+@@ -192,8 +192,8 @@
+       </div>
+       <div class="modal-body">
+         <input type="text" class="form-control form-control-sm mb-2" id="unitSearch" placeholder="Tìm theo tên / mã">
+-        <div style="max-height: 60vh; overflow:auto">
+-          <table class="table table-sm table-hover bo-table bo-table-compact">
++        <div class="bo-modal-scroll table-responsive">
++          <table class="table table-sm table-hover bo-table bo-table-compact mb-0">
+             <thead><tr><th></th><th>Tên đơn vị</th></tr></thead>
+             <tbody id="unitsTableBody">
+               {% for u in units_qs %}
+@@ -285,7 +285,7 @@
+         </div>
+ 
+         <!-- UNIT_LEADERS -->
+-        <div class="row g-2 mt-1 type-unit-leaders" data-idx="${idx}" style="display:none">
++        <div class="row g-2 mt-1 type-unit-leaders bo-js-hidden" data-idx="${idx}">
+           <div class="col-md-4">
+             <div class="form-check mt-4">
+               <input type="checkbox" class="form-check-input" id="step_${idx}_use_requester_unit" name="step_${idx}_use_requester_unit">
+@@ -328,8 +328,8 @@
+   const leaders = card.querySelector('.type-unit-leaders');
+ 
+   if (typeVal === 'EXPLICIT_USERS') {
+-    explicit.style.display = '';
+-    leaders.style.display = 'none';
++    explicit.classList.remove('bo-js-hidden');
++    leaders.classList.add('bo-js-hidden');
+     // disable unit inputs
+     const unitSelect = card.querySelector('[name="step_'+idx+'_unit_id"]');
+     const useReq = card.querySelector('#step_'+idx+'_use_requester_unit');
+@@ -339,8 +339,8 @@
+     const userIds = card.querySelector('[name="step_'+idx+'_user_ids"]');
+     if (userIds) userIds.disabled = false;
+   } else {
+-    explicit.style.display = 'none';
+-    leaders.style.display = '';
++    explicit.classList.add('bo-js-hidden');
++    leaders.classList.remove('bo-js-hidden');
+     // disable user ids
+     const userIds = card.querySelector('[name="step_'+idx+'_user_ids"]');
+     if (userIds) userIds.disabled = true;
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/approvals/inbox.html ui_patch_work/apps/backoffice/templates/backoffice/approvals/inbox.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/approvals/inbox.html	2026-07-01 14:40:32.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/approvals/inbox.html	2026-07-01 08:00:46.054655161 +0000
+@@ -94,4 +94,5 @@
+     </table>
+   </div>
+ </div>
++{% include "backoffice/includes/pagination.html" %}
+ {% endblock %}
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/approvals/my_requests.html ui_patch_work/apps/backoffice/templates/backoffice/approvals/my_requests.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/approvals/my_requests.html	2026-07-01 14:40:32.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/approvals/my_requests.html	2026-07-01 08:00:46.054913210 +0000
+@@ -76,4 +76,5 @@
+     </table>
+   </div>
+ </div>
++{% include "backoffice/includes/pagination.html" %}
+ {% endblock %}
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/common/import.html ui_patch_work/apps/backoffice/templates/backoffice/common/import.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/common/import.html	2026-06-03 14:23:48.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/common/import.html	2026-07-01 08:00:19.052830776 +0000
+@@ -2,13 +2,16 @@
+ {% load i18n %}
+ {% block title %}{{ title }}{% endblock %}
+ {% block content %}
+-<div class="page-title-block">
+-  <div class="page-pretitle">{% trans "Import dữ liệu" %}</div>
+-  <h2 class="mb-1">{{ title }}</h2>
+-  <div class="text-muted">{{ note }}</div>
++<div class="bo-page-header">
++  <div class="bo-page-heading">
++    <div class="bo-page-pretitle">{% trans "Import dữ liệu" %}</div>
++    <h2 class="bo-page-title">{{ title }}</h2>
++    <div class="bo-page-subtitle">{{ note }}</div>
++  </div>
+ </div>
+ 
+-<div class="card card-body">
++<div class="card bo-form-card">
++  <div class="card-body">
+   <form method="post" enctype="multipart/form-data" action="{% url post_url %}">
+     {% csrf_token %}
+     <div class="mb-3">
+@@ -19,8 +22,9 @@
+     <a href="javascript:history.back()" class="btn btn-secondary">{% trans "Hủy" %}</a>
+   </form>
+ </div>
++</div>
+ 
+-<div class="alert alert-info mt-3">
++<div class="bo-alert bo-alert-info mt-3">
+   <strong>{% trans "Khuyến nghị:" %}</strong>
+   {% trans "Nên xuất file Excel hiện tại làm mẫu trước, chỉnh sửa trên file đó rồi nhập lại để tránh sai header." %}
+ </div>
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/dashboard.html ui_patch_work/apps/backoffice/templates/backoffice/dashboard.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/dashboard.html	2026-06-30 16:10:48.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/dashboard.html	2026-07-01 07:59:49.330688374 +0000
+@@ -3,72 +3,14 @@
+ 
+ {% block title %}{% trans "Tổng quan hệ thống" %}{% endblock %}
+ 
+-{% block extra_head %}
+-<style>
+-  .overview-filter-card .form-label { font-size: .75rem; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: .03em; }
+-  .overview-mode .btn { min-width: 7.5rem; }
+-  .overview-kpi-card { height: 100%; }
+-  .overview-kpi-icon { width: 2.5rem; height: 2.5rem; display: inline-flex; align-items: center; justify-content: center; border-radius: .75rem; font-size: 1.35rem; }
+-  .overview-kpi-icon.primary { background: #e7f1ff; color: #0d6efd; }
+-  .overview-kpi-icon.success { background: #d1e7dd; color: #0f5132; }
+-  .overview-kpi-icon.warning { background: #fff3cd; color: #664d03; }
+-  .overview-kpi-icon.danger { background: #f8d7da; color: #842029; }
+-  .overview-kpi-icon.info { background: #cff4fc; color: #055160; }
+-  .overview-kpi-link { color: inherit; text-decoration: none; }
+-  .overview-kpi-link:hover .card { box-shadow: 0 .35rem 1rem rgba(15, 23, 42, .08); transform: translateY(-1px); transition: .15s ease; }
+-  .badge-soft-neutral { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
+-  .badge-soft-warning { background: #fff3cd; color: #664d03; }
+-  .badge-soft-danger { background: #f8d7da; color: #842029; }
+-  .overview-section-row { align-items: stretch; }
+-  .overview-section-row > [class*="col-"] { display: flex; flex-direction: column; }
+-  .overview-section-row > [class*="col-"] > .card { width: 100%; height: 100%; }
+-  .overview-side-stack { height: 100%; display: flex; flex-direction: column; gap: 1rem; }
+-  .overview-side-stack > .card { width: 100%; }
+-  .overview-side-stack .card-fill { flex: 1 1 auto; }
+-  .overview-card-header { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; min-height: 4rem; padding-top: .85rem; padding-bottom: .85rem; }
+-  .overview-card-header .card-title { line-height: 1.25; }
+-  .overview-card-subtitle { color: #6c757d; font-size: .8125rem; line-height: 1.35; margin-top: .15rem; }
+-  .table-responsive.overview-table-wrap { width: 100%; }
+-  .table-compact { table-layout: fixed; width: 100%; min-width: 100%; }
+-  .table-compact th, .table-compact td { padding: .45rem .55rem; vertical-align: middle; }
+-  .table-compact th { white-space: nowrap; font-size: .73rem; color: #6c757d; text-transform: uppercase; letter-spacing: .03em; }
+-  .table-compact td { overflow: hidden; text-overflow: ellipsis; }
+-  .table-presence .col-unit { width: 4.75rem; }
+-  .table-presence .col-number { width: 5.75rem; }
+-  .table-presence .col-rate { width: 5rem; }
+-  .table-presence .col-status { width: 7.25rem; }
+-  .table-actions .action-level { width: 4rem; }
+-  .table-actions .col-module { width: 7.25rem; }
+-  .table-actions .col-number { width: 4.5rem; }
+-  .table-actions .col-action { width: 4.5rem; }
+-  .table-device .col-device { width: auto; }
+-  .table-device .col-unit { width: 4.5rem; }
+-  .table-device .col-status { width: 6.75rem; }
+-  .table-ranking .col-unit { width: 5rem; }
+-  .table-ranking .col-number { width: 7rem; }
+-  .col-unit { width: 5rem; max-width: 5rem; white-space: nowrap; }
+-  .col-status { width: 8rem; max-width: 8rem; white-space: nowrap; }
+-  .col-number { width: 6rem; max-width: 6rem; text-align: right; white-space: nowrap; }
+-  .col-rate { width: 5rem; max-width: 5rem; text-align: right; white-space: nowrap; }
+-  .col-module { width: 8rem; max-width: 8rem; white-space: nowrap; }
+-  .col-action { width: 4.75rem; max-width: 4.75rem; text-align: right; white-space: nowrap; }
+-  .section-anchor { scroll-margin-top: 1rem; }
+-  .chart-box { min-height: 260px; }
+-  .action-level { width: 4.5rem; max-width: 4.5rem; white-space: nowrap; }
+-  @media (max-width: 1399.98px) {
+-    .overview-section-row > [class*="col-xl-"] { margin-bottom: 1rem; }
+-    .overview-section-row > [class*="col-xl-"]:last-child { margin-bottom: 0; }
+-  }
+-  .quick-link-card { text-decoration: none; color: inherit; }
+-  .quick-link-card:hover .card { box-shadow: 0 .35rem 1rem rgba(15, 23, 42, .08); }
+-</style>
+-{% endblock %}
++
+ 
+ {% block content %}
+-  <div class="page-title-block d-flex flex-column flex-lg-row align-items-lg-end justify-content-between gap-3">
+-    <div>
+-      <h2 class="mb-1">{% trans "Tổng quan hệ thống" %}</h2>
+-      <div class="text-muted">
++  <div class="bo-page-header">
++    <div class="bo-page-heading">
++      <div class="bo-page-pretitle">{% trans "Điều hành" %}</div>
++      <h2 class="bo-page-title">{% trans "Tổng quan hệ thống" %}</h2>
++      <div class="bo-page-subtitle">
+         {% if mode == "period" %}
+           {% trans "Phân tích xu hướng nhân sự, công và chấm công theo kỳ." %}
+         {% else %}
+@@ -76,7 +18,7 @@
+         {% endif %}
+       </div>
+     </div>
+-    <div class="d-flex flex-wrap gap-2">
++    <div class="bo-page-actions">
+       {% for link in quick_links %}
+         <a class="btn btn-outline-primary btn-sm" href="{{ link.url }}">
+           <i class="ti {{ link.icon }} me-1"></i>{{ link.label }}
+@@ -85,10 +27,10 @@
+     </div>
+   </div>
+ 
+-  <div class="card overview-filter-card mb-3">
++  <div class="card bo-filter-card overview-filter-card">
+     <div class="card-body">
+-      <form method="get" class="row g-2 align-items-end" id="overview-filter-form">
+-        <div class="col-12 col-xl-auto">
++      <form method="get" class="bo-filter-grid bo-filter-grid-dashboard" id="overview-filter-form">
++        <div class="bo-filter-mode">
+           <label class="form-label d-block">{% trans "Chế độ" %}</label>
+           <div class="btn-group overview-mode" role="group">
+             <input type="radio" class="btn-check" name="mode" id="mode-daily" value="daily" {% if mode == "daily" %}checked{% endif %}>
+@@ -98,20 +40,20 @@
+           </div>
+         </div>
+ 
+-        <div class="col-6 col-md-3 col-xl-2 filter-daily">
++        <div class="filter-daily">
+           <label class="form-label">{% trans "Ngày" %}</label>
+           <input type="date" class="form-control" name="date" value="{{ filters.work_date|date:'Y-m-d' }}">
+         </div>
+ 
+-        <div class="col-6 col-md-3 col-xl-2 filter-period">
++        <div class="filter-period">
+           <label class="form-label">{% trans "Từ ngày" %}</label>
+           <input type="date" class="form-control" name="from_date" value="{{ filters.from_date|date:'Y-m-d' }}">
+         </div>
+-        <div class="col-6 col-md-3 col-xl-2 filter-period">
++        <div class="filter-period">
+           <label class="form-label">{% trans "Đến ngày" %}</label>
+           <input type="date" class="form-control" name="to_date" value="{{ filters.to_date|date:'Y-m-d' }}">
+         </div>
+-        <div class="col-12 col-md-4 col-xl-3">
++        <div class="bo-filter-unit">
+           <label class="form-label">{% trans "Phạm vi đơn vị" %}</label>
+           <select class="form-select" name="unit">
+             <option value="">{% trans "Tất cả đơn vị được phân quyền" %}</option>
+@@ -121,7 +63,7 @@
+           </select>
+         </div>
+ 
+-        <div class="col-12 col-md-auto d-flex gap-2">
++        <div class="bo-filter-actions">
+           <button type="submit" class="btn btn-primary">
+             <i class="ti ti-filter me-1"></i>{% trans "Xem" %}
+           </button>
+@@ -170,7 +112,7 @@
+             <canvas id="unitPresenceChart"></canvas>
+           </div>
+           <div class="table-responsive overview-table-wrap">
+-            <table class="table table-vcenter table-compact table-presence mb-0">
++            <table class="table table-vcenter bo-table bo-table-compact overview-table-compact table-presence mb-0">
+               <thead>
+                 <tr>
+                   <th class="col-unit">{% trans "ĐV" %}</th>
+@@ -189,10 +131,10 @@
+                     <td class="col-number">{{ row.present }}</td>
+                     <td class="col-number {% if row.not_present %}text-danger fw-semibold{% endif %}">{{ row.not_present }}</td>
+                     <td class="col-rate">{{ row.presence_rate_label }}</td>
+-                    <td class="col-status"><span class="badge {{ row.badge }}">{{ row.status }}</span></td>
++                    <td class="col-status"><span class="bo-badge {{ row.badge }}">{{ row.status }}</span></td>
+                   </tr>
+                 {% empty %}
+-                  <tr><td colspan="6" class="text-muted text-center py-4">{% trans "Chưa có dữ liệu phù hợp." %}</td></tr>
++                  <tr><td colspan="6" class="bo-empty-cell">{% trans "Chưa có dữ liệu phù hợp." %}</td></tr>
+                 {% endfor %}
+               </tbody>
+             </table>
+@@ -251,13 +193,13 @@
+         <div class="card section-anchor">
+           <div class="card-header overview-card-header"><h3 class="card-title mb-0">{% trans "Top đơn vị nghỉ nhiều:" %}</h3></div>
+           <div class="table-responsive overview-table-wrap">
+-            <table class="table table-vcenter table-compact table-ranking mb-0">
++            <table class="table table-vcenter bo-table bo-table-compact overview-table-compact table-ranking mb-0">
+               <thead><tr><th class="col-unit">{% trans "ĐV" %}</th><th class="col-number">{% trans "Lượt nghỉ" %}</th></tr></thead>
+               <tbody>
+                 {% for row in top_leave_units %}
+                   <tr title="{{ row.unit_label }}"><td class="col-unit">{{ row.unit }}</td><td class="col-number fw-semibold">{{ row.leave }}</td></tr>
+                 {% empty %}
+-                  <tr><td colspan="2" class="text-muted text-center py-4">{% trans "Chưa có dữ liệu nghỉ." %}</td></tr>
++                  <tr><td colspan="2" class="bo-empty-cell">{% trans "Chưa có dữ liệu nghỉ." %}</td></tr>
+                 {% endfor %}
+               </tbody>
+             </table>
+@@ -268,13 +210,13 @@
+         <div class="card section-anchor">
+           <div class="card-header overview-card-header"><h3 class="card-title mb-0">{% trans "Top đơn vị làm thêm:" %}</h3></div>
+           <div class="table-responsive overview-table-wrap">
+-            <table class="table table-vcenter table-compact table-ranking mb-0">
++            <table class="table table-vcenter bo-table bo-table-compact overview-table-compact table-ranking mb-0">
+               <thead><tr><th class="col-unit">{% trans "ĐV" %}</th><th class="col-number">{% trans "Giờ" %}</th></tr></thead>
+               <tbody>
+                 {% for row in top_overtime_units %}
+                   <tr title="{{ row.unit_label }}"><td class="col-unit">{{ row.unit }}</td><td class="col-number fw-semibold">{{ row.overtime }}</td></tr>
+                 {% empty %}
+-                  <tr><td colspan="2" class="text-muted text-center py-4">{% trans "Chưa có dữ liệu làm thêm." %}</td></tr>
++                  <tr><td colspan="2" class="bo-empty-cell">{% trans "Chưa có dữ liệu làm thêm." %}</td></tr>
+                 {% endfor %}
+               </tbody>
+             </table>
+@@ -292,7 +234,7 @@
+           <div class="overview-card-subtitle">{% trans "Gom cảnh báo quan trọng từ nhân sự, quản lý công và quản lý chấm công." %}</div>
+         </div>
+         <div class="table-responsive overview-table-wrap">
+-          <table class="table table-vcenter table-compact table-actions mb-0">
++          <table class="table table-vcenter bo-table bo-table-compact overview-table-compact table-actions mb-0">
+             <thead>
+               <tr>
+                 <th class="action-level">{% trans "Mức" %}</th>
+@@ -307,11 +249,11 @@
+                 <tr>
+                   <td class="action-level">
+                     {% if item.level == "danger" %}
+-                      <span class="badge bg-danger text-white">{% trans "Đỏ" %}</span>
++                      <span class="bo-badge bo-badge-danger">{% trans "Đỏ" %}</span>
+                     {% elif item.level == "warning" %}
+-                      <span class="badge badge-soft-warning">{% trans "Vàng" %}</span>
++                      <span class="bo-badge bo-badge-warning">{% trans "Vàng" %}</span>
+                     {% else %}
+-                      <span class="badge badge-soft-neutral">{% trans "TT" %}</span>
++                      <span class="bo-badge bo-badge-secondary">{% trans "TT" %}</span>
+                     {% endif %}
+                   </td>
+                   <td>
+@@ -323,7 +265,7 @@
+                   <td class="col-action"><a class="btn btn-sm btn-outline-primary" href="{{ item.url }}">{% trans "Xem" %}</a></td>
+                 </tr>
+               {% empty %}
+-                <tr><td colspan="5" class="text-center text-muted py-4">{% trans "Chưa có cảnh báo cần xử lý trong phạm vi lọc." %}</td></tr>
++                <tr><td colspan="5" class="bo-empty-cell">{% trans "Chưa có cảnh báo cần xử lý trong phạm vi lọc." %}</td></tr>
+               {% endfor %}
+             </tbody>
+           </table>
+@@ -339,7 +281,7 @@
+           <div class="overview-card-subtitle">{{ device_summary.online }}/{{ device_summary.total }} {% trans "thiết bị online" %}</div>
+         </div>
+         <div class="table-responsive overview-table-wrap">
+-          <table class="table table-vcenter table-compact table-device mb-0">
++          <table class="table table-vcenter bo-table bo-table-compact overview-table-compact table-device mb-0">
+             <thead><tr><th class="col-device">{% trans "Thiết bị" %}</th><th class="col-unit">{% trans "ĐV" %}</th><th class="col-status">{% trans "Trạng thái" %}</th></tr></thead>
+             <tbody>
+               {% for row in device_summary.rows %}
+@@ -348,16 +290,20 @@
+                   <td class="col-unit">{{ row.unit }}</td>
+                   <td class="col-status">
+                     {% if row.badge == "warning" %}
+-                      <span class="badge bg-warning text-dark">{{ row.status }}</span>
+-                    {% elif row.badge == "secondary" %}
+-                      <span class="badge bg-secondary text-white">{{ row.status }}</span>
++                      <span class="bo-badge bo-badge-warning">{{ row.status }}</span>
++                    {% elif row.badge == "danger" %}
++                      <span class="bo-badge bo-badge-danger">{{ row.status }}</span>
++                    {% elif row.badge == "success" %}
++                      <span class="bo-badge bo-badge-success">{{ row.status }}</span>
++                    {% elif row.badge == "info" %}
++                      <span class="bo-badge bo-badge-info">{{ row.status }}</span>
+                     {% else %}
+-                      <span class="badge bg-{{ row.badge }} text-white">{{ row.status }}</span>
++                      <span class="bo-badge bo-badge-secondary">{{ row.status }}</span>
+                     {% endif %}
+                   </td>
+                 </tr>
+               {% empty %}
+-                <tr><td colspan="3" class="text-center text-muted py-4">{% trans "Không có thiết bị cần kiểm tra." %}</td></tr>
++                <tr><td colspan="3" class="bo-empty-cell">{% trans "Không có thiết bị cần kiểm tra." %}</td></tr>
+               {% endfor %}
+             </tbody>
+           </table>
+@@ -386,7 +332,7 @@
+               {% for item in block.items %}
+                 <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="{{ item.url }}">
+                   <span>{{ item.label }}</span>
+-                  <span class="badge badge-soft-neutral">{{ item.value }}</span>
++                  <span class="bo-badge bo-badge-secondary">{{ item.value }}</span>
+                 </a>
+               {% endfor %}
+             </div>
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/hr/assignments/list.html ui_patch_work/apps/backoffice/templates/backoffice/hr/assignments/list.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/hr/assignments/list.html	2026-06-30 23:22:46.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/hr/assignments/list.html	2026-07-01 08:01:36.324007445 +0000
+@@ -1,6 +1,7 @@
+ {% extends "backoffice/base.html" %}
+ {% load i18n %}
+-{% block title %}{% trans "Điều động tạm thời" %}{% endblock %}
++{% block title %}{% trans "Điều động tạm thời" %}{% include "backoffice/includes/pagination.html" %}
++{% endblock %}
+ {% block content %}
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+@@ -134,4 +135,5 @@
+     </table>
+   </div>
+ </div>
++{% include "backoffice/includes/pagination.html" %}
+ {% endblock %}
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/hr/employees/import.html ui_patch_work/apps/backoffice/templates/backoffice/hr/employees/import.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/hr/employees/import.html	2026-06-03 14:23:48.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/hr/employees/import.html	2026-07-01 08:00:19.052550738 +0000
+@@ -2,13 +2,16 @@
+ {% load i18n %}
+ {% block title %}{% trans "Nhập Excel - Nhân sự" %}{% endblock %}
+ {% block content %}
+-<div class="page-title-block">
+-  <div class="page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+-  <h2 class="mb-1">{% trans "Nhập Excel - Nhân sự" %}</h2>
+-  <div class="text-muted">{% trans "Nên chạy thử dry-run trước khi ghi dữ liệu thật." %}</div>
++<div class="bo-page-header">
++  <div class="bo-page-heading">
++    <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
++    <h2 class="bo-page-title"><i class="ti ti-file-spreadsheet"></i>{% trans "Nhập Excel - Nhân sự" %}</h2>
++    <div class="bo-page-subtitle">{% trans "Nên chạy thử dry-run trước khi ghi dữ liệu thật." %}</div>
++  </div>
+ </div>
+ 
+-<form method="post" enctype="multipart/form-data" class="card card-body">
++<form method="post" enctype="multipart/form-data" class="card bo-form-card">
++  <div class="card-body">
+   {% csrf_token %}
+   <div class="row g-3">
+     <div class="col-md-6">
+@@ -52,9 +55,10 @@
+       <a href="{% url 'backoffice:employee_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+     </div>
+   </div>
++</div>
+ </form>
+ 
+-<div class="card mt-4">
++<div class="card bo-card mt-4">
+   <div class="card-header"><h3 class="card-title mb-0">{% trans "Lưu ý import" %}</h3></div>
+   <div class="card-body">
+     <ul class="small mb-0">
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/profile/profile.html ui_patch_work/apps/backoffice/templates/backoffice/profile/profile.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/profile/profile.html	2025-11-14 22:18:50.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/profile/profile.html	2026-07-01 07:59:49.336514252 +0000
+@@ -1,82 +1,111 @@
+-{% extends "backoffice/base.html" %}
+-{% load i18n %}
+-{% block title %}{% trans "Hồ sơ" %}{% endblock %}
+-{% block content %}
+-<h2 class="mb-3">{% trans "Hồ sơ cá nhân" %}</h2>
+-
+-<div class="card card-body mb-4">
+-  <div class="row">
+-    <div class="col-md-6">
+-      <p><strong>{% trans "Tên đăng nhập" %}:</strong> {{ user_obj.username }}</p>
+-      <p><strong>{% trans "Họ tên" %}:</strong> {{ user_obj.full_name }}</p>
+-      <p><strong>{% trans "Email" %}:</strong> {{ user_obj.email }}</p>
+-    </div>
+-  </div>
+-</div>
+-
+-<h4 class="mb-3">{% trans "Cập nhật thông tin" %}</h4>
+-<form method="post" class="card card-body">
+-  {% csrf_token %}
+-  {{ form.non_field_errors }}
+-
+-  <div class="mb-3">
+-    <label class="form-label" for="{{ form.full_name.id_for_label }}">{{ form.full_name.label }}</label>
+-    {{ form.full_name }}
+-    {% for error in form.full_name.errors %}
+-      <div class="text-danger small">{{ error }}</div>
+-    {% endfor %}
+-  </div>
+-
+-  <div class="mb-3">
+-    <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+-    {{ form.email }}
+-    {% for error in form.email.errors %}
+-      <div class="text-danger small">{{ error }}</div>
+-    {% endfor %}
+-  </div>
+-
+-  <div class="form-check form-switch mb-3">
+-    {{ form.change_password }}
+-    <label class="form-check-label ms-2" for="id_change_password">{% trans "Đổi mật khẩu" %}</label>
+-  </div>
+-
+-  <div id="pw_fields" style="display:none;">
+-    <div class="mb-3">
+-      <label class="form-label" for="{{ form.new_password.id_for_label }}">{{ form.new_password.label }}</label>
+-      {{ form.new_password }}
+-      <div class="form-text">{% trans "Mật khẩu tối thiểu 6 ký tự." %}</div>
+-      {% for error in form.new_password.errors %}
+-        <div class="text-danger small">{{ error }}</div>
+-      {% endfor %}
+-    </div>
+-
+-    <div class="mb-3">
+-      <label class="form-label" for="{{ form.confirm_password.id_for_label }}">{{ form.confirm_password.label }}</label>
+-      {{ form.confirm_password }}
+-      {% for error in form.confirm_password.errors %}
+-        <div class="text-danger small">{{ error }}</div>
+-      {% endfor %}
+-    </div>
+-  </div>
+-
+-  <div class="d-flex gap-2">
+-    <button class="btn btn-primary">{% trans "Lưu thay đổi" %}</button>
+-    <a href="{% url 'backoffice:dashboard' %}" class="btn btn-secondary">{% trans "Bỏ qua" %}</a>
+-  </div>
+-</form>
+-
+-<script>
+-  (function() {
+-    const cb = document.getElementById('id_change_password');
+-    const pwBox = document.getElementById('pw_fields');
+-    function togglePw() {
+-      pwBox.style.display = cb.checked ? 'block' : 'none';
+-    }
+-    if (cb) {
+-      cb.addEventListener('change', togglePw);
+-      // init
+-      togglePw();
+-    }
+-  })();
+-</script>
+-{% endblock %}
+\ No newline at end of file
++{% extends "backoffice/base.html" %}
++{% load i18n %}
++{% block title %}{% trans "Hồ sơ" %}{% endblock %}
++{% block content %}
++<div class="bo-page-header">
++  <div class="bo-page-heading">
++    <div class="bo-page-pretitle">{% trans "Tài khoản" %}</div>
++    <h2 class="bo-page-title"><i class="ti ti-user"></i>{% trans "Hồ sơ cá nhân" %}</h2>
++    <div class="bo-page-subtitle">{% trans "Xem thông tin tài khoản và cập nhật thông tin cá nhân." %}</div>
++  </div>
++  <div class="bo-page-actions">
++    <a href="{% url 'backoffice:dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i>{% trans "Về tổng quan" %}</a>
++  </div>
++</div>
++
++<div class="card bo-card mb-3">
++  <div class="card-body">
++    <div class="row g-3">
++      <div class="col-md-4">
++        <div class="bo-kpi-label">{% trans "Tên đăng nhập" %}</div>
++        <div class="fw-semibold">{{ user_obj.username }}</div>
++      </div>
++      <div class="col-md-4">
++        <div class="bo-kpi-label">{% trans "Họ tên" %}</div>
++        <div class="fw-semibold">{{ user_obj.full_name|default:"—" }}</div>
++      </div>
++      <div class="col-md-4">
++        <div class="bo-kpi-label">{% trans "Email" %}</div>
++        <div class="fw-semibold">{{ user_obj.email|default:"—" }}</div>
++      </div>
++    </div>
++  </div>
++</div>
++
++<form method="post" class="card bo-form-card">
++  {% csrf_token %}
++  <div class="card-header">
++    <h3 class="card-title mb-0">{% trans "Cập nhật thông tin" %}</h3>
++  </div>
++  <div class="card-body">
++    {{ form.non_field_errors }}
++
++    <div class="bo-form-grid">
++      <div>
++        <label class="form-label" for="{{ form.full_name.id_for_label }}">{{ form.full_name.label }}</label>
++        {{ form.full_name }}
++        {% for error in form.full_name.errors %}
++          <div class="text-danger small">{{ error }}</div>
++        {% endfor %}
++      </div>
++
++      <div>
++        <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
++        {{ form.email }}
++        {% for error in form.email.errors %}
++          <div class="text-danger small">{{ error }}</div>
++        {% endfor %}
++      </div>
++
++      <div class="bo-form-field-full">
++        <div class="form-check form-switch">
++          {{ form.change_password }}
++          <label class="form-check-label ms-2" for="id_change_password">{% trans "Đổi mật khẩu" %}</label>
++        </div>
++      </div>
++    </div>
++
++    <div id="pw_fields" class="bo-js-hidden mt-3">
++      <div class="bo-form-grid">
++        <div>
++          <label class="form-label" for="{{ form.new_password.id_for_label }}">{{ form.new_password.label }}</label>
++          {{ form.new_password }}
++          <div class="form-text">{% trans "Mật khẩu tối thiểu 6 ký tự." %}</div>
++          {% for error in form.new_password.errors %}
++            <div class="text-danger small">{{ error }}</div>
++          {% endfor %}
++        </div>
++
++        <div>
++          <label class="form-label" for="{{ form.confirm_password.id_for_label }}">{{ form.confirm_password.label }}</label>
++          {{ form.confirm_password }}
++          {% for error in form.confirm_password.errors %}
++            <div class="text-danger small">{{ error }}</div>
++          {% endfor %}
++        </div>
++      </div>
++    </div>
++  </div>
++  <div class="card-footer bo-form-actions">
++    <button class="btn btn-primary"><i class="ti ti-device-floppy"></i>{% trans "Lưu thay đổi" %}</button>
++    <a href="{% url 'backoffice:dashboard' %}" class="btn btn-outline-secondary">{% trans "Bỏ qua" %}</a>
++  </div>
++</form>
++{% endblock %}
++
++{% block extra_js %}
++<script>
++  (function() {
++    const cb = document.getElementById('id_change_password');
++    const pwBox = document.getElementById('pw_fields');
++    function togglePw() {
++      if (!pwBox || !cb) return;
++      pwBox.classList.toggle('bo-js-hidden', !cb.checked);
++    }
++    if (cb) {
++      cb.addEventListener('change', togglePw);
++      togglePw();
++    }
++  })();
++</script>
++{% endblock %}
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/roles/matrix.html ui_patch_work/apps/backoffice/templates/backoffice/roles/matrix.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/roles/matrix.html	2026-07-01 14:27:18.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/roles/matrix.html	2026-07-01 08:00:19.051893906 +0000
+@@ -56,7 +56,7 @@
+       <table class="table table-sm table-bordered align-middle bo-table-compact mb-0">
+         <thead>
+           <tr>
+-            <th style="min-width: 280px;">{% trans "Quyền" %}</th>
++            <th class="bo-permission-col">{% trans "Quyền" %}</th>
+             {% for g in groups %}
+               <th class="text-center">{{ g.name }}</th>
+             {% endfor %}
+diff -ruN ui_original_clean/apps/backoffice/templates/backoffice/users/roles.html ui_patch_work/apps/backoffice/templates/backoffice/users/roles.html
+--- ui_original_clean/apps/backoffice/templates/backoffice/users/roles.html	2025-11-14 21:53:56.000000000 +0000
++++ ui_patch_work/apps/backoffice/templates/backoffice/users/roles.html	2026-07-01 07:59:49.336827405 +0000
+@@ -1,15 +1,29 @@
+-{% extends "backoffice/base.html" %}
+-{% load i18n %}
+-{% block title %}{% trans "Vai trò người dùng" %}{% endblock %}
+-{% block content %}
+-<h2 class="mb-3">{% trans "Vai trò người dùng" %}: {{ target.username }}</h2>
+-<form method="post" class="card card-body">
+-  {% csrf_token %}
+-  {{ form.non_field_errors }}
+-  <div class="mb-3">
+-    {{ form.roles }}
+-  </div>
+-  <button class="btn btn-primary">{% trans "Lưu vai trò" %}</button>
+-  <a href="{% url 'backoffice:user_edit' target.id %}" class="btn btn-secondary">{% trans "Quay lại" %}</a>
+-</form>
+-{% endblock %}
+\ No newline at end of file
++{% extends "backoffice/base.html" %}
++{% load i18n %}
++{% block title %}{% trans "Vai trò người dùng" %}{% endblock %}
++{% block content %}
++<div class="bo-page-header">
++  <div class="bo-page-heading">
++    <div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div>
++    <h2 class="bo-page-title"><i class="ti ti-shield-lock"></i>{% trans "Vai trò người dùng" %}: {{ target.username }}</h2>
++    <div class="bo-page-subtitle">{% trans "Gán hoặc gỡ nhóm quyền cho tài khoản." %}</div>
++  </div>
++  <div class="bo-page-actions">
++    <a href="{% url 'backoffice:user_edit' target.id %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i>{% trans "Quay lại" %}</a>
++  </div>
++</div>
++
++<form method="post" class="card bo-form-card">
++  {% csrf_token %}
++  <div class="card-body">
++    {{ form.non_field_errors }}
++    <div class="mb-3">
++      {{ form.roles }}
++    </div>
++  </div>
++  <div class="card-footer bo-form-actions">
++    <button class="btn btn-primary"><i class="ti ti-device-floppy"></i>{% trans "Lưu vai trò" %}</button>
++    <a href="{% url 'backoffice:user_edit' target.id %}" class="btn btn-outline-secondary">{% trans "Quay lại" %}</a>
++  </div>
++</form>
++{% endblock %}
+diff -ruN ui_original_clean/apps/backoffice/views_approvals.py ui_patch_work/apps/backoffice/views_approvals.py
+--- ui_original_clean/apps/backoffice/views_approvals.py	2026-07-01 14:39:54.000000000 +0000
++++ ui_patch_work/apps/backoffice/views_approvals.py	2026-07-01 07:59:49.342000719 +0000
+@@ -7,6 +7,7 @@
+ from apps.approvals.models import ApprovalRequest, ApprovalStep, ApprovalSigner, ApprovalAction
+ from apps.approvals.services_runtime import approve_step, reject_step, retry_apply_attendance_correction_request
+ from apps.approvals.status_utils import build_approval_status_context
++from .utils.pagination import paginate_queryset
+ 
+ # NEW: đồng bộ trạng thái ACR sau approve/reject
+ try:
+@@ -128,37 +129,40 @@
+     unit_id = request.GET.get("unit", "").strip()
+ 
+     unit_scope_ids = _unit_scope_ids(request)
++    unit_scope_set = set(unit_scope_ids)
+     units_qs = OrgUnit.objects.filter(id__in=unit_scope_ids).order_by("symbol", "name") if OrgUnit else []
+ 
+-    data = []
++    context = {}
+     if scope == "my_requests":
+         qs = ApprovalRequest.objects.select_related("flow", "flow_version", "requester").filter(
+             requester_id=request.user.id
+-        ).order_by("-submitted_at", "-created_at")
++        ).order_by("-submitted_at", "-created_at", "-id")
+         if unit_id and unit_id.isdigit():
+             qs = qs.filter(unit_id=int(unit_id))
+         qs = _filter_requests_q(qs, q)
+-        data = list(qs[:500])
++        context = paginate_queryset(request, qs, default_page_size=50, allowed_page_sizes=(25, 50, 100, 200))
++        data = list(context["items"])
+ 
+     elif scope == "approved_by_me":
+         signers_qs = ApprovalSigner.objects.select_related(
+             "step__request", "step", "step__request__flow", "step__request__flow_version", "step__request__requester"
+         ).filter(
+             user_id=request.user.id, status=ApprovalSigner.Status.APPROVED
+-        ).order_by("-acted_at")
++        ).order_by("-acted_at", "-id")
+         if unit_id and unit_id.isdigit():
+             signers_qs = signers_qs.filter(step__request__unit_id=int(unit_id))
+-        signers = list(signers_qs[:500])
+-        data = [s.step.request for s in signers]
++        context = paginate_queryset(request, signers_qs, default_page_size=50, allowed_page_sizes=(25, 50, 100, 200))
++        data = [s.step.request for s in context["items"]]
+ 
+     elif scope == "in_units":
+         qs = ApprovalRequest.objects.select_related("flow", "flow_version", "requester").filter(
+             unit_id__in=unit_scope_ids
+-        ).order_by("-submitted_at", "-created_at")
+-        if unit_id and unit_id.isdigit() and int(unit_id) in set(unit_scope_ids):
++        ).order_by("-submitted_at", "-created_at", "-id")
++        if unit_id and unit_id.isdigit() and int(unit_id) in unit_scope_set:
+             qs = qs.filter(unit_id=int(unit_id))
+         qs = _filter_requests_q(qs, q)
+-        data = list(qs[:500])
++        context = paginate_queryset(request, qs, default_page_size=50, allowed_page_sizes=(25, 50, 100, 200))
++        data = list(context["items"])
+ 
+     else:  # to_approve
+         signers_qs = ApprovalSigner.objects.select_related(
+@@ -167,21 +171,23 @@
+             user_id=request.user.id,
+             status=ApprovalSigner.Status.PENDING,
+             step__status=ApprovalStep.Status.ACTIVE,
+-        ).order_by("-step__activated_at")
++        ).exclude(
++            step__request__status=ApprovalRequest.Status.CANCELLED
++        ).order_by("-step__activated_at", "-id")
+         if unit_id and unit_id.isdigit():
+             signers_qs = signers_qs.filter(step__request__unit_id=int(unit_id))
+-        signers = list(signers_qs[:500])
+-        # không hiển thị yêu cầu đã CANCELLED trong "Tôi cần duyệt"
+-        data = [s.step.request for s in signers if s.step.request.status != ApprovalRequest.Status.CANCELLED]
++        context = paginate_queryset(request, signers_qs, default_page_size=50, allowed_page_sizes=(25, 50, 100, 200))
++        data = [s.step.request for s in context["items"]]
+ 
+     data = _attach_status_context(data)
+-    return render(request, "backoffice/approvals/inbox.html", {
++    context.update({
+         "requests": data,
+         "scope": scope,
+         "q": q,
+         "unit_id": unit_id,
+         "units_qs": units_qs,
+     })
++    return render(request, "backoffice/approvals/inbox.html", context)
+ 
+ 
+ @login_required
+@@ -191,15 +197,17 @@
+ 
+     qs = ApprovalRequest.objects.select_related("flow", "flow_version", "requester") \
+         .filter(requester_id=request.user.id) \
+-        .order_by("-submitted_at", "-created_at")
++        .order_by("-submitted_at", "-created_at", "-id")
+ 
+     if status:
+         qs = qs.filter(status=status)
+     qs = _filter_requests_q(qs, q)
+ 
+-    requests_list = _attach_status_context(list(qs[:500]))
++    context = paginate_queryset(request, qs, default_page_size=50, allowed_page_sizes=(25, 50, 100, 200))
++    requests_list = _attach_status_context(list(context["items"]))
++    context.update({"requests": requests_list, "status": status, "q": q})
+ 
+-    return render(request, "backoffice/approvals/my_requests.html", {"requests": requests_list, "status": status, "q": q})
++    return render(request, "backoffice/approvals/my_requests.html", context)
+ 
+ 
+ @login_required
+diff -ruN ui_original_clean/apps/backoffice/views_temp_assignments.py ui_patch_work/apps/backoffice/views_temp_assignments.py
+--- ui_original_clean/apps/backoffice/views_temp_assignments.py	2026-06-04 17:44:34.000000000 +0000
++++ ui_patch_work/apps/backoffice/views_temp_assignments.py	2026-07-01 08:01:36.323608719 +0000
+@@ -10,6 +10,7 @@
+ from apps.hr.models import Employee, TempAssignment
+ from apps.hr.services import allowed_org_ids_for_user
+ from apps.organization.models import OrgUnit
++from .utils.pagination import paginate_queryset
+ 
+ try:
+     from apps.attendance.services_bs import scan_impacts_for_temp_assignment
+@@ -94,20 +95,15 @@
+     if status in [choice[0] for choice in TempAssignment.Status.choices]:
+         qs = qs.filter(status=status)
+ 
+-    assignments = list(qs[:500])
+     if over60 == "1":
+-        assignments = [
+-            a for a in assignments
+-            if a.status == TempAssignment.Status.ACTIVE and a.duration_days() > 60
+-        ]
++        cutoff_date = timezone.localdate() - timedelta(days=60)
++        qs = qs.filter(status=TempAssignment.Status.ACTIVE, start_date__lte=cutoff_date)
+ 
+     units = _allowed_assignment_units(request.user)
+-
+-    return render(
+-        request,
+-        "backoffice/hr/assignments/list.html",
++    context = paginate_queryset(request, qs, default_page_size=50, allowed_page_sizes=(25, 50, 100, 200))
++    context.update(
+         {
+-            "items": assignments,
++            "items": context["items"],
+             "query": q,
+             "to_unit_selected": to_unit,
+             "status_selected": status,
+@@ -115,9 +111,11 @@
+             "units": units,
+             "status_choices": TempAssignment.Status.choices,
+             "manage_allowed": _can_manage_assignments(request.user),
+-        },
++        }
+     )
+ 
++    return render(request, "backoffice/hr/assignments/list.html", context)
++
+ 
+ @login_required
+ @permission_required("hr.change_employee", raise_exception=True)
+diff -ruN ui_original_clean/static/backoffice/css/app-ui.css ui_patch_work/static/backoffice/css/app-ui.css
+--- ui_original_clean/static/backoffice/css/app-ui.css	2026-07-01 14:43:16.000000000 +0000
++++ ui_patch_work/static/backoffice/css/app-ui.css	2026-07-01 08:00:19.052188140 +0000
+@@ -1351,3 +1351,105 @@
+     grid-template-columns: 1fr;
+   }
+ }
++
++
++/* Dashboard overview helpers: moved from dashboard.html to keep templates free of inline CSS. */
++.overview-filter-card .form-label { font-size: .75rem; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: .03em; }
++  .overview-mode .btn { min-width: 7.5rem; }
++  .overview-kpi-card { height: 100%; }
++  .overview-kpi-icon { width: 2.5rem; height: 2.5rem; display: inline-flex; align-items: center; justify-content: center; border-radius: .75rem; font-size: 1.35rem; }
++  .overview-kpi-icon.primary { background: #e7f1ff; color: #0d6efd; }
++  .overview-kpi-icon.success { background: #d1e7dd; color: #0f5132; }
++  .overview-kpi-icon.warning { background: #fff3cd; color: #664d03; }
++  .overview-kpi-icon.danger { background: #f8d7da; color: #842029; }
++  .overview-kpi-icon.info { background: #cff4fc; color: #055160; }
++  .overview-kpi-link { color: inherit; text-decoration: none; }
++  .overview-kpi-link:hover .card { box-shadow: 0 .35rem 1rem rgba(15, 23, 42, .08); transform: translateY(-1px); transition: .15s ease; }
++  .badge-soft-neutral { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
++  .badge-soft-warning { background: #fff3cd; color: #664d03; }
++  .badge-soft-danger { background: #f8d7da; color: #842029; }
++  .overview-section-row { align-items: stretch; }
++  .overview-section-row > [class*="col-"] { display: flex; flex-direction: column; }
++  .overview-section-row > [class*="col-"] > .card { width: 100%; height: 100%; }
++  .overview-side-stack { height: 100%; display: flex; flex-direction: column; gap: 1rem; }
++  .overview-side-stack > .card { width: 100%; }
++  .overview-side-stack .card-fill { flex: 1 1 auto; }
++  .overview-card-header { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; min-height: 4rem; padding-top: .85rem; padding-bottom: .85rem; }
++  .overview-card-header .card-title { line-height: 1.25; }
++  .overview-card-subtitle { color: #6c757d; font-size: .8125rem; line-height: 1.35; margin-top: .15rem; }
++  .table-responsive.overview-table-wrap { width: 100%; }
++  .overview-table-compact { table-layout: fixed; width: 100%; min-width: 100%; }
++  .overview-table-compact th, .overview-table-compact td { padding: .45rem .55rem; vertical-align: middle; }
++  .overview-table-compact th { white-space: nowrap; font-size: .73rem; color: #6c757d; text-transform: uppercase; letter-spacing: .03em; }
++  .overview-table-compact td { overflow: hidden; text-overflow: ellipsis; }
++  .table-presence .col-unit { width: 4.75rem; }
++  .table-presence .col-number { width: 5.75rem; }
++  .table-presence .col-rate { width: 5rem; }
++  .table-presence .col-status { width: 7.25rem; }
++  .table-actions .action-level { width: 4rem; }
++  .table-actions .col-module { width: 7.25rem; }
++  .table-actions .col-number { width: 4.5rem; }
++  .table-actions .col-action { width: 4.5rem; }
++  .table-device .col-device { width: auto; }
++  .table-device .col-unit { width: 4.5rem; }
++  .table-device .col-status { width: 6.75rem; }
++  .table-ranking .col-unit { width: 5rem; }
++  .table-ranking .col-number { width: 7rem; }
++  .col-unit { width: 5rem; max-width: 5rem; white-space: nowrap; }
++  .col-status { width: 8rem; max-width: 8rem; white-space: nowrap; }
++  .col-number { width: 6rem; max-width: 6rem; text-align: right; white-space: nowrap; }
++  .col-rate { width: 5rem; max-width: 5rem; text-align: right; white-space: nowrap; }
++  .col-module { width: 8rem; max-width: 8rem; white-space: nowrap; }
++  .col-action { width: 4.75rem; max-width: 4.75rem; text-align: right; white-space: nowrap; }
++  .section-anchor { scroll-margin-top: 1rem; }
++  .chart-box { min-height: 260px; }
++  .action-level { width: 4.5rem; max-width: 4.5rem; white-space: nowrap; }
++  @media (max-width: 1399.98px) {
++    .overview-section-row > [class*="col-xl-"] { margin-bottom: 1rem; }
++    .overview-section-row > [class*="col-xl-"]:last-child { margin-bottom: 0; }
++  }
++  .quick-link-card { text-decoration: none; color: inherit; }
++  .quick-link-card:hover .card { box-shadow: 0 .35rem 1rem rgba(15, 23, 42, .08); }
++
++.bo-filter-grid-dashboard {
++  grid-template-columns: minmax(190px, auto) 160px 160px 160px minmax(240px, 1fr) auto;
++  min-width: 920px;
++}
++
++.bo-filter-grid-dashboard .bo-filter-actions {
++  align-self: end;
++}
++
++.bo-js-hidden {
++  display: none !important;
++}
++
++.bo-modal-scroll {
++  max-height: 60vh;
++  overflow: auto;
++}
++
++.approval-steps-count {
++  width: 120px;
++}
++
++@media (max-width: 991.98px) {
++  .bo-filter-grid-dashboard {
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++    min-width: 0;
++  }
++
++  .bo-filter-grid-dashboard .bo-filter-mode,
++  .bo-filter-grid-dashboard .bo-filter-unit,
++  .bo-filter-grid-dashboard .bo-filter-actions {
++    grid-column: 1 / -1;
++  }
++}
++
++@media (max-width: 575.98px) {
++  .bo-filter-grid-dashboard {
++    grid-template-columns: 1fr;
++  }
++}
++
++.bo-permission-col { min-width: 280px; }

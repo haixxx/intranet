@@ -90,7 +90,7 @@ def _can_export_sensitive_employee_data(user) -> bool:
         return False
     if user.is_superuser:
         return True
-    return user.groups.filter(name__in=["HR_ADMIN", "HR_SENSITIVE_EXPORTER"]).exists()
+    return user.groups.filter(name__in=["HR_MANAGER", "HR_ADMIN", "HR_SENSITIVE_EXPORTER"]).exists()
 
 
 def _team_belongs_to_unit(team: OrgUnit | None, unit: OrgUnit | None) -> bool:

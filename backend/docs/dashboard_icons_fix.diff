@@ -1,0 +1,345 @@
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/approvals/admin/flow_list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/approvals/admin/flow_list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/approvals/admin/flow_list.html	2026-07-01 14:27:18.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/approvals/admin/flow_list.html	2026-07-01 08:15:24.170865386 +0000
+@@ -5,7 +5,7 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+-    <h2 class="bo-page-title">{% trans "Quản trị luồng duyệt" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-route"></i>{% trans "Quản trị luồng duyệt" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Quản lý luồng, trạng thái xuất bản và các phiên bản builder." %}</div>
+   </div>
+   <div class="bo-page-actions">
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/approvals/admin/version_list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/approvals/admin/version_list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/approvals/admin/version_list.html	2026-07-01 14:27:18.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/approvals/admin/version_list.html	2026-07-01 08:15:24.171231650 +0000
+@@ -5,7 +5,7 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+-    <h2 class="bo-page-title">{% trans "Phiên bản luồng" %}: {{ flow.name }}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-versions"></i>{% trans "Phiên bản luồng" %}: {{ flow.name }}</h2>
+     <div class="bo-page-subtitle"><code>{{ flow.flow_key }}</code></div>
+   </div>
+   <div class="bo-page-actions">
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/audit/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/audit/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/audit/list.html	2026-07-01 14:27:18.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/audit/list.html	2026-07-01 08:15:24.168274596 +0000
+@@ -5,7 +5,7 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div>
+-    <h2 class="bo-page-title">{% trans "Nhật ký hệ thống" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-history"></i>{% trans "Nhật ký hệ thống" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Tra cứu thao tác, đối tượng bị tác động, người thực hiện và thông tin bổ sung." %}</div>
+   </div>
+ </div>
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/common/import.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/common/import.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/common/import.html	2026-07-01 08:00:19.052830776 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/common/import.html	2026-07-01 08:15:24.168627269 +0000
+@@ -5,7 +5,7 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Import dữ liệu" %}</div>
+-    <h2 class="bo-page-title">{{ title }}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-file-import"></i>{{ title }}</h2>
+     <div class="bo-page-subtitle">{{ note }}</div>
+   </div>
+ </div>
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/dashboard.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/dashboard.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/dashboard.html	2026-07-01 07:59:49.330688374 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/dashboard.html	2026-07-01 08:14:23.924384730 +0000
+@@ -9,7 +9,7 @@
+   <div class="bo-page-header">
+     <div class="bo-page-heading">
+       <div class="bo-page-pretitle">{% trans "Điều hành" %}</div>
+-      <h2 class="bo-page-title">{% trans "Tổng quan hệ thống" %}</h2>
++      <h2 class="bo-page-title"><i class="ti ti-layout-dashboard"></i>{% trans "Tổng quan hệ thống" %}</h2>
+       <div class="bo-page-subtitle">
+         {% if mode == "period" %}
+           {% trans "Phân tích xu hướng nhân sự, công và chấm công theo kỳ." %}
+@@ -29,7 +29,7 @@
+ 
+   <div class="card bo-filter-card overview-filter-card">
+     <div class="card-body">
+-      <form method="get" class="bo-filter-grid bo-filter-grid-dashboard" id="overview-filter-form">
++      <form method="get" class="bo-filter-grid bo-filter-grid-dashboard {% if mode == 'period' %}is-period{% else %}is-daily{% endif %}" id="overview-filter-form">
+         <div class="bo-filter-mode">
+           <label class="form-label d-block">{% trans "Chế độ" %}</label>
+           <div class="btn-group overview-mode" role="group">
+@@ -40,16 +40,16 @@
+           </div>
+         </div>
+ 
+-        <div class="filter-daily">
++        <div class="filter-daily{% if mode != 'daily' %} bo-js-hidden{% endif %}">
+           <label class="form-label">{% trans "Ngày" %}</label>
+           <input type="date" class="form-control" name="date" value="{{ filters.work_date|date:'Y-m-d' }}">
+         </div>
+ 
+-        <div class="filter-period">
++        <div class="filter-period{% if mode != 'period' %} bo-js-hidden{% endif %}">
+           <label class="form-label">{% trans "Từ ngày" %}</label>
+           <input type="date" class="form-control" name="from_date" value="{{ filters.from_date|date:'Y-m-d' }}">
+         </div>
+-        <div class="filter-period">
++        <div class="filter-period{% if mode != 'period' %} bo-js-hidden{% endif %}">
+           <label class="form-label">{% trans "Đến ngày" %}</label>
+           <input type="date" class="form-control" name="to_date" value="{{ filters.to_date|date:'Y-m-d' }}">
+         </div>
+@@ -351,8 +351,13 @@
+ (function () {
+   function syncModeFields() {
+     const mode = document.querySelector('input[name="mode"]:checked')?.value || 'daily';
+-    document.querySelectorAll('.filter-daily').forEach(el => el.style.display = mode === 'daily' ? '' : 'none');
+-    document.querySelectorAll('.filter-period').forEach(el => el.style.display = mode === 'period' ? '' : 'none');
++    const form = document.getElementById('overview-filter-form');
++    if (form) {
++      form.classList.toggle('is-daily', mode === 'daily');
++      form.classList.toggle('is-period', mode === 'period');
++    }
++    document.querySelectorAll('.filter-daily').forEach(el => el.classList.toggle('bo-js-hidden', mode !== 'daily'));
++    document.querySelectorAll('.filter-period').forEach(el => el.classList.toggle('bo-js-hidden', mode !== 'period'));
+   }
+   document.querySelectorAll('input[name="mode"]').forEach(el => el.addEventListener('change', syncModeFields));
+   syncModeFields();
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/hr/assignments/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/hr/assignments/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/hr/assignments/list.html	2026-07-01 08:01:36.324007445 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/hr/assignments/list.html	2026-07-01 08:14:23.925246841 +0000
+@@ -1,19 +1,18 @@
+ {% extends "backoffice/base.html" %}
+ {% load i18n %}
+-{% block title %}{% trans "Điều động tạm thời" %}{% include "backoffice/includes/pagination.html" %}
+-{% endblock %}
++{% block title %}{% trans "Điều động tạm thời" %}{% endblock %}
+ {% block content %}
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+-    <h2 class="bo-page-title">{% trans "Điều động tạm thời" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-arrows-exchange"></i>{% trans "Điều động tạm thời" %}</h2>
+     <div class="bo-page-subtitle">
+       {% trans "Dữ liệu điều động dùng để xác định đơn vị hiệu lực theo ngày khi lập bảng chấm công." %}
+     </div>
+   </div>
+   <div class="bo-page-actions">
+     {% if manage_allowed %}
+-      <a href="{% url 'backoffice:temp_assignment_create' %}" class="btn btn-success btn-sm">+ {% trans "Tạo điều động" %}</a>
++      <a href="{% url 'backoffice:temp_assignment_create' %}" class="btn btn-success btn-sm"><i class="ti ti-plus"></i> {% trans "Tạo điều động" %}</a>
+     {% endif %}
+   </div>
+ </div>
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/hr/employees/detail.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/hr/employees/detail.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/hr/employees/detail.html	2026-07-01 14:27:18.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/hr/employees/detail.html	2026-07-01 08:14:23.926340932 +0000
+@@ -2,10 +2,12 @@
+ {% load i18n %}
+ {% block title %}{% trans "Chi tiết nhân sự" %}{% endblock %}
+ {% block content %}
+-<div class="page-title-block">
+-  <div class="page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+-  <h2 class="mb-1">{% trans "Chi tiết nhân sự" %}</h2>
+-  <div class="text-muted">{% trans "Thông tin hồ sơ, tổ chức, chấm công, tài khoản và lịch sử điều động." %}</div>
++<div class="bo-page-header">
++  <div class="bo-page-heading">
++    <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
++    <h2 class="bo-page-title"><i class="ti ti-user-circle"></i>{% trans "Chi tiết nhân sự" %}</h2>
++    <div class="bo-page-subtitle">{% trans "Thông tin hồ sơ, tổ chức, chấm công, tài khoản và lịch sử điều động." %}</div>
++  </div>
+ </div>
+ 
+ <div class="row row-cards">
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/hr/employees/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/hr/employees/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/hr/employees/list.html	2026-07-01 14:27:18.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/hr/employees/list.html	2026-07-01 08:14:23.924875125 +0000
+@@ -5,21 +5,21 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+-    <h2 class="bo-page-title">{% trans "Nhân sự" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-users"></i>{% trans "Nhân sự" %}</h2>
+     <div class="bo-page-subtitle">
+       {% trans "Quản lý hồ sơ nhân sự, mã chấm công, đơn vị, tổ, chức danh và trạng thái làm việc." %}
+     </div>
+   </div>
+   <div class="bo-page-actions">
+     {% if perms.hr.add_employee %}
+-      <a href="{% url 'backoffice:employee_create' %}" class="btn btn-success btn-sm">+ {% trans "Tạo nhân sự" %}</a>
++      <a href="{% url 'backoffice:employee_create' %}" class="btn btn-success btn-sm"><i class="ti ti-plus"></i> {% trans "Tạo nhân sự" %}</a>
+     {% endif %}
+     <a href="{% url 'backoffice:export_employees' %}?q={{ query }}&units={{ units_csv }}&team={{ team_selected }}&job_title={{ jt_selected }}"
+        class="btn btn-outline-primary btn-sm">
+-      {% if can_export_sensitive %}{% trans "Xuất đầy đủ" %}{% else %}{% trans "Xuất cơ bản" %}{% endif %}
++      <i class="ti ti-file-export"></i> {% if can_export_sensitive %}{% trans "Xuất đầy đủ" %}{% else %}{% trans "Xuất cơ bản" %}{% endif %}
+     </a>
+     {% if perms.hr.add_employee %}
+-      <a href="{% url 'backoffice:import_employees' %}" class="btn btn-outline-secondary btn-sm">{% trans "Nhập Excel" %}</a>
++      <a href="{% url 'backoffice:import_employees' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-file-import"></i> {% trans "Nhập Excel" %}</a>
+     {% endif %}
+   </div>
+ </div>
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/notifications/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/notifications/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/notifications/list.html	2026-06-30 23:22:46.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/notifications/list.html	2026-07-01 08:15:24.169038299 +0000
+@@ -5,7 +5,7 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Hệ thống" %}</div>
+-    <h2 class="bo-page-title">{% trans "Thông báo" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-bell"></i>{% trans "Thông báo" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Các thông báo hệ thống và nhắc việc liên quan đến tài khoản của bạn." %}</div>
+   </div>
+ </div>
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/org/jobtitles/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/org/jobtitles/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/org/jobtitles/list.html	2026-06-30 23:22:46.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/org/jobtitles/list.html	2026-07-01 08:14:23.925860477 +0000
+@@ -5,16 +5,16 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+-    <h2 class="bo-page-title">{% trans "Chức danh" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-id-badge-2"></i>{% trans "Chức danh" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Chức danh được dùng cho hồ sơ nhân sự và luồng phê duyệt." %}</div>
+   </div>
+   <div class="bo-page-actions">
+     {% if perms.organization.add_jobtitle %}
+-      <a href="{% url 'backoffice:jobtitle_create' %}" class="btn btn-success btn-sm">+ {% trans "Tạo chức danh" %}</a>
++      <a href="{% url 'backoffice:jobtitle_create' %}" class="btn btn-success btn-sm"><i class="ti ti-plus"></i> {% trans "Tạo chức danh" %}</a>
+     {% endif %}
+-    <a href="{% url 'backoffice:export_jobtitles' %}" class="btn btn-outline-primary btn-sm">{% trans "Xuất Excel" %}</a>
++    <a href="{% url 'backoffice:export_jobtitles' %}" class="btn btn-outline-primary btn-sm"><i class="ti ti-file-export"></i> {% trans "Xuất Excel" %}</a>
+     {% if perms.organization.add_jobtitle %}
+-      <a href="{% url 'backoffice:import_jobtitles' %}" class="btn btn-outline-secondary btn-sm">{% trans "Nhập Excel" %}</a>
++      <a href="{% url 'backoffice:import_jobtitles' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-file-import"></i> {% trans "Nhập Excel" %}</a>
+     {% endif %}
+   </div>
+ </div>
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/org/shifts/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/org/shifts/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/org/shifts/list.html	2026-06-30 23:22:46.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/org/shifts/list.html	2026-07-01 08:14:23.926106569 +0000
+@@ -5,16 +5,16 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+-    <h2 class="bo-page-title">{% trans "Ca làm việc" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-clock-hour-4"></i>{% trans "Ca làm việc" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Quản lý mẫu ca dùng cho đăng ký/chốt công và đối chiếu dữ liệu máy." %}</div>
+   </div>
+   <div class="bo-page-actions">
+     {% if perms.organization.add_shifttemplate %}
+-      <a href="{% url 'backoffice:shift_create' %}" class="btn btn-success btn-sm">+ {% trans "Tạo ca" %}</a>
++      <a href="{% url 'backoffice:shift_create' %}" class="btn btn-success btn-sm"><i class="ti ti-plus"></i> {% trans "Tạo ca" %}</a>
+     {% endif %}
+-    <a href="{% url 'backoffice:export_shifts' %}" class="btn btn-outline-primary btn-sm">{% trans "Xuất Excel" %}</a>
++    <a href="{% url 'backoffice:export_shifts' %}" class="btn btn-outline-primary btn-sm"><i class="ti ti-file-export"></i> {% trans "Xuất Excel" %}</a>
+     {% if perms.organization.add_shifttemplate %}
+-      <a href="{% url 'backoffice:import_shifts' %}" class="btn btn-outline-secondary btn-sm">{% trans "Nhập Excel" %}</a>
++      <a href="{% url 'backoffice:import_shifts' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-file-import"></i> {% trans "Nhập Excel" %}</a>
+     {% endif %}
+   </div>
+ </div>
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/org/units/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/org/units/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/org/units/list.html	2026-06-30 23:22:46.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/org/units/list.html	2026-07-01 08:14:23.925609924 +0000
+@@ -5,16 +5,16 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+-    <h2 class="bo-page-title">{% trans "Cơ cấu tổ chức" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-sitemap"></i>{% trans "Cơ cấu tổ chức" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Quản lý đơn vị, cây tổ chức và cờ đơn vị chấm công." %}</div>
+   </div>
+   <div class="bo-page-actions">
+     {% if perms.organization.add_orgunit %}
+-      <a href="{% url 'backoffice:orgunit_create' %}" class="btn btn-success btn-sm">+ {% trans "Tạo đơn vị" %}</a>
++      <a href="{% url 'backoffice:orgunit_create' %}" class="btn btn-success btn-sm"><i class="ti ti-plus"></i> {% trans "Tạo đơn vị" %}</a>
+     {% endif %}
+-    <a href="{% url 'backoffice:export_orgunits' %}" class="btn btn-outline-primary btn-sm">{% trans "Xuất Excel" %}</a>
++    <a href="{% url 'backoffice:export_orgunits' %}" class="btn btn-outline-primary btn-sm"><i class="ti ti-file-export"></i> {% trans "Xuất Excel" %}</a>
+     {% if perms.organization.add_orgunit %}
+-      <a href="{% url 'backoffice:import_orgunits' %}" class="btn btn-outline-secondary btn-sm">{% trans "Nhập Excel" %}</a>
++      <a href="{% url 'backoffice:import_orgunits' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-file-import"></i> {% trans "Nhập Excel" %}</a>
+     {% endif %}
+   </div>
+ </div>
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/roles/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/roles/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/roles/list.html	2026-07-01 14:27:18.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/roles/list.html	2026-07-01 08:15:24.169616026 +0000
+@@ -5,7 +5,7 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div>
+-    <h2 class="bo-page-title">{% trans "Vai trò" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-users-group"></i>{% trans "Vai trò" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Quản lý nhóm quyền dùng để phân quyền truy cập các chức năng Backoffice." %}</div>
+   </div>
+   <div class="bo-page-actions">
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/roles/matrix.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/roles/matrix.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/roles/matrix.html	2026-07-01 08:00:19.051893906 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/roles/matrix.html	2026-07-01 08:15:24.170059656 +0000
+@@ -5,7 +5,7 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div>
+-    <h2 class="bo-page-title">{% trans "Ma trận quyền" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-shield-lock"></i>{% trans "Ma trận quyền" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Bảng quyền theo vai trò, chỉ dùng để rà soát. Muốn chỉnh sửa, vào trang Vai trò." %}</div>
+   </div>
+   <div class="bo-page-actions">
+diff -ruN ui_patch_work/apps/backoffice/templates/backoffice/users/list.html ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/users/list.html
+--- ui_patch_work/apps/backoffice/templates/backoffice/users/list.html	2026-07-01 14:27:18.000000000 +0000
++++ ui_fix_dashboard_icons_work/apps/backoffice/templates/backoffice/users/list.html	2026-07-01 08:15:24.170488213 +0000
+@@ -5,7 +5,7 @@
+ <div class="bo-page-header">
+   <div class="bo-page-heading">
+     <div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div>
+-    <h2 class="bo-page-title">{% trans "Người dùng" %}</h2>
++    <h2 class="bo-page-title"><i class="ti ti-user-cog"></i>{% trans "Người dùng" %}</h2>
+     <div class="bo-page-subtitle">{% trans "Quản lý tài khoản đăng nhập, trạng thái kích hoạt và vai trò được gán." %}</div>
+   </div>
+   <div class="bo-page-actions">
+diff -ruN ui_patch_work/static/backoffice/css/app-ui.css ui_fix_dashboard_icons_work/static/backoffice/css/app-ui.css
+--- ui_patch_work/static/backoffice/css/app-ui.css	2026-07-01 08:00:19.052188140 +0000
++++ ui_fix_dashboard_icons_work/static/backoffice/css/app-ui.css	2026-07-01 08:14:23.926619873 +0000
+@@ -1412,12 +1412,26 @@
+   .quick-link-card:hover .card { box-shadow: 0 .35rem 1rem rgba(15, 23, 42, .08); }
+ 
+ .bo-filter-grid-dashboard {
+-  grid-template-columns: minmax(190px, auto) 160px 160px 160px minmax(240px, 1fr) auto;
+-  min-width: 920px;
++  gap: .5rem;
+ }
+ 
+ .bo-filter-grid-dashboard .bo-filter-actions {
+   align-self: end;
++  justify-content: flex-end;
++  flex-wrap: nowrap;
++  min-width: max-content;
++}
++
++@media (min-width: 992px) {
++  .bo-filter-grid-dashboard.is-daily {
++    grid-template-columns: minmax(190px, max-content) 180px minmax(260px, 1fr) max-content;
++    min-width: 760px;
++  }
++
++  .bo-filter-grid-dashboard.is-period {
++    grid-template-columns: minmax(190px, max-content) 160px 160px minmax(260px, 1fr) max-content;
++    min-width: 900px;
++  }
+ }
+ 
+ .bo-js-hidden {
+@@ -1444,6 +1458,12 @@
+   .bo-filter-grid-dashboard .bo-filter-actions {
+     grid-column: 1 / -1;
+   }
++
++  .bo-filter-grid-dashboard .bo-filter-actions {
++    justify-content: flex-start;
++    flex-wrap: wrap;
++    min-width: 0;
++  }
+ }
+ 
+ @media (max-width: 575.98px) {

@@ -91,6 +91,7 @@ class ApprovalStep(models.Model):
         REQUESTER = "REQUESTER", _("Người lập")
         PARTICIPANTS_LIST = "PARTICIPANTS_LIST", _("Người tham gia")
         DEPT_HEADS_FROM_EMPLOYEE_UNIT = "DEPT_HEADS_FROM_EMPLOYEE_UNIT", _("Lãnh đạo đơn vị của NSTK")
+        UNIT_LEADERS = "UNIT_LEADERS", _("Lãnh đạo đơn vị")
         STATIC_ROLE = "STATIC_ROLE", _("Chức danh cố định")
         EXPLICIT_USERS = "EXPLICIT_USERS", _("Chỉ định người ký")
 
@@ -180,3 +181,6 @@ class ApprovalAction(models.Model):
 
     def __str__(self):
         return f"{self.action} by {self.actor} on {self.request}"
+
+# Import model cấu hình nằm ở file riêng để Django app registry/permissions nhận diện ổn định.
+from .models_config import RoleTitleMapping  # noqa: F401,E402

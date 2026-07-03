@@ -1,19 +1,27 @@
 {% extends "backoffice/base.html" %}
 {% block title %}{% if is_edit %}Sửa điều động{% else %}Tạo điều động{% endif %}{% endblock %}
 {% block content %}
-<div class="page-title-block">
-  <div class="page-pretitle">Tổ chức - Nhân sự</div>
-  <h2 class="mb-1">{% if is_edit %}Sửa điều động tạm thời{% else %}Tạo điều động tạm thời{% endif %}</h2>
-  <div class="text-muted">
-    Điều động không sửa đơn vị gốc của nhân sự. Hệ thống dùng khoảng ngày điều động để sinh roster chấm công theo từng ngày.
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Tổ chức - Nhân sự</div>
+    <h2 class="bo-page-title"><i class="ti ti-arrows-exchange"></i> {% if is_edit %}Sửa điều động tạm thời{% else %}Tạo điều động tạm thời{% endif %}</h2>
+    <div class="bo-page-subtitle">
+      Điều động không sửa đơn vị gốc của nhân sự. Hệ thống dùng khoảng ngày điều động để sinh đăng ký/chấm công theo từng ngày.
+    </div>
+  </div>
+  <div class="bo-page-actions">
+    <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> Quay lại</a>
   </div>
 </div>
 
-<form method="post" class="card card-body">
+<form method="post" class="card card-body bo-form-card">
   {% csrf_token %}
   <div class="row g-3">
     <div class="col-md-4">
-      <label class="form-label">Nhân sự</label>
+      <label class="form-label">
+        Nhân sự
+        {% if not is_edit %}<span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="Chỉ hiển thị nhân sự đang làm việc trong phạm vi quyền.">?</span>{% endif %}
+      </label>
       {% if is_edit %}
         <div class="form-control form-control-sm">
           {{ obj.employee.employee_code }} - {{ obj.employee.full_name }}
@@ -27,19 +35,20 @@
             <option value="{{ e.id }}">{{ e.employee_code }} - {{ e.full_name }}{% if e.unit_id %} ({{ e.unit.symbol }}){% endif %}</option>
           {% endfor %}
         </select>
-        <small class="text-muted">Chỉ hiển thị nhân sự đang làm việc trong phạm vi quyền.</small>
       {% endif %}
     </div>
 
     <div class="col-md-4">
-      <label class="form-label">Đơn vị nhận</label>
+      <label class="form-label">
+        Đơn vị nhận
+        <span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="Đơn vị nhận phải là Phòng/Ban/Phân xưởng, không phải Tổ.">?</span>
+      </label>
       <select name="to_unit_id" class="form-select form-select-sm" required>
         <option value="">-- Chọn đơn vị --</option>
         {% for u in units %}
           <option value="{{ u.id }}"{% if is_edit and obj.to_unit_id == u.id %} selected{% endif %}>{{ u.symbol }} - {{ u.name }}</option>
         {% endfor %}
       </select>
-      <small class="text-muted">Đơn vị nhận phải là Phòng/Ban/Phân xưởng, không phải Tổ.</small>
     </div>
 
     <div class="col-md-2">
@@ -49,10 +58,12 @@
     </div>
 
     <div class="col-md-2">
-      <label class="form-label">Kết thúc dự kiến</label>
+      <label class="form-label">
+        Kết thúc dự kiến
+        <span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="Có thể để trống nếu chưa xác định. Nếu nhập điều động trong quá khứ, hệ thống sẽ scan cảnh báo bảng công bị ảnh hưởng.">?</span>
+      </label>
       <input type="date" name="end_date" class="form-control form-control-sm"
              value="{% if is_edit and obj.end_date %}{{ obj.end_date|date:'Y-m-d' }}{% endif %}">
-      <small class="text-muted">Có thể để trống nếu chưa xác định. Nếu nhập điều động trong quá khứ, hệ thống sẽ scan cảnh báo bảng công bị ảnh hưởng.</small>
     </div>
 
     <div class="col-md-4">
@@ -74,14 +85,18 @@
       <div class="form-check mt-4">
         <input class="form-check-input" type="checkbox" name="apply_flag" id="apply_flag"
                {% if not is_edit or obj.apply_flag %}checked{% endif %}>
-        <label class="form-check-label" for="apply_flag">Tính quân số cho đơn vị đến</label>
+        <label class="form-check-label" for="apply_flag">
+          Tính quân số cho đơn vị đến
+          <span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="Nếu bật, chấm công sẽ tính nhân sự vào đơn vị nhận trong khoảng ngày hiệu lực.">?</span>
+        </label>
       </div>
-      <small class="text-muted">Nếu bật, chấm công sẽ tính nhân sự vào đơn vị nhận trong khoảng ngày hiệu lực.</small>
     </div>
 
     <div class="col-12">
-      <button class="btn btn-primary btn-sm">{% if is_edit %}Lưu thay đổi{% else %}Lưu{% endif %}</button>
-      <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-secondary btn-sm">Hủy</a>
+      <div class="bo-form-actions">
+        <button class="btn btn-primary btn-sm"><i class="ti ti-device-floppy"></i> {% if is_edit %}Lưu thay đổi{% else %}Lưu{% endif %}</button>
+        <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-x"></i> Hủy</a>
+      </div>
     </div>
   </div>
 </form>

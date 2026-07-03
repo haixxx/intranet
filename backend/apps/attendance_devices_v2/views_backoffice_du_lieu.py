@@ -17,8 +17,10 @@ from django.utils import timezone as dj_timezone
 
 from apps.hr.models import Employee
 from apps.organization.models import OrgUnit
+from apps.backoffice.services.access_scope import get_allowed_attendance_units, unit_in_attendance_scope
 
 from apps.attendance.models_batch import AttendanceCommit
+from apps.attendance.services_bs import build_expected_roster
 
 from .models_manual_punch import AttendanceManualPunch
 from .models_master_list import AttendanceDeviceMasterListV2
@@ -26,6 +28,8 @@ from .services_master_list_compute import compute_master_list_for_unit_date
 
 
 OUT2_NEXT_DAY_CUTOFF = dt_time(4, 0)
+# Khoảng xem/xóa dữ liệu nhập tay phải bao phủ ca 3: 22:00-06:00 hôm sau.
+MANUAL_OVERNIGHT_END_CUTOFF = dt_time(8, 0)
 MAX_IMPORT_ERRORS_SHOWN = 30
 
 MANUAL_SOURCE_MAY_HONG = "MAY_HONG"
@@ -136,24 +140,37 @@ def _build_local_datetime_from_time(work_date: date_cls, t: dt_time, *, next_day
 def _manual_window_for_work_date(work_date: date_cls) -> tuple[datetime, datetime]:
     """
     Khoảng hiển thị/xóa dữ liệu nhập tay cho một ngày công.
-    Mở rộng tới 04:00 ngày hôm sau để thấy được OUT2 qua ngày.
+
+    Mở rộng tới 08:00 ngày hôm sau để bao phủ ca 3 dạng IN1=22:00, OUT1=06:00.
+    Trước đây chỉ mở tới 04:00 nên mốc OUT1=05:47 của L3 dễ bị hiểu sai ngày.
     """
     start_of_day = _build_local_datetime_from_time(work_date, dt_time(0, 0), next_day=False)
-    out2_cutoff_next_day = _build_local_datetime_from_time(
+    overnight_end_next_day = _build_local_datetime_from_time(
         work_date + timedelta(days=1),
-        OUT2_NEXT_DAY_CUTOFF,
+        MANUAL_OVERNIGHT_END_CUTOFF,
         next_day=False,
     )
-    return start_of_day, out2_cutoff_next_day
+    return start_of_day, overnight_end_next_day
+
+
+def _manual_note_field(note: str) -> str:
+    raw = (note or "").strip().upper()
+    for field in ("IN1", "OUT1", "IN2", "OUT2"):
+        if raw.startswith(field):
+            return field
+    return ""
 
 
 def _infer_work_date_from_manual_punch(punch: AttendanceManualPunch) -> date_cls:
     """
     Suy ra ngày công từ mốc nhập tay.
-    Nếu mốc nằm trước 04:00 thì coi là OUT2 của ngày hôm trước.
+
+    Chỉ mốc OUT qua ngày mới được lùi về ngày công hôm trước. IN1=05:47 của L1
+    vẫn là ngày hiện tại, nhưng OUT1=05:47 của L3 phải thuộc ngày công hôm trước.
     """
     local_dt = dj_timezone.localtime(punch.thoi_gian_local)
-    if local_dt.time() < OUT2_NEXT_DAY_CUTOFF:
+    field = _manual_note_field(punch.ghi_chu)
+    if field in ("OUT1", "OUT2") and local_dt.time() < MANUAL_OVERNIGHT_END_CUTOFF:
         return local_dt.date() - timedelta(days=1)
     return local_dt.date()
 
@@ -246,6 +263,70 @@ def _base_note(*, source_type: str, ly_do: str = "", ghi_chu: str = "") -> str:
     return " | ".join(note_parts)
 
 
+def _dt_is_next_day_for_work_date(work_date: date_cls, value: datetime | None) -> bool:
+    if not value:
+        return False
+    return dj_timezone.localtime(value).date() > work_date
+
+
+def _commit_item_for_manual_context(*, emp: Employee, unit_id: int | None, work_date: date_cls):
+    if not unit_id:
+        return None
+    commit = AttendanceCommit.objects.filter(unit_id=unit_id, work_date=work_date).first()
+    if not commit:
+        return None
+    return commit.items.filter(employee=emp).select_related("code").first()
+
+
+def _commit_pair_is_next_day(item, field: str) -> bool:
+    if field == "OUT1":
+        in_t = getattr(item, "registered_in1_snapshot", None) or getattr(item, "in1", None)
+        out_t = getattr(item, "registered_out1_snapshot", None) or getattr(item, "out1", None)
+    elif field == "OUT2":
+        in_t = getattr(item, "registered_in2_snapshot", None) or getattr(item, "in2", None)
+        out_t = getattr(item, "registered_out2_snapshot", None) or getattr(item, "out2", None)
+    else:
+        return False
+    return bool(in_t and out_t and out_t <= in_t)
+
+
+def _manual_field_should_be_next_day(
+    *,
+    emp: Employee,
+    unit_id: int | None,
+    work_date: date_cls,
+    field: str,
+    t: dt_time,
+) -> bool:
+    """
+    Xác định mốc nhập tay có thuộc ngày hôm sau không.
+
+    Không dùng quy tắc cứng "chỉ OUT2 trước 04:00" nữa vì L3 đang dùng OUT1=06:00.
+    Ưu tiên target đã compute; nếu chưa có MasterList thì dùng snapshot/cặp giờ trong công chốt.
+    """
+    if field not in ("OUT1", "OUT2"):
+        return False
+
+    if unit_id:
+        master = AttendanceDeviceMasterListV2.objects.filter(
+            employee=emp,
+            unit_id=unit_id,
+            work_date=work_date,
+        ).first()
+        if master:
+            target = getattr(master, f"target_{field.lower()}_local", None)
+            if target:
+                return _dt_is_next_day_for_work_date(work_date, target)
+
+    item = _commit_item_for_manual_context(emp=emp, unit_id=unit_id, work_date=work_date)
+    if item:
+        return _commit_pair_is_next_day(item, field)
+
+    # Fallback chỉ dùng khi chưa có công chốt/target: mốc OUT rất sớm có khả năng là ca qua ngày.
+    # Quy tắc chính xác vẫn là công chốt/snapshot ở trên.
+    return t < MANUAL_OVERNIGHT_END_CUTOFF
+
+
 def _save_manual_punch(
     *,
     emp: Employee,
@@ -254,36 +335,38 @@ def _save_manual_punch(
     t: dt_time,
     base_note: str,
     user,
+    unit_id: int | None = None,
 ) -> tuple[int, int]:
     """Ghi đè 1 mốc nhập tay cũ rồi tạo mốc mới. Trả về (created, replaced)."""
     start_of_day = _build_local_datetime_from_time(work_date, dt_time(0, 0), next_day=False)
     start_next_day = _build_local_datetime_from_time(work_date + timedelta(days=1), dt_time(0, 0), next_day=False)
-    out2_cutoff_next_day = _build_local_datetime_from_time(
+    overnight_end_next_day = _build_local_datetime_from_time(
         work_date + timedelta(days=1),
-        OUT2_NEXT_DAY_CUTOFF,
+        MANUAL_OVERNIGHT_END_CUTOFF,
         next_day=False,
     )
 
-    if field == "OUT2":
-        old_qs = AttendanceManualPunch.objects.filter(
-            employee=emp,
-            ghi_chu__startswith=field,
-            thoi_gian_local__gte=start_of_day,
-            thoi_gian_local__lt=out2_cutoff_next_day,
-        )
-    else:
-        old_qs = AttendanceManualPunch.objects.filter(
-            employee=emp,
-            ghi_chu__startswith=field,
-            thoi_gian_local__gte=start_of_day,
-            thoi_gian_local__lt=start_next_day,
-        )
+    # OUT1/OUT2 có thể qua ngày. Dùng khoảng rộng để xóa cả dữ liệu cũ từng bị lưu sai
+    # cùng ngày và dữ liệu đúng ở sáng hôm sau. IN1/IN2 vẫn chỉ xóa trong ngày công.
+    old_end = overnight_end_next_day if field in ("OUT1", "OUT2") else start_next_day
+    old_qs = AttendanceManualPunch.objects.filter(
+        employee=emp,
+        ghi_chu__startswith=field,
+        thoi_gian_local__gte=start_of_day,
+        thoi_gian_local__lt=old_end,
+    )
 
     old_count = old_qs.count()
     if old_count:
         old_qs.delete()
 
-    next_day = field == "OUT2" and _is_next_day_for_out2(t, OUT2_NEXT_DAY_CUTOFF)
+    next_day = _manual_field_should_be_next_day(
+        emp=emp,
+        unit_id=unit_id,
+        work_date=work_date,
+        field=field,
+        t=t,
+    )
     local_dt = _build_local_datetime_from_time(work_date, t, next_day=next_day)
     utc_dt = local_dt.astimezone(timezone.utc)
 
@@ -302,6 +385,123 @@ def _save_manual_punch(
 
 
 
+
+
+def _scope_employee_label(emp: Employee) -> str:
+    code = getattr(emp, "employee_code", "") or ""
+    name = getattr(emp, "full_name", "") or ""
+    return f"{code} - {name}".strip(" -")
+
+
+def _manual_scope_for_unit_date(*, unit_id: int | None, work_date: date_cls) -> dict:
+    """
+    Xác định danh sách nhân sự được phép nhập dữ liệu chấm công bổ sung cho một
+    ngày/đơn vị.
+
+    Nguyên tắc nghiệp vụ:
+    - Nếu đã có công chốt: lấy theo AttendanceCommitItem của đơn vị/ngày đó.
+      Chỉ cho nhập với dòng include_in_unit=True, gồm người thường và BS đến.
+      Dòng BS đi/include_in_unit=False thuộc đơn vị gốc nhưng không nhập giờ ở
+      đơn vị gốc vì đơn vị gốc không biết người đó làm gì tại đơn vị nhận.
+    - Nếu chưa có công chốt: dựng danh sách dự kiến từ điều động hiệu lực qua
+      build_expected_roster().
+    """
+    empty = {
+        "unit": None,
+        "source": "NO_UNIT",
+        "source_label": "Chưa chọn đơn vị",
+        "commit": None,
+        "commit_exists": False,
+        "allowed_ids": set(),
+        "allowed_notes": {},
+        "blocked": [],
+    }
+    if not unit_id:
+        return empty
+
+    unit = OrgUnit.objects.filter(id=unit_id).first()
+    if not unit:
+        return empty
+
+    scope = {
+        **empty,
+        "unit": unit,
+        "source": "ROSTER",
+        "source_label": "Theo điều động/danh sách dự kiến",
+    }
+
+    commit = (
+        AttendanceCommit.objects.filter(unit_id=unit_id, work_date=work_date)
+        .select_related("unit")
+        .prefetch_related("items__employee", "items__employee__unit", "items__bs_peer_unit", "items__code")
+        .first()
+    )
+    if commit:
+        scope["source"] = "COMMIT"
+        scope["source_label"] = "Theo công chốt"
+        scope["commit"] = commit
+        scope["commit_exists"] = True
+
+        for item in commit.items.all():
+            emp = item.employee
+            if not emp:
+                continue
+            direction = str(getattr(item, "bs_direction", "NONE") or "NONE")
+            peer = getattr(item, "bs_peer_unit", None)
+            peer_symbol = getattr(peer, "symbol", "") or ""
+
+            if bool(getattr(item, "include_in_unit", True)):
+                scope["allowed_ids"].add(emp.id)
+                if direction == "IN":
+                    scope["allowed_notes"][emp.id] = f"BS đến từ {peer_symbol}" if peer_symbol else "BS đến"
+                else:
+                    scope["allowed_notes"].setdefault(emp.id, "")
+            else:
+                scope["blocked"].append({
+                    "employee": emp,
+                    "reason": f"BS đi sang {peer_symbol}" if peer_symbol else "BS đi",
+                    "peer_unit": peer,
+                    "source": "COMMIT",
+                })
+        return scope
+
+    entries = build_expected_roster(unit, work_date)
+    peer_unit_ids = {e.bs_peer_unit_id for e in entries if e.bs_peer_unit_id}
+    peer_map = {u.id: u for u in OrgUnit.objects.filter(id__in=peer_unit_ids)}
+    emp_map = {e.id: e for e in Employee.objects.filter(id__in=[x.employee_id for x in entries]).select_related("unit", "team")}
+
+    for entry in entries:
+        emp = emp_map.get(entry.employee_id)
+        if not emp:
+            continue
+        direction = str(entry.bs_direction or "NONE")
+        peer = peer_map.get(entry.bs_peer_unit_id)
+        peer_symbol = getattr(peer, "symbol", "") or ""
+        if entry.include_in_unit:
+            scope["allowed_ids"].add(emp.id)
+            if direction == "IN":
+                scope["allowed_notes"][emp.id] = f"BS đến từ {peer_symbol}" if peer_symbol else "BS đến"
+            else:
+                scope["allowed_notes"].setdefault(emp.id, "")
+        else:
+            scope["blocked"].append({
+                "employee": emp,
+                "reason": f"BS đi sang {peer_symbol}" if peer_symbol else "BS đi",
+                "peer_unit": peer,
+                "source": "ROSTER",
+            })
+
+    return scope
+
+
+def _manual_scope_error_labels(employee_ids: list[int], allowed_ids: set[int]) -> list[str]:
+    invalid_ids = [eid for eid in employee_ids if eid not in allowed_ids]
+    if not invalid_ids:
+        return []
+    employees = Employee.objects.filter(id__in=invalid_ids).order_by("employee_code", "full_name")
+    return [_scope_employee_label(emp) for emp in employees]
+
+
 def _commit_exists(*, unit_id: int | None, work_date: date_cls) -> bool:
     if not unit_id:
         return False
@@ -318,23 +518,23 @@ def _master_exists(*, employee_id: int, unit_id: int | None, work_date: date_cls
     ).exists()
 
 
-def _manual_punch_compute_status(punch: AttendanceManualPunch) -> dict:
+def _manual_punch_compute_status(punch: AttendanceManualPunch, *, unit_id: int | None = None) -> dict:
     """
-    Trạng thái hiển thị cho từng mốc nhập bổ sung:
-    - CHO_CONG_CHOT: chưa có AttendanceCommit nên chưa thể compute.
-    - CHUA_TINH: đã có công chốt nhưng chưa có dòng MasterList tương ứng.
-    - DA_TINH: đã có dòng MasterList tương ứng.
+    Trạng thái hiển thị cho từng mốc nhập bổ sung.
+
+    Lưu ý: AttendanceManualPunch hiện chưa lưu unit, nên với người điều động đến
+    phải kiểm tra trạng thái theo đơn vị đang lọc, không dùng employee.unit gốc.
     """
     work_date = _infer_work_date_from_manual_punch(punch)
-    unit_id = getattr(punch.employee, "unit_id", None)
-    if not _commit_exists(unit_id=unit_id, work_date=work_date):
+    effective_unit_id = unit_id or getattr(punch.employee, "unit_id", None)
+    if not _commit_exists(unit_id=effective_unit_id, work_date=work_date):
         return {
             "code": "CHO_CONG_CHOT",
             "label": "Chờ công chốt",
             "badge": "status-cho-cong-chot",
             "work_date": work_date,
         }
-    if _master_exists(employee_id=punch.employee_id, unit_id=unit_id, work_date=work_date):
+    if _master_exists(employee_id=punch.employee_id, unit_id=effective_unit_id, work_date=work_date):
         return {
             "code": "DA_TINH",
             "label": "Đã tính",
@@ -369,6 +569,15 @@ def _handle_excel_import(request, *, today: date_cls):
     recompute = (request.POST.get("excel_recompute") or "1").strip() == "1"
     source_type = _normalize_manual_source(request.POST.get("excel_source_type") or MANUAL_SOURCE_MAY_HONG)
     uploaded = request.FILES.get("excel_file")
+
+    if not unit_raw.isdigit():
+        messages.error(request, "Bạn cần chọn đơn vị trước khi import Excel để hệ thống kiểm tra đúng điều động/ngày công.")
+        return redirect(_them_du_lieu_url(work_date=work_date_fallback, unit=unit_raw, q=q))
+    unit_id = int(unit_raw)
+    if not unit_in_attendance_scope(request.user, unit_id):
+        messages.error(request, "Bạn không có quyền nhập dữ liệu cho đơn vị này.")
+        return redirect(_them_du_lieu_url(work_date=work_date_fallback, unit=unit_raw, q=q))
+    scope_cache: dict[date_cls, dict] = {}
 
     if not uploaded:
         messages.error(request, "Bạn cần chọn file Excel để import.")
@@ -441,8 +650,15 @@ def _handle_excel_import(request, *, today: date_cls):
         if not emp:
             errors.append(f"Dòng {excel_row_no}: không tìm thấy nhân sự ma_nhan_su='{ma_nv}' ma_the='{ma_the}'.")
             continue
-        if not emp.unit_id:
-            errors.append(f"Dòng {excel_row_no}: nhân sự {emp.employee_code} chưa có đơn vị, không thể tính lại MasterList.")
+        if work_date not in scope_cache:
+            scope_cache[work_date] = _manual_scope_for_unit_date(unit_id=unit_id, work_date=work_date)
+        scope = scope_cache[work_date]
+        if emp.id not in scope["allowed_ids"]:
+            unit_label = getattr(scope.get("unit"), "symbol", unit_raw) or unit_raw
+            errors.append(
+                f"Dòng {excel_row_no}: nhân sự {emp.employee_code} không thuộc phạm vi nhập dữ liệu của đơn vị {unit_label} ngày {work_date:%Y-%m-%d}. "
+                "Nếu là người đi bổ sung, đơn vị nhận mới nhập dữ liệu chấm công."
+            )
             continue
 
         times = {
@@ -498,10 +714,11 @@ def _handle_excel_import(request, *, today: date_cls):
                     t=t,
                     base_note=item["base_note"],
                     user=request.user,
+                    unit_id=unit_id,
                 )
                 created += c
                 replaced += r
-            affected_unit_dates.add((emp.unit_id, work_date))
+            affected_unit_dates.add((unit_id, work_date))
 
     _warn_if_missing_commit(request, affected_unit_dates)
 
@@ -552,6 +769,9 @@ def them_du_lieu_view(request):
             messages.error(request, "Bạn cần chọn đơn vị trước khi tính lại ngày/đơn vị.")
             return redirect(_them_du_lieu_url(work_date=work_date, unit=unit_raw, q=q))
         unit_id = int(unit_raw)
+        if not unit_in_attendance_scope(request.user, unit_id):
+            messages.error(request, "Bạn không có quyền tính lại dữ liệu đơn vị này.")
+            return redirect(_them_du_lieu_url(work_date=work_date, unit=unit_raw, q=q))
         if not _commit_exists(unit_id=unit_id, work_date=work_date):
             messages.warning(request, "Ngày/đơn vị này chưa có công chốt nên chưa thể tính MasterList. Dữ liệu bổ sung vẫn được lưu và đang chờ công chốt.")
             return redirect(_them_du_lieu_url(work_date=work_date, unit=unit_raw, q=q))
@@ -596,6 +816,9 @@ def them_du_lieu_view(request):
             return redirect(_redirect_url(request=request, work_date=work_date, unit=unit_raw, q=q, employee_id=selected_employee_id))
 
         unit_id = int(unit_raw)
+        if not unit_in_attendance_scope(request.user, unit_id):
+            messages.error(request, "Bạn không có quyền nhập dữ liệu cho đơn vị này.")
+            return redirect(_redirect_url(request=request, work_date=work_date, unit=unit_raw, q=q, employee_id=selected_employee_id))
 
         if not employee_ids:
             messages.error(request, "Bạn cần chọn ít nhất một nhân sự.")
@@ -610,6 +833,18 @@ def them_du_lieu_view(request):
         missing_ids = sorted(set(employee_ids) - {e.id for e in employees})
         if missing_ids:
             messages.warning(request, f"Có {len(missing_ids)} nhân sự không tồn tại nên đã bỏ qua.")
+
+        scope = _manual_scope_for_unit_date(unit_id=unit_id, work_date=work_date)
+        invalid_labels = _manual_scope_error_labels([e.id for e in employees], scope["allowed_ids"])
+        if invalid_labels:
+            sample = ", ".join(invalid_labels[:5])
+            more = f" và {len(invalid_labels) - 5} nhân sự khác" if len(invalid_labels) > 5 else ""
+            messages.error(
+                request,
+                "Không thể nhập dữ liệu tại đơn vị đang chọn cho: " + sample + more +
+                ". Danh sách nhập dữ liệu V2 được xác định theo công chốt hoặc điều động trong ngày; người đi bổ sung phải nhập tại đơn vị nhận."
+            )
+            return redirect(_redirect_url(request=request, work_date=work_date, unit=unit_raw, q=q, employee_id=selected_employee_id))
 
         times = {
             "IN1": _parse_time(request.POST.get("in1")),
@@ -639,6 +874,7 @@ def them_du_lieu_view(request):
                         t=t,
                         base_note=base_note,
                         user=request.user,
+                        unit_id=unit_id,
                     )
                     created += c
                     replaced += r
@@ -684,12 +920,19 @@ def them_du_lieu_view(request):
     if page_size not in (25, 50, 100, 200):
         page_size = 50
 
-    units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
+    units = get_allowed_attendance_units(request.user)
 
     # Trang thêm dữ liệu bắt buộc thao tác theo một đơn vị cụ thể.
     # Nếu URL chưa truyền unit, mặc định chọn đơn vị chấm công đầu tiên để tránh trạng thái "Tất cả".
     if not unit_raw and units.exists():
         unit_raw = str(units.first().id)
+
+    selected_unit_id = int(unit_raw) if unit_raw.isdigit() else None
+    if selected_unit_id is not None and not unit_in_attendance_scope(request.user, selected_unit_id):
+        selected_unit_id = None
+        unit_raw = ""
+    manual_scope = _manual_scope_for_unit_date(unit_id=selected_unit_id, work_date=work_date)
+    allowed_employee_ids = manual_scope["allowed_ids"]
 
     window_start, window_end = _manual_window_for_work_date(work_date)
     rows = AttendanceManualPunch.objects.select_related("employee", "employee__unit", "tao_boi").filter(
@@ -697,8 +940,11 @@ def them_du_lieu_view(request):
         thoi_gian_local__lt=window_end,
     )
 
-    if unit_raw.isdigit():
-        rows = rows.filter(employee__unit_id=int(unit_raw))
+    if selected_unit_id is not None:
+        if allowed_employee_ids:
+            rows = rows.filter(employee_id__in=allowed_employee_ids)
+        else:
+            rows = rows.none()
 
     if q:
         rows = rows.filter(
@@ -715,19 +961,22 @@ def them_du_lieu_view(request):
     for punch in page_obj.object_list:
         row_items.append({
             "obj": punch,
-            "compute_status": _manual_punch_compute_status(punch),
+            "compute_status": _manual_punch_compute_status(punch, unit_id=selected_unit_id),
         })
 
-    employees = Employee.objects.filter(status=Employee.Status.ACTIVE)
-    if unit_raw.isdigit():
-        employees = employees.filter(unit_id=int(unit_raw))
+    if selected_unit_id is not None and allowed_employee_ids:
+        employees_qs = Employee.objects.filter(id__in=allowed_employee_ids)
+    else:
+        employees_qs = Employee.objects.none()
     if q:
-        employees = employees.filter(
+        employees_qs = employees_qs.filter(
             Q(employee_code__icontains=q) |
             Q(full_name__icontains=q) |
             Q(card_id__icontains=q)
         )
-    employees = employees.order_by("employee_code", "full_name")[:2000]
+    employees = list(employees_qs.select_related("unit", "team").order_by("employee_code", "full_name")[:2000])
+    for emp in employees:
+        emp.manual_scope_note = manual_scope["allowed_notes"].get(emp.id, "")
 
     selected_employee = None
     if selected_employee_id.isdigit():
@@ -752,7 +1001,11 @@ def them_du_lieu_view(request):
         "co_quyen_xoa": request.user.has_perm("attendance_devices_v2.delete_attendancemanualpunch"),
         "manual_source_choices": MANUAL_SOURCE_CHOICES,
         "default_manual_source_type": MANUAL_SOURCE_MAY_HONG,
-        "commit_exists": _commit_exists(unit_id=int(unit_raw) if unit_raw.isdigit() else None, work_date=work_date),
+        "commit_exists": manual_scope["commit_exists"],
+        "manual_scope_source_label": manual_scope["source_label"],
+        "manual_scope_blocked": manual_scope["blocked"][:50],
+        "manual_scope_blocked_count": len(manual_scope["blocked"]),
+        "allowed_employee_count": len(allowed_employee_ids),
     })
 
 
@@ -778,7 +1031,10 @@ def xoa_du_lieu_view(request, punch_id: int):
         return redirect(_them_du_lieu_url(work_date=fallback_date, unit=unit_raw, q=q))
 
     work_date = _infer_work_date_from_manual_punch(punch)
-    unit_id = punch.employee.unit_id
+    unit_id = int(unit_raw) if unit_raw.isdigit() else punch.employee.unit_id
+    if unit_id and not unit_in_attendance_scope(request.user, unit_id):
+        messages.error(request, "Bạn không có quyền xóa dữ liệu của đơn vị này.")
+        return redirect(_them_du_lieu_url(work_date=work_date, unit=unit_raw, q=q))
     if not unit_raw and unit_id:
         unit_raw = str(unit_id)
 

@@ -1,84 +1,82 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}{% if create %}Tạo{% else %}Sửa{% endif %} Luồng phê duyệt{% endblock %}
+{% block title %}{% if create %}{% trans "Tạo luồng phê duyệt" %}{% else %}{% trans "Sửa luồng phê duyệt" %}{% endif %}{% endblock %}
 {% block content %}
-<h5 class="mb-3">{% if create %}Tạo{% else %}Sửa{% endif %} Luồng phê duyệt</h5>
-<form method="post">
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-route"></i>{% if create %}{% trans "Tạo luồng phê duyệt" %}{% else %}{% trans "Sửa luồng phê duyệt" %}{% endif %}</h2>
+    <div class="bo-page-subtitle">{% trans "Cấu hình phạm vi đơn vị, trạng thái và chính sách chung của luồng." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a>
+  </div>
+</div>
+
+<form method="post" class="card bo-form-card">
   {% csrf_token %}
-
-  <div class="mb-2">
-    <label class="form-label">Mã luồng (tự sinh nếu để trống)</label>
-    {{ form.flow_key }}
-    <div class="form-text">Hệ thống sẽ sinh từ tên luồng và thêm hậu tố để đảm bảo không trùng.</div>
-  </div>
-
-  <div class="mb-2">
-    <label class="form-label">Tên luồng</label>
-    {{ form.name }}
-  </div>
-
-  <div class="mb-2">
-    <label class="form-label">Mô tả</label>
-    {{ form.description }}
-  </div>
-
-  <hr>
-  <h6 class="mb-2">Đơn vị được phép tạo yêu cầu</h6>
-  <div class="mb-2">
-    {{ form.request_units }}
-    <div class="form-text">
-      - Chọn những đơn vị được phép sử dụng luồng này khi tạo yêu cầu phê duyệt.<br>
-      - Khi tạo yêu cầu, hệ thống sẽ kiểm tra đơn vị của yêu cầu có nằm trong danh sách này không.
+  <div class="card-body">
+    {% if form.non_field_errors %}<div class="bo-alert bo-alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="bo-form-grid">
+      <div>
+        <label class="form-label">{% trans "Mã luồng" %}<span class="bo-help" data-bs-toggle="tooltip" title="Có thể để trống, hệ thống sẽ tự sinh từ tên luồng.">?</span></label>
+        {{ form.flow_key }}
+        {% if form.flow_key.errors %}<div class="text-danger small mt-1">{{ form.flow_key.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div>
+        <label class="form-label">{% trans "Trạng thái" %}</label>
+        {{ form.status }}
+        {% if form.status.errors %}<div class="text-danger small mt-1">{{ form.status.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div class="bo-form-field-full">
+        <label class="form-label">{% trans "Tên luồng" %}</label>
+        {{ form.name }}
+        {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div class="bo-form-field-full">
+        <label class="form-label">{% trans "Mô tả" %}</label>
+        {{ form.description }}
+        {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors|join:", " }}</div>{% endif %}
+      </div>
     </div>
-  </div>
 
-  <hr>
-  <h6 class="mb-2">Cấu hình chung</h6>
+    <hr>
+    <h3 class="bo-section-title mb-2"><i class="ti ti-building"></i>{% trans "Đơn vị được phép tạo yêu cầu" %}</h3>
+    <div class="mb-3">
+      {{ form.request_units }}
+      {% if form.request_units.errors %}<div class="text-danger small mt-1">{{ form.request_units.errors|join:", " }}</div>{% endif %}
+      <div class="text-muted small mt-1">{% trans "Nếu để trống, service vẫn kiểm tra theo cấu hình luồng nhưng không giới hạn danh sách đơn vị." %}</div>
+    </div>
 
-  <div class="mb-2">
-    <label class="form-label">Chính sách khi bị từ chối (reject_policy)</label>
-    {{ form.reject_policy }}
-    <div class="form-text">
-      REJECT_IMMEDIATE: Khi bất kỳ bước nào bị từ chối, yêu cầu sẽ dừng ngay (chuyển “Đã từ chối”).
-    </div>
-  </div>
-
-  <div class="mb-2">
-    <div class="form-check">
-      {{ form.allow_overrides_global }}
-      <label class="form-check-label" for="{{ form.allow_overrides_global.id_for_label }}">Cho phép ghi đè cấu hình ở runtime</label>
-    </div>
-    <div class="form-text">
-      “Cho phép ghi đè” nghĩa là có thể thay đổi người ký/ngưỡng ký của bước ngay trong quá trình chạy (theo quyền được cấp),<br>
-      áp dụng các trường hợp đặc biệt: lãnh đạo vắng, ủy quyền tạm thời, thêm người ký bổ sung.<br>
-      Nếu không bật, cấu hình sẽ cố định theo phiên bản luồng đã publish.
-    </div>
-  </div>
-
-  <div class="mb-2">
-    <div class="form-check">
-      {{ form.sla_enabled }}
-      <label class="form-check-label" for="{{ form.sla_enabled.id_for_label }}">Bật SLA theo dõi hạn xử lý</label>
-    </div>
-    <div class="row g-2 mt-1">
-      <div class="col-md-3">
-        <label class="form-label">Số ngày SLA mặc định</label>
+    <hr>
+    <h3 class="bo-section-title mb-2"><i class="ti ti-adjustments"></i>{% trans "Cấu hình chung" %}</h3>
+    <div class="bo-form-grid">
+      <div class="bo-form-field-full">
+        <label class="form-label">{% trans "Chính sách khi bị từ chối" %}</label>
+        {{ form.reject_policy }}
+      </div>
+      <div>
+        <div class="form-check mt-2">
+          {{ form.allow_overrides_global }}
+          <label class="form-check-label" for="{{ form.allow_overrides_global.id_for_label }}">{% trans "Cho phép ghi đè runtime" %}</label>
+        </div>
+        <div class="text-muted small mt-1">{% trans "Chỉ dùng cho trường hợp đặc biệt như ủy quyền hoặc thêm người ký." %}</div>
+      </div>
+      <div>
+        <div class="form-check mt-2">
+          {{ form.sla_enabled }}
+          <label class="form-check-label" for="{{ form.sla_enabled.id_for_label }}">{% trans "Bật SLA theo dõi hạn xử lý" %}</label>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">{% trans "Số ngày SLA mặc định" %}</label>
         {{ form.sla_default_days }}
       </div>
     </div>
-    <div class="form-text">
-      SLA giúp theo dõi thời hạn xử lý phê duyệt. Khi quá hạn, có thể hiển thị cảnh báo/nhắc việc.
-    </div>
   </div>
-
-  <div class="mb-3">
-    <label class="form-label">Trạng thái</label>
-    {{ form.status }}
-  </div>
-
-  <div class="d-flex gap-2">
-    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
-    <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}">Hủy</a>
+  <div class="card-footer bo-form-actions">
+    <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-device-floppy"></i> {% trans "Lưu" %}</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}">{% trans "Hủy" %}</a>
   </div>
 </form>
 {% endblock %}

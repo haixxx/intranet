@@ -3,130 +3,18 @@
 
 {% block title %}Thống kê chấm công{% endblock %}
 
-{% block extra_head %}
-<style>
-  .thong-ke-page h2 { font-size: 1.35rem; }
-
-  /* Bộ lọc gọn trong 1 dòng trên màn hình rộng */
-  .filter-compact {
-    display: grid;
-    grid-template-columns: 122px 122px 92px 145px 160px minmax(140px, 1fr) 78px 78px 116px;
-    gap: .35rem;
-    align-items: end;
-  }
-  .filter-compact .form-label {
-    font-size: 11px;
-    color: #6c757d;
-    margin-bottom: 2px;
-  }
-  .filter-compact .form-control-sm,
-  .filter-compact .form-select-sm,
-  .filter-compact .btn-sm {
-    font-size: 12px;
-    min-height: 30px;
-    padding-top: .18rem;
-    padding-bottom: .18rem;
-  }
-  .filter-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; }
-
-  @media (max-width: 1200px) {
-    .filter-compact {
-      grid-template-columns: repeat(4, minmax(120px, 1fr));
-    }
-  }
-  @media (max-width: 768px) {
-    .filter-compact {
-      grid-template-columns: repeat(2, minmax(120px, 1fr));
-    }
-  }
-
-  /* Bảng gọn, ưu tiên nằm trong trang */
-  .bang-wrap { overflow-x: visible; }
-  .bang-thong-ke {
-    width: 100%;
-    table-layout: fixed;
-    font-size: 11px;
-  }
-  .bang-thong-ke th,
-  .bang-thong-ke td {
-    padding: .22rem .2rem;
-    line-height: 1.15;
-    vertical-align: middle;
-    background-clip: padding-box;
-  }
-  .bang-thong-ke thead th {
-    text-align: center;
-    white-space: nowrap;
-    font-weight: 600;
-  }
-  .bang-thong-ke tbody tr:nth-child(even) td { background: #f6f8fa; }
-
-  .cell-thieu { background: #f8d7da !important; color: #842029 !important; font-weight: 700; }
-  .cell-muon  { background: #fff3cd !important; color: #664d03 !important; font-weight: 700; }
-  .cell-som   { background: #fff3cd !important; color: #664d03 !important; font-weight: 700; }
-
-  /* Mặc định: chế độ 1 ngày */
-  .col-date { width: 5.5%; }
-  .col-emp { width: 17%; }
-  .col-status { width: 5.7%; }
-  .col-time { width: 4.45%; }
-  .col-metric { width: 3.4%; }
-  .col-note { width: 12%; }
-  .col-request { width: 7%; }
-  .col-action { width: 7%; }
-
-  /* Khi xem khoảng ngày: thêm cột ngày/trạng thái/muộn/sớm/thiếu nên nén bảng hơn */
-  .mode-range .col-date { width: 5.5%; }
-  .mode-range .col-emp { width: 13.5%; }
-  .mode-range .col-status { width: 5.7%; }
-  .mode-range .col-time { width: 3.65%; }
-  .mode-range .col-metric { width: 3.4%; }
-  .mode-range .col-note { width: 7.5%; }
-  .mode-range .col-request { width: 5.2%; }
-  .mode-range .col-action { width: 5.4%; }
-
-  .emp-name,
-  .emp-unit,
-  .note-text {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .emp-name { font-weight: 700; }
-  .emp-unit { color: #6c757d; font-size: 10px; }
-
-  .time-cell { text-align: center; white-space: nowrap; }
-  .time-input {
-    width: 58px;
-    max-width: 100%;
-    min-width: 0;
-    padding-left: 2px;
-    padding-right: 2px;
-    font-size: 11px;
-  }
-  .note-input {
-    min-width: 0;
-    padding-left: 4px;
-    padding-right: 4px;
-    font-size: 11px;
-  }
-  .badge-compact { font-size: 10px; padding: .25em .35em; }
-  .btn-compact { font-size: 11px; padding: .18rem .35rem; }
-
-  @media (max-width: 992px) {
-    .bang-wrap { overflow-x: auto; }
-    .bang-thong-ke { min-width: 980px; }
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="thong-ke-page">
-<h2 class="mb-2">Thống kê chấm công</h2>
+<div class="thong-ke-page bo-page">
+  <div class="bo-page-header">
+    <div class="bo-page-heading">
+      <div class="bo-page-pretitle">Quản lý chấm công</div>
+      <h2 class="bo-page-title"><i class="ti ti-chart-bar"></i> Thống kê chấm công</h2>
+      <div class="bo-page-subtitle">Đối chiếu mốc đăng ký, dữ liệu từ máy và dữ liệu đã sửa theo ngày/khoảng ngày.</div>
+    </div>
+  </div>
 
-<form class="card card-body mb-2 py-2" method="get">
-  <div class="filter-compact">
+<form class="card card-body bo-filter-card mb-2 py-2" method="get">
+  <div class="bo-filter-grid bo-filter-grid-attendance-stat">
     <div>
       <label class="form-label">Từ ngày</label>
       <input class="form-control form-control-sm" type="date" name="from" value="{{ from_date }}">
@@ -168,6 +56,7 @@
         <option value="THIEU_MOC"{% if status == "THIEU_MOC" %} selected{% endif %}>Thiếu mốc</option>
         <option value="VI_PHAM"{% if status == "VI_PHAM" %} selected{% endif %}>Vi phạm</option>
         <option value="YEU_CAU_SUA"{% if status == "YEU_CAU_SUA" %} selected{% endif %}>Yêu cầu sửa</option>
+        <option value="CAN_TINH_LAI"{% if status == "CAN_TINH_LAI" %} selected{% endif %}>Cần tính lại</option>
       </select>
     </div>
 
@@ -197,14 +86,14 @@
 
     <div>
       <label class="form-label">&nbsp;</label>
-      <div class="filter-actions">
-        <button class="btn btn-primary btn-sm" type="submit">Xem</button>
-        <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:thong_ke' %}">Xóa</a>
+      <div class="bo-filter-actions-grid">
+        <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-search me-1"></i>Lọc</button>
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:thong_ke' %}"><i class="ti ti-x me-1"></i>Xóa lọc</a>
       </div>
     </div>
   </div>
 
-  <div class="text-muted small mt-2">
+  <div class="bo-filter-note mt-2">
     {% if is_range_mode %}
       <strong>Khoảng ngày:</strong> {{ from_date }} → {{ to_date }}. Chỉ xem/lọc; muốn sửa bấm <strong>Mở</strong> ở từng dòng.
     {% else %}
@@ -212,6 +101,34 @@
     {% endif %}
   </div>
 </form>
+
+{% if stale_count %}
+  <div class="bo-alert bo-alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 small">
+    <div>
+      <div class="fw-bold">Có {{ stale_count }} dòng MasterList cần tính lại</div>
+      <div>Công chốt đã thay đổi sau lần compute gần nhất. Kết quả đối chiếu V2 hiện có thể chưa khớp với snapshot mới.</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-warning btn-sm" href="{{ stale_url }}"><i class="ti ti-list-search me-1"></i>Xem dòng cần tính lại</a>
+      {% if can_recompute_masterlist %}
+        <form method="post" action="{% url 'attendance_devices_v2:tinh_lai_masterlist_thong_ke' %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="date" value="{{ work_date }}">
+          <input type="hidden" name="from" value="{{ from_date }}">
+          <input type="hidden" name="to" value="{{ to_date }}">
+          <input type="hidden" name="unit" value="{{ unit }}">
+          <input type="hidden" name="q" value="{{ q }}">
+          <input type="hidden" name="nguong" value="{{ nguong }}">
+          <input type="hidden" name="source" value="{{ source }}">
+          <input type="hidden" name="status" value="{{ status }}">
+          <input type="hidden" name="page_size" value="{{ page_size }}">
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button class="btn btn-warning btn-sm" type="submit"><i class="ti ti-refresh me-1"></i>Tính lại MasterList</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
 
 <form method="post" action="{% url 'attendance_devices_v2:luu_du_lieu' %}">
   {% csrf_token %}
@@ -231,13 +148,13 @@
       Trang {{ page_obj.number }} / {{ paginator.num_pages }} — Tổng {{ paginator.count }} dòng
     </div>
     {% if co_quyen_sua and allow_inline_edit %}
-      <button class="btn btn-success btn-sm" type="submit">Lưu dữ liệu</button>
+      <button class="btn btn-success btn-sm" type="submit"><i class="ti ti-device-floppy me-1"></i>Lưu dữ liệu</button>
     {% endif %}
   </div>
 
-  <div class="card">
-    <div class="bang-wrap">
-      <table class="table table-sm align-middle mb-0 bang-thong-ke {% if is_range_mode %}mode-range{% endif %}">
+  <div class="card bo-table-card">
+    <div class="table-responsive bang-wrap">
+      <table class="table table-sm align-middle mb-0 bo-table-dense bang-thong-ke {% if is_range_mode %}mode-range{% endif %}">
         <colgroup>
           {% if is_range_mode %}<col class="col-date">{% endif %}
           <col class="col-emp">
@@ -278,8 +195,8 @@
 
         <tbody>
           {% for r in rows %}
-            {% with obj=r.obj st=r.trang_thai_o_may %}
-            <tr>
+            {% with obj=r.obj st=r.trang_thai_o_may st_edit=r.trang_thai_da_sua %}
+            <tr class="{% if r.is_stale %}row-stale{% endif %}">
               {% if is_range_mode %}
                 <td class="time-cell"><strong>{{ obj.work_date|date:"d/m" }}</strong></td>
               {% endif %}
@@ -288,19 +205,22 @@
                 {% if allow_inline_edit %}<input type="hidden" name="row_ids" value="{{ obj.id }}">{% endif %}
                 <span class="emp-name">{{ obj.employee.full_name }}</span>
                 <span class="emp-unit">{{ obj.unit.symbol }}</span>
-                {% if obj.is_exempt %}<span class="badge bg-secondary badge-compact">Đặc cách</span>{% endif %}
+                {% if obj.is_exempt %}<span class="bo-badge bo-badge-secondary bo-badge-compact">Đặc cách</span>{% endif %}
+                {% if r.is_stale %}<span class="bo-badge bo-badge-warning bo-badge-compact">Cần tính lại</span>{% endif %}
               </td>
 
               {% if is_range_mode %}
                 <td class="time-cell">
-                  {% if r.status_label == "Vi phạm" %}
-                    <span class="badge bg-warning text-dark badge-compact">VP</span>
+                  {% if r.is_stale %}
+                    <span class="bo-badge bo-badge-warning bo-badge-compact">Lại</span>
+                  {% elif r.status_label == "Vi phạm" %}
+                    <span class="bo-badge bo-badge-warning bo-badge-compact">VP</span>
                   {% elif r.status_label == "Thiếu mốc" %}
-                    <span class="badge bg-danger badge-compact">Thiếu</span>
+                    <span class="bo-badge bo-badge-danger bo-badge-compact">Thiếu</span>
                   {% elif r.status_label == "Vắng" %}
-                    <span class="badge bg-secondary badge-compact">Vắng</span>
+                    <span class="bo-badge bo-badge-secondary bo-badge-compact">Vắng</span>
                   {% else %}
-                    <span class="badge bg-success badge-compact">OK</span>
+                    <span class="bo-badge bo-badge-success bo-badge-compact">OK</span>
                   {% endif %}
                 </td>
               {% endif %}
@@ -319,15 +239,15 @@
 
               <!-- Đã sửa -->
               {% if allow_inline_edit %}
-                <td class="time-cell"><input class="form-control form-control-sm time-input" type="time" name="row_{{ obj.id }}_override_in1" value="{% if obj.override_in1_local %}{{ obj.override_in1_local|date:'H:i' }}{% endif %}" {% if not co_quyen_sua %}disabled{% endif %}></td>
-                <td class="time-cell"><input class="form-control form-control-sm time-input" type="time" name="row_{{ obj.id }}_override_out1" value="{% if obj.override_out1_local %}{{ obj.override_out1_local|date:'H:i' }}{% endif %}" {% if not co_quyen_sua %}disabled{% endif %}></td>
-                <td class="time-cell"><input class="form-control form-control-sm time-input" type="time" name="row_{{ obj.id }}_override_in2" value="{% if obj.override_in2_local %}{{ obj.override_in2_local|date:'H:i' }}{% endif %}" {% if not co_quyen_sua %}disabled{% endif %}></td>
-                <td class="time-cell"><input class="form-control form-control-sm time-input" type="time" name="row_{{ obj.id }}_override_out2" value="{% if obj.override_out2_local %}{{ obj.override_out2_local|date:'H:i' }}{% endif %}" {% if not co_quyen_sua %}disabled{% endif %}></td>
+                <td class="time-cell {% if st_edit.in1 == 'THIEU' %}cell-thieu{% elif st_edit.in1 == 'MUON' %}cell-muon{% endif %}"><input class="form-control form-control-sm time-input" type="time" name="row_{{ obj.id }}_override_in1" value="{% if obj.override_in1_local %}{{ obj.override_in1_local|date:'H:i' }}{% endif %}" {% if not co_quyen_sua %}disabled{% endif %}></td>
+                <td class="time-cell {% if st_edit.out1 == 'THIEU' %}cell-thieu{% elif st_edit.out1 == 'SOM' %}cell-som{% endif %}"><input class="form-control form-control-sm time-input" type="time" name="row_{{ obj.id }}_override_out1" value="{% if obj.override_out1_local %}{{ obj.override_out1_local|date:'H:i' }}{% endif %}" {% if not co_quyen_sua %}disabled{% endif %}></td>
+                <td class="time-cell {% if st_edit.in2 == 'THIEU' %}cell-thieu{% elif st_edit.in2 == 'MUON' %}cell-muon{% endif %}"><input class="form-control form-control-sm time-input" type="time" name="row_{{ obj.id }}_override_in2" value="{% if obj.override_in2_local %}{{ obj.override_in2_local|date:'H:i' }}{% endif %}" {% if not co_quyen_sua %}disabled{% endif %}></td>
+                <td class="time-cell {% if st_edit.out2 == 'THIEU' %}cell-thieu{% elif st_edit.out2 == 'SOM' %}cell-som{% endif %}"><input class="form-control form-control-sm time-input" type="time" name="row_{{ obj.id }}_override_out2" value="{% if obj.override_out2_local %}{{ obj.override_out2_local|date:'H:i' }}{% endif %}" {% if not co_quyen_sua %}disabled{% endif %}></td>
               {% else %}
-                <td class="time-cell">{% if obj.override_in1_local %}{{ obj.override_in1_local|date:"H:i" }}{% else %}-{% endif %}</td>
-                <td class="time-cell">{% if obj.override_out1_local %}{{ obj.override_out1_local|date:"H:i" }}{% else %}-{% endif %}</td>
-                <td class="time-cell">{% if obj.override_in2_local %}{{ obj.override_in2_local|date:"H:i" }}{% else %}-{% endif %}</td>
-                <td class="time-cell">{% if obj.override_out2_local %}{{ obj.override_out2_local|date:"H:i" }}{% else %}-{% endif %}</td>
+                <td class="time-cell {% if st_edit.in1 == 'THIEU' %}cell-thieu{% elif st_edit.in1 == 'MUON' %}cell-muon{% endif %}">{% if obj.override_in1_local %}{{ obj.override_in1_local|date:"H:i" }}{% else %}-{% endif %}</td>
+                <td class="time-cell {% if st_edit.out1 == 'THIEU' %}cell-thieu{% elif st_edit.out1 == 'SOM' %}cell-som{% endif %}">{% if obj.override_out1_local %}{{ obj.override_out1_local|date:"H:i" }}{% else %}-{% endif %}</td>
+                <td class="time-cell {% if st_edit.in2 == 'THIEU' %}cell-thieu{% elif st_edit.in2 == 'MUON' %}cell-muon{% endif %}">{% if obj.override_in2_local %}{{ obj.override_in2_local|date:"H:i" }}{% else %}-{% endif %}</td>
+                <td class="time-cell {% if st_edit.out2 == 'THIEU' %}cell-thieu{% elif st_edit.out2 == 'SOM' %}cell-som{% endif %}">{% if obj.override_out2_local %}{{ obj.override_out2_local|date:"H:i" }}{% else %}-{% endif %}</td>
               {% endif %}
 
               {% if is_range_mode %}
@@ -346,13 +266,13 @@
 
               <td class="time-cell">
                 {% if obj.yeu_cau_sua_trang_thai == "DA_YEU_CAU" %}
-                  <span class="badge bg-danger badge-compact">YC</span>
+                  <span class="bo-badge bo-badge-danger bo-badge-compact">YC</span>
                 {% elif obj.yeu_cau_sua_trang_thai == "DANG_XU_LY" %}
-                  <span class="badge bg-warning text-dark badge-compact">XL</span>
+                  <span class="bo-badge bo-badge-warning bo-badge-compact">XL</span>
                 {% elif obj.yeu_cau_sua_trang_thai == "DA_XU_LY" %}
-                  <span class="badge bg-success badge-compact">Xong</span>
+                  <span class="bo-badge bo-badge-success bo-badge-compact">Xong</span>
                 {% elif obj.yeu_cau_sua_trang_thai == "TU_CHOI" %}
-                  <span class="badge bg-secondary badge-compact">Từ chối</span>
+                  <span class="bo-badge bo-badge-secondary bo-badge-compact">Từ chối</span>
                 {% else %}
                   -
                 {% endif %}
@@ -360,7 +280,7 @@
 
               <td class="time-cell">
                 {% if is_range_mode %}
-                  <a class="btn btn-sm btn-outline-primary btn-compact" href="{{ r.open_day_url }}">Mở</a>
+                  <a class="btn btn-sm btn-outline-primary btn-compact" href="{{ r.open_day_url }}"><i class="ti ti-external-link me-1"></i>Mở</a>
                 {% else %}
                   <button class="btn btn-sm btn-outline-danger btn-compact"
                           type="button"
@@ -370,14 +290,14 @@
                           data-emp="{{ obj.employee.full_name }}"
                           data-unit="{{ obj.unit.symbol }}"
                           data-date="{{ obj.work_date }}">
-                    YC
+                    <i class="ti ti-edit me-1"></i>YC
                   </button>
                 {% endif %}
               </td>
             </tr>
             {% endwith %}
           {% empty %}
-            <tr><td colspan="22" class="text-muted">Không có dữ liệu.</td></tr>
+            <tr><td colspan="22" class="bo-empty-cell">Không có dữ liệu phù hợp.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -387,12 +307,12 @@
   <div class="d-flex justify-content-between align-items-center mt-2">
     <div class="text-muted small">Trang {{ page_obj.number }} / {{ paginator.num_pages }}</div>
     {% if co_quyen_sua and allow_inline_edit %}
-      <button class="btn btn-success btn-sm" type="submit">Lưu dữ liệu</button>
+      <button class="btn btn-success btn-sm" type="submit"><i class="ti ti-device-floppy me-1"></i>Lưu dữ liệu</button>
     {% endif %}
   </div>
 </form>
 
-<nav class="mt-2">
+<nav class="bo-pagination mt-2">
   <ul class="pagination pagination-sm mb-0">
     {% if page_obj.has_previous %}
       <li class="page-item">
@@ -421,7 +341,7 @@
       <input type="hidden" name="row_id" id="modal_row_id">
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
       <div class="modal-header">
-        <h5 class="modal-title">Yêu cầu sửa</h5>
+        <h5 class="modal-title"><i class="ti ti-edit me-1"></i>Yêu cầu sửa</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
       </div>
       <div class="modal-body">
@@ -430,8 +350,8 @@
         <textarea class="form-control" rows="4" name="noi_dung" placeholder="Nhập nội dung yêu cầu sửa..."></textarea>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
-        <button type="submit" class="btn btn-danger">Gửi yêu cầu</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="ti ti-x me-1"></i>Hủy</button>
+        <button type="submit" class="btn btn-danger"><i class="ti ti-send me-1"></i>Gửi yêu cầu</button>
       </div>
     </form>
   </div>

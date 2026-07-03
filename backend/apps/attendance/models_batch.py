@@ -80,6 +80,7 @@ class AttendanceCommit(models.Model):
     # FIX: dùng settings.AUTH_USER_MODEL
     committed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     committed_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ("unit", "work_date")

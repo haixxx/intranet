@@ -1,68 +1,80 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
+{% block title %}{% trans "Yêu cầu của tôi" %}{% endblock %}
 {% block content %}
-<div class="card mb-3">
-  <div class="card-header"><strong>{% trans "Yêu cầu của tôi" %}</strong></div>
-  <div class="card-body">
-    <form method="get" class="row g-2">
-      <div class="col-md-4">
-        <label class="form-label">{% trans "Trạng thái" %}</label>
-        <select name="status" class="form-select form-select-sm">
-          <option value="">{% trans "Tất cả" %}</option>
-          <option value="DRAFT"{% if status == "DRAFT" %} selected{% endif %}>{% trans "Nháp" %}</option>
-          <option value="SUBMITTED"{% if status == "SUBMITTED" %} selected{% endif %}>{% trans "Đã gửi" %}</option>
-          <option value="IN_PROGRESS"{% if status == "IN_PROGRESS" %} selected{% endif %}>{% trans "Đang xử lý" %}</option>
-          <option value="APPROVED"{% if status == "APPROVED" %} selected{% endif %}>{% trans "Đã phê duyệt" %}</option>
-          <option value="REJECTED"{% if status == "REJECTED" %} selected{% endif %}>{% trans "Đã từ chối" %}</option>
-          <option value="CANCELLED"{% if status == "CANCELLED" %} selected{% endif %}>{% trans "Đã hủy" %}</option>
-        </select>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">{% trans "Từ khóa" %}</label>
-        <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="{% trans 'Tiêu đề hoặc mã đối tượng' %}">
-      </div>
-      <div class="col-md-2 d-flex align-items-end">
-        <button class="btn btn-outline-secondary btn-sm">{% trans "Lọc" %}</button>
-      </div>
-    </form>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-send"></i>{% trans "Yêu cầu của tôi" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Theo dõi các phiếu đã gửi và trạng thái áp dụng vào nghiệp vụ." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approvals_inbox' %}"><i class="ti ti-arrow-left"></i> {% trans "Danh sách phê duyệt" %}</a>
   </div>
 </div>
 
-<div class="table-responsive">
-  <table class="table table-sm table-striped align-middle">
-    <thead>
-      <tr>
-        <th>{% trans "Tiêu đề" %}</th>
-        <th>{% trans "Luồng" %}</th>
-        <th>{% trans "Trạng thái" %}</th>
-        <th>{% trans "Bước hiện tại" %}</th>
-        <th>{% trans "Ngày gửi" %}</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for it in requests %}
+<form class="card card-body bo-filter-card mb-3" method="get">
+  <div class="bo-filter-grid bo-filter-grid-3">
+    <div>
+      <label class="form-label">{% trans "Trạng thái hệ thống" %}<span class="bo-help" data-bs-toggle="tooltip" title="Cột trạng thái vận hành bên dưới sẽ diễn giải rõ hơn trạng thái hệ thống.">?</span></label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">{% trans "Tất cả" %}</option>
+        <option value="DRAFT"{% if status == "DRAFT" %} selected{% endif %}>{% trans "Nháp" %}</option>
+        <option value="SUBMITTED"{% if status == "SUBMITTED" %} selected{% endif %}>{% trans "Đã gửi" %}</option>
+        <option value="IN_PROGRESS"{% if status == "IN_PROGRESS" %} selected{% endif %}>{% trans "Đang xử lý" %}</option>
+        <option value="APPROVED"{% if status == "APPROVED" %} selected{% endif %}>{% trans "Đã phê duyệt" %}</option>
+        <option value="REJECTED"{% if status == "REJECTED" %} selected{% endif %}>{% trans "Đã từ chối" %}</option>
+        <option value="CANCELLED"{% if status == "CANCELLED" %} selected{% endif %}>{% trans "Đã hủy" %}</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label">{% trans "Từ khóa" %}</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="{% trans 'Tiêu đề hoặc mã đối tượng' %}">
+    </div>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-filter"></i> {% trans "Lọc" %}</button>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approvals_my_requests' %}">{% trans "Xóa lọc" %}</a>
+    </div>
+  </div>
+</form>
+
+<div class="card bo-table-card">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle bo-table bo-table-compact mb-0">
+      <thead>
         <tr>
-          <td>{{ it.title }}</td>
-          <td>{{ it.flow.name }}</td>
-          <td>
-            {% if it.status == "APPROVED" %}<span class="badge text-bg-success">{{ it.get_status_display }}</span>
-            {% elif it.status == "REJECTED" %}<span class="badge text-bg-danger">{{ it.get_status_display }}</span>
-            {% elif it.status == "CANCELLED" %}<span class="badge text-bg-secondary">{{ it.get_status_display }}</span>
-            {% elif it.status == "IN_PROGRESS" or it.status == "SUBMITTED" %}<span class="badge text-bg-warning">{{ it.get_status_display }}</span>
-            {% else %}<span class="badge text-bg-light text-dark">{{ it.get_status_display }}</span>{% endif %}
-          </td>
-          <td>—</td>
-          <td>{% if it.submitted_at %}{{ it.submitted_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
-          <td>
-            <a href="{% url 'backoffice:approvals_request_detail' it.id %}"
-               class="btn btn-outline-secondary btn-sm">{% trans "Chi tiết" %}</a>
-          </td>
+          <th>{% trans "Tiêu đề" %}</th>
+          <th>{% trans "Luồng" %}</th>
+          <th>{% trans "Trạng thái vận hành" %}</th>
+          <th>{% trans "Bước hiện tại" %}</th>
+          <th>{% trans "Ngày gửi" %}</th>
+          <th class="text-end">{% trans "Thao tác" %}</th>
         </tr>
-      {% empty %}
-        <tr><td colspan="6" class="text-muted">{% trans "Chưa có yêu cầu." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for it in requests %}
+          <tr>
+            <td class="bo-cell-main">
+              <div>{{ it.title }}</div>
+              {% if it.status_ctx.note %}<div class="text-muted small mt-1">{{ it.status_ctx.note }}</div>{% endif %}
+            </td>
+            <td>{{ it.flow.name }}</td>
+            <td>
+              <span class="bo-badge {{ it.status_ctx.bo_badge_class }}">{{ it.status_ctx.label }}</span>
+              <div class="text-muted small mt-1">AR: {{ it.status_ctx.request_status_label }}{% if it.status_ctx.acr_status_label != '—' %} · ACR: {{ it.status_ctx.acr_status_label }}{% endif %}</div>
+            </td>
+            <td>{{ it.status_ctx.current_step_label|default:"—" }}</td>
+            <td class="bo-text-nowrap">{% if it.submitted_at %}{{ it.submitted_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+            <td class="bo-actions-cell">
+              <a href="{% url 'backoffice:approvals_request_detail' it.id %}" class="btn btn-outline-primary btn-sm"><i class="ti ti-eye"></i> {% trans "Chi tiết" %}</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="bo-empty-cell">{% trans "Chưa có yêu cầu." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
+{% include "backoffice/includes/pagination.html" %}
 {% endblock %}

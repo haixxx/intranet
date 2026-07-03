@@ -1,0 +1,37 @@
+{% load i18n backoffice_extras %}
+{% if page_obj and paginator and paginator.num_pages > 1 %}
+<nav aria-label="{% trans 'Phân trang' %}" class="bo-pagination mt-3">
+  <ul class="pagination pagination-sm mb-0">
+    {% if page_obj.has_previous %}
+      {% query_transform page=1 as first_qs %}
+      {% query_transform page=page_obj.previous_page_number as prev_qs %}
+      <li class="page-item"><a class="page-link" href="?{{ first_qs }}">&laquo; {% trans "Đầu" %}</a></li>
+      <li class="page-item"><a class="page-link" href="?{{ prev_qs }}">{% trans "Trước" %}</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">&laquo; {% trans "Đầu" %}</span></li>
+      <li class="page-item disabled"><span class="page-link">{% trans "Trước" %}</span></li>
+    {% endif %}
+
+    {% for p in page_window %}
+      {% if p == "…" %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% elif p == page_obj.number %}
+        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+      {% else %}
+        {% query_transform page=p as page_qs %}
+        <li class="page-item"><a class="page-link" href="?{{ page_qs }}">{{ p }}</a></li>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+      {% query_transform page=page_obj.next_page_number as next_qs %}
+      {% query_transform page=paginator.num_pages as last_qs %}
+      <li class="page-item"><a class="page-link" href="?{{ next_qs }}">{% trans "Sau" %}</a></li>
+      <li class="page-item"><a class="page-link" href="?{{ last_qs }}">{% trans "Cuối" %} &raquo;</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">{% trans "Sau" %}</span></li>
+      <li class="page-item disabled"><span class="page-link">{% trans "Cuối" %} &raquo;</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}

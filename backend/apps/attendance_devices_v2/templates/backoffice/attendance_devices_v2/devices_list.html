@@ -1,114 +1,118 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
 
-{% block title %}{% trans "Thiết bị chấm công (v2)" %}{% endblock %}
+{% block title %}{% trans "Thiết bị chấm công" %}{% endblock %}
 
 {% block content %}
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <div>
-      <h2 class="mb-0">{% trans "Thiết bị chấm công (v2)" %}</h2>
-      <div class="text-muted small">{% trans "Quản lý thiết bị và cấu hình Agent V2: realtime, backfill, time sync." %}</div>
+  <div class="bo-page-header">
+    <div class="bo-page-heading">
+      <div class="bo-page-pretitle">{% trans "Quản lý chấm công" %}</div>
+      <h2 class="bo-page-title"><i class="ti ti-fingerprint"></i>{% trans "Thiết bị chấm công" %}</h2>
+      <div class="bo-page-subtitle">{% trans "Quản lý thiết bị và policy Agent: realtime, backfill, kiểm tra sức khỏe và đồng bộ giờ." %}</div>
     </div>
-    <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices_v2:device_create' %}">
-      {% trans "Thêm thiết bị" %}
-    </a>
+    <div class="bo-page-actions">
+      <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices_v2:device_create' %}">
+        <i class="ti ti-plus me-1"></i>{% trans "Thêm thiết bị" %}
+      </a>
+    </div>
   </div>
 
-  <form class="card card-body mb-3" method="get">
-    <div class="row g-2 align-items-end">
-      <div class="col-md-5">
+  <form class="card card-body bo-filter-card mb-3" method="get">
+    <div class="bo-filter-grid bo-filter-grid-5">
+      <div>
         <label class="form-label">{% trans "Tìm kiếm" %}</label>
-        <input name="q" value="{{ q }}" class="form-control" placeholder="{% trans 'Tên/host/model/serial' %}">
+        <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="{% trans 'Tên/host/model/serial' %}">
       </div>
-
-      <div class="col-md-3">
+      <div>
         <label class="form-label">{% trans "Agent" %}</label>
-        <select name="agent" class="form-select">
+        <select name="agent" class="form-select form-select-sm">
           <option value="">{% trans "Tất cả" %}</option>
           {% for a in agents %}
             <option value="{{ a.id }}"{% if agent|add:'' == a.id|add:'' %} selected{% endif %}>{{ a.name }}</option>
           {% endfor %}
         </select>
       </div>
-
-      <div class="col-md-2">
-        <label class="form-label">{% trans "Active" %}</label>
-        <select name="active" class="form-select">
+      <div>
+        <label class="form-label">{% trans "Trạng thái" %}</label>
+        <select name="active" class="form-select form-select-sm">
           <option value="">{% trans "Tất cả" %}</option>
-          <option value="1"{% if active == "1" %} selected{% endif %}>{% trans "Có" %}</option>
-          <option value="0"{% if active == "0" %} selected{% endif %}>{% trans "Không" %}</option>
+          <option value="1"{% if active == "1" %} selected{% endif %}>{% trans "Đang dùng" %}</option>
+          <option value="0"{% if active == "0" %} selected{% endif %}>{% trans "Ngừng dùng" %}</option>
         </select>
       </div>
-
-      <div class="col-md-2">
-        <button class="btn btn-outline-secondary w-100" type="submit">{% trans "Lọc" %}</button>
+      <div class="bo-filter-actions">
+        <button class="btn btn-primary btn-sm" type="submit">
+          <i class="ti ti-filter me-1"></i>{% trans "Lọc" %}
+        </button>
       </div>
     </div>
   </form>
 
-  <div class="card">
+  <div class="card bo-table-card">
     <div class="table-responsive">
-      <table class="table table-vcenter table-striped">
+      <table class="table table-striped table-sm align-middle bo-table-compact mb-0">
         <thead>
           <tr>
             <th>{% trans "Tên" %}</th>
             <th>{% trans "Host" %}</th>
-            <th>{% trans "Port" %}</th>
+            <th class="text-end">{% trans "Port" %}</th>
             <th>{% trans "Hãng/Model" %}</th>
             <th>{% trans "Agent phụ trách" %}</th>
             <th>{% trans "Đơn vị" %}</th>
             <th>{% trans "Policy" %}</th>
-            <th class="text-end">{% trans "Hành động" %}</th>
+            <th class="bo-col-actions">{% trans "Hành động" %}</th>
           </tr>
         </thead>
         <tbody>
           {% for x in items %}
             <tr>
               <td>
-                <div><strong>{{ x.name }}</strong></div>
-                <div class="text-muted small">
-                  {% if x.is_active %}{% trans "Đang hoạt động" %}{% else %}{% trans "Ngừng dùng" %}{% endif %}
+                <div class="bo-cell-main">{{ x.name }}</div>
+                <div class="mt-1">
+                  {% if x.is_active %}
+                    <span class="bo-badge bo-badge-success">{% trans "Đang hoạt động" %}</span>
+                  {% else %}
+                    <span class="bo-badge bo-badge-secondary">{% trans "Ngừng dùng" %}</span>
+                  {% endif %}
                 </div>
               </td>
-              <td>{{ x.host }}</td>
-              <td>{{ x.port }}</td>
+              <td class="text-nowrap">{{ x.host }}</td>
+              <td class="text-end">{{ x.port }}</td>
               <td>
                 <div>{{ x.brand }}</div>
-                <div class="text-muted small">{% if x.model %}{{ x.model }}{% else %}-{% endif %}</div>
+                <div class="text-muted small">{% if x.model %}{{ x.model }}{% else %}—{% endif %}</div>
               </td>
-              <td>{% if x.assigned_agent %}{{ x.assigned_agent.name }}{% else %}-{% endif %}</td>
-              <td>{% if x.org_unit %}{{ x.org_unit }}{% else %}-{% endif %}</td>
+              <td>{% if x.assigned_agent %}{{ x.assigned_agent.name }}{% else %}<span class="bo-muted-dash">—</span>{% endif %}</td>
+              <td>{% if x.org_unit %}{{ x.org_unit }}{% else %}<span class="bo-muted-dash">—</span>{% endif %}</td>
               <td>
-                <div class="small">
+                <div class="bo-device-policy-list">
                   {% if x.sync_policy_summary.realtime_enabled %}
-                    <span class="badge bg-green-lt">{% trans "Realtime" %}</span>
+                    <span class="bo-badge bo-badge-success"><i class="ti ti-bolt"></i>{% trans "Realtime" %}</span>
                   {% else %}
-                    <span class="badge bg-secondary-lt">{% trans "Tắt realtime" %}</span>
+                    <span class="bo-badge bo-badge-secondary">{% trans "Tắt realtime" %}</span>
                   {% endif %}
 
                   {% if x.sync_policy_summary.backfill_enabled %}
-                    <span class="badge bg-blue-lt">
-                      {% trans "Backfill" %} {{ x.sync_policy_summary.backfill_time }}/{{ x.sync_policy_summary.backfill_days }}d
-                    </span>
+                    <span class="bo-badge bo-badge-info"><i class="ti ti-history"></i>{% trans "Backfill" %} {{ x.sync_policy_summary.backfill_time }}/{{ x.sync_policy_summary.backfill_days }}d</span>
                   {% else %}
-                    <span class="badge bg-secondary-lt">{% trans "Tắt backfill" %}</span>
+                    <span class="bo-badge bo-badge-secondary">{% trans "Tắt backfill" %}</span>
                   {% endif %}
 
                   {% if x.sync_policy_summary.time_sync_enabled %}
-                    <span class="badge bg-orange-lt">{% trans "Time sync" %}</span>
+                    <span class="bo-badge bo-badge-warning"><i class="ti ti-clock-cog"></i>{% trans "Time sync" %}</span>
                   {% else %}
-                    <span class="badge bg-secondary-lt">{% trans "Không auto sync giờ" %}</span>
+                    <span class="bo-badge bo-badge-secondary">{% trans "Không auto sync giờ" %}</span>
                   {% endif %}
                 </div>
               </td>
-              <td class="text-end">
+              <td class="bo-actions-cell">
                 <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices_v2:device_edit' x.id %}">
-                  {% trans "Sửa" %}
+                  <i class="ti ti-edit me-1"></i>{% trans "Sửa" %}
                 </a>
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="8" class="text-muted">{% trans "Chưa có thiết bị." %}</td></tr>
+            <tr><td colspan="8" class="bo-empty-cell">{% trans "Chưa có thiết bị." %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

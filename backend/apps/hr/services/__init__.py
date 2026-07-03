@@ -16,6 +16,16 @@ from apps.audit.utils import audit_log
 
 
 # === Constants nhóm quyền chính sách ===
+# Nhóm mới dùng cho vận hành.
+GROUP_DIRECTOR = "DIRECTOR"
+GROUP_UNIT_COMMANDER = "UNIT_COMMANDER"
+GROUP_EMPLOYEE = "EMPLOYEE"
+GROUP_UNIT_STATISTICIAN = "UNIT_STATISTICIAN"
+GROUP_HR_MANAGER = "HR_MANAGER"
+GROUP_ATTENDANCE_DEVICE_OPERATOR = "ATTENDANCE_DEVICE_OPERATOR"
+GROUP_SYSTEM_ADMIN = "SYSTEM_ADMIN"
+
+# Nhóm cũ giữ tương thích dữ liệu/code cũ. Không khuyến nghị gán mới thủ công.
 GROUP_SUPERADMIN = "SUPERADMIN"
 GROUP_BACKOFFICE_MANAGER = "BACKOFFICE_MANAGER"
 GROUP_BACKOFFICE_STAFF = "BACKOFFICE_STAFF"
@@ -34,11 +44,19 @@ MANAGER_TITLES: Set[str] = {
 def ensure_groups_exist():
     """Đảm bảo các group policy tồn tại."""
     for name in [
+        GROUP_EMPLOYEE,
+        GROUP_UNIT_STATISTICIAN,
+        GROUP_UNIT_COMMANDER,
+        GROUP_DIRECTOR,
+        GROUP_HR_MANAGER,
+        GROUP_ATTENDANCE_DEVICE_OPERATOR,
+        GROUP_SYSTEM_ADMIN,
+        # legacy aliases
         GROUP_SUPERADMIN,
         GROUP_BACKOFFICE_MANAGER,
         GROUP_BACKOFFICE_STAFF,
         GROUP_HR_ADMIN,
-        GROUP_EMPLOYEE_VIEWER
+        GROUP_EMPLOYEE_VIEWER,
     ]:
         Group.objects.get_or_create(name=name)
 
@@ -95,8 +113,13 @@ def allowed_org_ids_for_user(user) -> List[int]:
     if ac.root_org_unit_id is None:
         return []
 
-    # Cả PLANT_SUBTREE và UNIT_SUBTREE cùng logic subtree ở giai đoạn này
-    return _subtree_ids(ac.root_org_unit_id)
+    root = ac.root_org_unit
+    if ac.scope == AccessControl.Scope.PLANT_SUBTREE:
+        root = _get_plant_ancestor(root)
+
+    if not root:
+        return []
+    return _subtree_ids(root.id)
 
 
 def _get_plant_ancestor(unit):
@@ -115,11 +138,10 @@ def sync_user_policy_for_employee(emp, request=None):
     """
     Đồng bộ Group và AccessControl cho user của employee theo job_title và đơn vị.
     Chính sách:
-      - Leadership titles -> scope PLANT_SUBTREE + group SUPERADMIN
-      - Manager titles -> scope UNIT_SUBTREE + group BACKOFFICE_MANAGER
-      - Khác (INDIRECT) -> scope UNIT_SUBTREE + group BACKOFFICE_STAFF
-      - WORKER: nếu đã có user vẫn gán BACKOFFICE_STAFF (fallback)
-    Giữ group ngoài chính sách (VD HR_ADMIN) không xóa.
+      - Leadership titles -> scope PLANT_SUBTREE + group DIRECTOR
+      - Manager titles -> scope UNIT_SUBTREE + group UNIT_COMMANDER
+      - Khác -> scope UNIT_SUBTREE + group EMPLOYEE
+    Giữ group nghiệp vụ gán tay (VD UNIT_STATISTICIAN/HR_MANAGER) không xóa.
     """
     ensure_groups_exist()
 
@@ -131,16 +153,16 @@ def sync_user_policy_for_employee(emp, request=None):
 
     title_name = (emp.job_title.name if getattr(emp, 'job_title', None) else "") or ""
     scope = AccessControl.Scope.UNIT_SUBTREE
-    target_group_name = GROUP_BACKOFFICE_STAFF
+    target_group_name = GROUP_EMPLOYEE
 
     if title_name in LEADERSHIP_TITLES:
         scope = AccessControl.Scope.PLANT_SUBTREE
-        target_group_name = GROUP_SUPERADMIN
+        target_group_name = GROUP_DIRECTOR
     elif title_name in MANAGER_TITLES:
         scope = AccessControl.Scope.UNIT_SUBTREE
-        target_group_name = GROUP_BACKOFFICE_MANAGER
+        target_group_name = GROUP_UNIT_COMMANDER
     else:
-        target_group_name = GROUP_BACKOFFICE_STAFF
+        target_group_name = GROUP_EMPLOYEE
 
     root_unit = emp.unit
     if scope == AccessControl.Scope.PLANT_SUBTREE:
@@ -163,7 +185,18 @@ def sync_user_policy_for_employee(emp, request=None):
         action_code="ACCESSCONTROL_UPDATE",
     )
 
-    policy_groups = {GROUP_SUPERADMIN, GROUP_BACKOFFICE_MANAGER, GROUP_BACKOFFICE_STAFF}
+    # Chỉ xóa các group policy tự động theo chức danh. Không xóa các group nghiệp vụ
+    # được gán tay như UNIT_STATISTICIAN, HR_MANAGER, ATTENDANCE_DEVICE_OPERATOR.
+    policy_groups = {
+        GROUP_DIRECTOR,
+        GROUP_UNIT_COMMANDER,
+        GROUP_EMPLOYEE,
+        # legacy policy aliases
+        GROUP_SUPERADMIN,
+        GROUP_BACKOFFICE_MANAGER,
+        GROUP_BACKOFFICE_STAFF,
+        GROUP_EMPLOYEE_VIEWER,
+    }
     current_groups = set(user.groups.values_list('name', flat=True))
     remove_these = current_groups & policy_groups
     for gname in remove_these:

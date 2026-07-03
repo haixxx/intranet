@@ -1,6 +1,48 @@
 {% extends "admin/base.html" %}
-{% block title %}Intranet Admin{% endblock %}
-{% block branding %}
-  <h1 id="site-name"><a href="{% url 'admin:index' %}">Intranet Admin</a></h1>
+{% load i18n static %}
+
+{% block title %}{{ title }} | Quản trị hệ thống{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'vendor/tabler-icons-3.35.0/css/tabler-icons.min.css' %}">
+  <link rel="stylesheet" href="{% static 'backoffice/css/admin-extra.css' %}">
 {% endblock %}
-{% block nav-global %}{% endblock %}
+
+{% block branding %}
+  <div class="zadmin-brand">
+    <a href="{% url 'admin:index' %}" class="zadmin-brand-link" aria-label="Trang chủ Django Admin">
+      <span class="zadmin-brand-icon"><i class="ti ti-shield-lock"></i></span>
+      <span>
+        <span class="zadmin-brand-title">Quản trị kỹ thuật</span>
+        <span class="zadmin-brand-subtitle">Django Admin · dữ liệu nền hệ thống</span>
+      </span>
+    </a>
+  </div>
+{% endblock %}
+
+{% block nav-global %}
+  <div class="zadmin-toplinks">
+    {% url 'backoffice:dashboard' as backoffice_dashboard_url %}
+    {% url 'backoffice:employee_list' as employee_list_url %}
+    {% url 'backoffice:role_list' as role_list_url %}
+    {% url 'backoffice:approval_flow_list' as approval_flow_list_url %}
+    {% url 'attendance_devices_v2:giam_sat_thiet_bi' as device_monitor_url %}
+
+    {% if backoffice_dashboard_url %}
+      <a href="{{ backoffice_dashboard_url }}"><i class="ti ti-layout-dashboard"></i> Backoffice</a>
+    {% endif %}
+    {% if employee_list_url %}
+      <a href="{{ employee_list_url }}"><i class="ti ti-users"></i> Nhân sự</a>
+    {% endif %}
+    {% if device_monitor_url %}
+      <a href="{{ device_monitor_url }}"><i class="ti ti-device-desktop-analytics"></i> Chấm công máy</a>
+    {% endif %}
+    {% if approval_flow_list_url %}
+      <a href="{{ approval_flow_list_url }}"><i class="ti ti-route"></i> Luồng duyệt</a>
+    {% endif %}
+    {% if role_list_url %}
+      <a href="{{ role_list_url }}"><i class="ti ti-key"></i> Vai trò</a>
+    {% endif %}
+  </div>
+{% endblock %}

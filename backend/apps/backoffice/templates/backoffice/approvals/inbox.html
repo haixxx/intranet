@@ -1,62 +1,98 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Danh sách phê duyệt{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Danh sách phê duyệt" %}{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <h5 class="mb-0">Danh sách phê duyệt</h5>
-  <form method="get" class="d-flex gap-2">
-    <select name="scope" class="form-select form-select-sm" style="width:auto">
-      <option value="to_approve" {% if scope == 'to_approve' %}selected{% endif %}>Tôi cần duyệt</option>
-      <option value="my_requests" {% if scope == 'my_requests' %}selected{% endif %}>Tôi yêu cầu</option>
-      <option value="approved_by_me" {% if scope == 'approved_by_me' %}selected{% endif %}>Tôi đã duyệt</option>
-      <option value="in_units" {% if scope == 'in_units' %}selected{% endif %}>Tất cả trong đơn vị</option>
-    </select>
-    <select name="unit" class="form-select form-select-sm" style="width:auto">
-      <option value="">— Đơn vị —</option>
-      {% for u in units_qs %}
-        <option value="{{ u.id }}" {% if unit_id|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.name }}</option>
-      {% endfor %}
-    </select>
-    <input type="text" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Tìm theo tiêu đề/id">
-    <button class="btn btn-outline-secondary btn-sm">Lọc</button>
-  </form>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-checkup-list"></i>{% trans "Danh sách phê duyệt" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Theo dõi phiếu cần xử lý, phiếu đã gửi và trạng thái áp dụng sửa công." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approvals_my_requests' %}"><i class="ti ti-send"></i> {% trans "Yêu cầu của tôi" %}</a>
+    {% if perms.approvals.view_approvalflow %}
+      <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:approval_flow_list' %}"><i class="ti ti-settings"></i> {% trans "Quản trị luồng" %}</a>
+    {% endif %}
+  </div>
 </div>
 
-<table class="table table-sm table-striped">
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>Tiêu đề</th>
-      <th>Luồng</th>
-      <th>Trạng thái</th>
-      <th>Người yêu cầu</th>
-      <th>Ngày gửi</th>
-      <th>Đơn vị</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for r in requests %}
-      <tr>
-        <td>{{ r.id }}</td>
-        <td>{{ r.title }}</td>
-        <td>{{ r.flow.name }} (v{{ r.flow_version.version }})</td>
-        <td>
-          {% if r.status == "APPROVED" %}<span class="badge text-bg-success">{{ r.get_status_display }}</span>
-          {% elif r.status == "REJECTED" %}<span class="badge text-bg-danger">{{ r.get_status_display }}</span>
-          {% elif r.status == "CANCELLED" %}<span class="badge text-bg-secondary">{{ r.get_status_display }}</span>
-          {% elif r.status == "IN_PROGRESS" or r.status == "SUBMITTED" %}<span class="badge text-bg-warning">{{ r.get_status_display }}</span>
-          {% else %}<span class="badge text-bg-light text-dark">{{ r.get_status_display }}</span>{% endif %}
-        </td>
-        <td>{{ r.requester.get_full_name|default:r.requester.username }}</td>
-        <td>{% if r.submitted_at %}{{ r.submitted_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
-        <td>{{ r.unit_id|default:"—" }}</td>
-        <td class="text-end">
-          <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approvals_request_detail' r.id %}">Xem</a>
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="8" class="text-muted">Không có yêu cầu.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<form class="card card-body bo-filter-card mb-3" method="get">
+  <div class="bo-filter-grid bo-filter-grid-4">
+    <div>
+      <label class="form-label">{% trans "Phạm vi" %}</label>
+      <select name="scope" class="form-select form-select-sm">
+        <option value="to_approve" {% if scope == 'to_approve' %}selected{% endif %}>{% trans "Tôi cần duyệt" %}</option>
+        <option value="my_requests" {% if scope == 'my_requests' %}selected{% endif %}>{% trans "Tôi yêu cầu" %}</option>
+        <option value="approved_by_me" {% if scope == 'approved_by_me' %}selected{% endif %}>{% trans "Tôi đã duyệt" %}</option>
+        <option value="in_units" {% if scope == 'in_units' %}selected{% endif %}>{% trans "Tất cả trong đơn vị" %}</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label">{% trans "Đơn vị" %}</label>
+      <select name="unit" class="form-select form-select-sm">
+        <option value="">{% trans "— Tất cả —" %}</option>
+        {% for u in units_qs %}
+          <option value="{{ u.id }}" {% if unit_id|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.symbol|default:u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">{% trans "Từ khóa" %}</label>
+      <input type="text" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="{% trans 'Tiêu đề / ID / mã đối tượng' %}">
+    </div>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-filter"></i> {% trans "Lọc" %}</button>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approvals_inbox' %}">{% trans "Xóa lọc" %}</a>
+    </div>
+  </div>
+</form>
+
+<div class="card bo-table-card">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle bo-table bo-table-compact mb-0">
+      <thead>
+        <tr>
+          <th class="bo-text-nowrap">ID</th>
+          <th>{% trans "Tiêu đề" %}</th>
+          <th>{% trans "Luồng" %}</th>
+          <th>{% trans "Trạng thái vận hành" %}</th>
+          <th>{% trans "Bước hiện tại" %}</th>
+          <th>{% trans "Người yêu cầu" %}</th>
+          <th>{% trans "Ngày gửi" %}</th>
+          <th>{% trans "Đơn vị" %}</th>
+          <th class="text-end">{% trans "Thao tác" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in requests %}
+          <tr>
+            <td class="bo-text-nowrap">#{{ r.id }}</td>
+            <td class="bo-cell-main">
+              <div>{{ r.title }}</div>
+              {% if r.status_ctx.note %}<div class="text-muted small mt-1">{{ r.status_ctx.note }}</div>{% endif %}
+            </td>
+            <td>
+              <div>{{ r.flow.name }}</div>
+              <div class="text-muted small">v{{ r.flow_version.version }}</div>
+            </td>
+            <td>
+              <span class="bo-badge {{ r.status_ctx.bo_badge_class }}">{{ r.status_ctx.label }}</span>
+              <div class="text-muted small mt-1">AR: {{ r.status_ctx.request_status_label }}{% if r.status_ctx.acr_status_label != '—' %} · ACR: {{ r.status_ctx.acr_status_label }}{% endif %}</div>
+            </td>
+            <td>{{ r.status_ctx.current_step_label|default:"—" }}</td>
+            <td>{{ r.requester.get_full_name|default:r.requester.username }}</td>
+            <td class="bo-text-nowrap">{% if r.submitted_at %}{{ r.submitted_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+            <td>{{ r.unit_label|default:"—" }}</td>
+            <td class="bo-actions-cell">
+              <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approvals_request_detail' r.id %}"><i class="ti ti-eye"></i> {% trans "Xem" %}</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="bo-empty-cell">{% trans "Không có yêu cầu phù hợp." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "backoffice/includes/pagination.html" %}
 {% endblock %}

@@ -3,135 +3,20 @@
 
 {% block title %}Thêm dữ liệu chấm công{% endblock %}
 
-{% block extra_head %}
-<style>
-  .manual-page h2 { font-size: 1.35rem; }
-
-  .filter-compact {
-    display: grid;
-    grid-template-columns: 130px 120px minmax(180px, 1fr) 82px 110px 90px;
-    gap: .4rem;
-    align-items: end;
-  }
-  .filter-compact .form-label,
-  .manual-form .form-label {
-    font-size: 12px;
-    color: #6c757d;
-    margin-bottom: 2px;
-  }
-  .filter-compact .form-control-sm,
-  .filter-compact .form-select-sm,
-  .filter-compact .btn-sm,
-  .manual-form .form-control-sm,
-  .manual-form .form-select-sm,
-  .manual-form .btn-sm {
-    font-size: 12px;
-    min-height: 30px;
-    padding-top: .18rem;
-    padding-bottom: .18rem;
-  }
-
-  .manual-form-grid {
-    display: grid;
-    grid-template-columns: minmax(250px, 1.4fr) minmax(150px, .75fr) 68px 68px 68px 68px minmax(140px, .8fr) minmax(170px, 1fr) 105px;
-    gap: .4rem;
-    align-items: end;
-  }
-
-  .hint-box {
-    border: 1px solid rgba(0,0,0,.08);
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: .55rem .7rem;
-    font-size: 12px;
-  }
-  .help-btn {
-    border: 0;
-    background: transparent;
-    color: #0d6efd;
-    padding: 0 .15rem;
-    font-weight: 700;
-    line-height: 1;
-    text-decoration: none;
-  }
-  .help-btn:hover { color: #084298; text-decoration: underline; }
-  .help-panel { display: none; }
-  .help-panel.show { display: block; }
-
-  .status-badge { min-width: 96px; color: #fff !important; font-weight: 700; }
-  .status-cho-cong-chot { background: #842029 !important; color: #fff !important; }
-  .status-chua-tinh { background: #664d03 !important; color: #fff !important; }
-  .status-da-tinh { background: #0f5132 !important; color: #fff !important; }
-
-  .table-manual {
-    font-size: 12px;
-  }
-  .table-manual th,
-  .table-manual td {
-    padding: .35rem .45rem;
-    vertical-align: middle;
-  }
-  .note-cell {
-    max-width: 420px;
-    white-space: normal;
-  }
-  .employee-multi-select {
-    min-height: 150px;
-  }
-  .employee-tools {
-    display: flex;
-    gap: .35rem;
-    margin-top: .35rem;
-    flex-wrap: wrap;
-  }
-  .employee-tools .btn {
-    font-size: 11px;
-    padding: .15rem .45rem;
-  }
-
-  @media (max-width: 1200px) {
-    .filter-compact {
-      grid-template-columns: repeat(3, minmax(120px, 1fr));
-    }
-    .manual-form-grid {
-      grid-template-columns: repeat(4, minmax(90px, 1fr));
-    }
-    .manual-form-grid .emp-field,
-    .manual-form-grid .source-field,
-    .manual-form-grid .reason-field,
-    .manual-form-grid .note-field {
-      grid-column: span 4;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .filter-compact,
-    .manual-form-grid {
-      grid-template-columns: repeat(2, minmax(120px, 1fr));
-    }
-    .manual-form-grid .emp-field,
-    .manual-form-grid .source-field,
-    .manual-form-grid .reason-field,
-    .manual-form-grid .note-field {
-      grid-column: span 2;
-    }
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="manual-page">
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <h2 class="mb-0">Thêm dữ liệu chấm công</h2>
-    <button class="help-btn js-help-toggle"
-            type="button"
-            data-help-target="helpThemDuLieu"
-            aria-expanded="false"
-            title="Hướng dẫn">?</button>
+<div class="manual-page bo-page">
+  <div class="bo-page-header">
+    <div class="bo-page-heading">
+      <div class="bo-page-pretitle">Quản lý chấm công</div>
+      <h2 class="bo-page-title"><i class="ti ti-clock-plus"></i> Thêm dữ liệu chấm công
+        <button class="bo-help js-help-toggle" type="button" data-help-target="helpThemDuLieu" aria-expanded="false" title="Hướng dẫn nhập bổ sung dữ liệu">?</button>
+      </h2>
+      <div class="bo-page-subtitle">Nhập bổ sung mốc chấm công khi máy hỏng, mất log hoặc cần sửa dữ liệu đối chiếu.</div>
+    </div>
   </div>
 
   <div class="help-panel" id="helpThemDuLieu">
-    <div class="hint-box mb-2">
+    <div class="bo-alert bo-alert-info small mb-2">
       <div><strong>Khi nào dùng:</strong> máy hỏng/mất log, cần bổ sung dữ liệu ngày trước, hoặc cần sửa dữ liệu sau đối chiếu.</div>
       <div><strong>Máy hỏng/mất log:</strong> dữ liệu nhập sẽ tham gia dữ liệu thực tế như dữ liệu thay thế máy.</div>
       <div><strong>Sửa dữ liệu:</strong> dữ liệu nhập chỉ ghi đè dữ liệu đã sửa, không làm thay đổi dữ liệu từ máy.</div>
@@ -139,8 +24,8 @@
     </div>
   </div>
 
-  <form class="card card-body mb-2 py-2" method="get">
-    <div class="filter-compact">
+  <form class="card card-body bo-filter-card mb-2 py-2" method="get">
+    <div class="bo-filter-grid bo-filter-grid-manual-filter">
       <div>
         <label class="form-label">Ngày</label>
         <input class="form-control form-control-sm" type="date" name="date" value="{{ work_date }}">
@@ -177,27 +62,47 @@
 
       <div>
         <label class="form-label">&nbsp;</label>
-        <button class="btn btn-primary btn-sm w-100" type="submit">Lọc</button>
+        <button class="btn btn-primary btn-sm w-100" type="submit"><i class="ti ti-search me-1"></i>Lọc</button>
       </div>
 
       <div>
         <label class="form-label">&nbsp;</label>
-        <a class="btn btn-outline-secondary btn-sm w-100" href="{% url 'attendance_devices_v2:them_du_lieu' %}">Xóa</a>
+        <a class="btn btn-outline-secondary btn-sm w-100" href="{% url 'attendance_devices_v2:them_du_lieu' %}"><i class="ti ti-x me-1"></i>Xóa lọc</a>
       </div>
     </div>
   </form>
 
-  <form class="card card-body mb-3 manual-form py-2" method="post">
+  <div class="bo-alert bo-alert-info small mb-2">
+    <strong>Phạm vi nhập dữ liệu:</strong> {{ manual_scope_source_label }}.
+    Chỉ nhập dữ liệu cho nhân sự làm việc tại đơn vị đang chọn trong ngày này; người <strong>BS đi</strong> không nhập tại đơn vị gốc mà nhập tại đơn vị nhận.
+    <span class="ms-1">Danh sách có thể nhập: <strong>{{ allowed_employee_count }}</strong> nhân sự.</span>
+  </div>
+
+  {% if manual_scope_blocked_count %}
+  <div class="bo-alert bo-alert-warning small mb-2">
+    <strong>Không nhập tại đơn vị này:</strong> có {{ manual_scope_blocked_count }} nhân sự đi bổ sung/không tính trong đơn vị ngày này.
+    {% if manual_scope_blocked %}
+      <ul class="scope-list">
+        {% for b in manual_scope_blocked|slice:":8" %}
+          <li><strong>{{ b.employee.employee_code }}</strong> — {{ b.employee.full_name }}: {{ b.reason }}</li>
+        {% endfor %}
+      </ul>
+      {% if manual_scope_blocked_count > 8 %}<div class="mt-1">Còn {{ manual_scope_blocked_count|add:"-8" }} nhân sự khác.</div>{% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form class="card card-body bo-form-card mb-3 manual-form py-2" method="post">
     {% csrf_token %}
     <input type="hidden" name="date" value="{{ work_date }}">
     <input type="hidden" name="unit" value="{{ unit }}">
     <input type="hidden" name="q" value="{{ q }}">
 
-    <div class="manual-form-grid">
+    <div class="bo-manual-form-grid">
       <div class="emp-field">
         <label class="form-label">
           Nhân sự <span class="text-muted">(chọn được nhiều)</span>
-          <button class="help-btn js-help-toggle"
+          <button class="bo-help js-help-toggle"
                   type="button"
                   data-help-target="helpNhanSu"
                   aria-expanded="false"
@@ -206,7 +111,7 @@
         <select class="form-select form-select-sm employee-multi-select" name="employee_ids" id="employee_ids" multiple required>
           {% for e in employees %}
             <option value="{{ e.id }}"{% if e.id|stringformat:"s" in selected_employee_ids %} selected{% endif %}>
-              {{ e.employee_code }} — {{ e.full_name }}
+              {{ e.employee_code }} — {{ e.full_name }}{% if e.manual_scope_note %} — {{ e.manual_scope_note }}{% endif %}
             </option>
           {% endfor %}
         </select>
@@ -217,12 +122,12 @@
         <div class="help-panel text-muted small mt-1" id="helpNhanSu">
           <div>Giữ Ctrl/Shift để chọn nhiều nhân sự, hoặc bấm “Chọn tất cả đang lọc”.</div>
           <div>V1/R1/V2/R2 tương ứng IN1/OUT1/IN2/OUT2. R2 nhỏ hơn 04:00 là ngày hôm sau.</div>
-          <div>Nếu chưa có công chốt, dữ liệu vẫn lưu nhưng chưa tính được MasterList.</div>
+          <div>Nếu chưa có công chốt, danh sách chọn được dựng theo điều động/danh sách dự kiến; dữ liệu vẫn lưu nhưng chưa tính được MasterList.</div>
         </div>
       </div>
 
       <div class="source-field">
-        <label class="form-label">Loại bổ sung <span class="text-muted" title="Máy hỏng/mất log: vào dữ liệu thực tế. Sửa dữ liệu: chỉ ghi đè dữ liệu đã sửa.">?</span></label>
+        <label class="form-label">Loại bổ sung <span class="bo-help" data-bs-toggle="tooltip" title="Máy hỏng/mất log: vào dữ liệu thực tế. Sửa dữ liệu: chỉ ghi đè dữ liệu đã sửa.">?</span></label>
         <select class="form-select form-select-sm" name="manual_source_type">
           {% for value, label in manual_source_choices %}
             <option value="{{ value }}"{% if value == default_manual_source_type %} selected{% endif %}>{{ label }}</option>
@@ -270,12 +175,12 @@
     </div>
 
     <div class="d-flex justify-content-end align-items-center mt-2">
-      <button class="btn btn-success btn-sm" type="submit">Thêm cho nhân sự đã chọn và tính lại</button>
+      <button class="btn btn-success btn-sm" type="submit"><i class="ti ti-plus me-1"></i>Thêm cho nhân sự đã chọn và tính lại</button>
     </div>
   </form>
 
 
-  <form class="card card-body mb-3 manual-form py-2" method="post" enctype="multipart/form-data">
+  <form class="card card-body bo-form-card mb-3 manual-form py-2" method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <input type="hidden" name="action" value="import_excel">
     <input type="hidden" name="date" value="{{ work_date }}">
@@ -284,9 +189,9 @@
 
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
       <div>
-        <h3 class="h5 mb-1">Import Excel nhiều dòng <button class="help-btn js-help-toggle" type="button" data-help-target="helpImportExcel" title="Hướng dẫn">?</button></h3>
+        <h3 class="bo-section-title"><i class="ti ti-file-spreadsheet"></i> Import Excel nhiều dòng <button class="bo-help js-help-toggle" type="button" data-help-target="helpImportExcel" title="Hướng dẫn import Excel">?</button></h3>
         <div class="help-panel" id="helpImportExcel">
-          <div class="text-muted small">
+          <div class="bo-alert bo-alert-info small mb-0">
             Dùng khi máy hỏng nhiều ngày hoặc cần nhập dữ liệu hàng loạt. File cần sheet <strong>NhapDuLieu</strong> với cột <code>ngay</code>, <code>ma_nhan_su</code>/<code>ma_the</code>, <code>in1</code>, <code>out1</code>, <code>in2</code>, <code>out2</code>, <code>ly_do</code>, <code>ghi_chu</code>. Import sẽ ghi đè dữ liệu bổ sung cũ nếu trùng nhân sự/ngày/mốc.
           </div>
         </div>
@@ -299,7 +204,7 @@
         <input class="form-control form-control-sm" type="file" name="excel_file" accept=".xlsx" required>
       </div>
       <div class="col-12 col-lg-2">
-        <label class="form-label">Loại bổ sung <span class="text-muted" title="Áp dụng cho toàn bộ file Excel.">?</span></label>
+        <label class="form-label">Loại bổ sung <span class="bo-help" data-bs-toggle="tooltip" title="Áp dụng cho toàn bộ file Excel.">?</span></label>
         <select class="form-select form-select-sm" name="excel_source_type">
           {% for value, label in manual_source_choices %}
             <option value="{{ value }}"{% if value == default_manual_source_type %} selected{% endif %}>{{ label }}</option>
@@ -316,8 +221,8 @@
       <div class="col-6 col-lg-3">
         <label class="form-label">&nbsp;</label>
         <div class="d-flex gap-2">
-          <a class="btn btn-outline-primary btn-sm w-50" href="{% url 'attendance_devices_v2:tai_mau_excel' %}">Lấy file mẫu</a>
-          <button class="btn btn-primary btn-sm w-50" type="submit" onclick="return confirm('Import file Excel và ghi đè các mốc trùng nếu có?');">Import Excel</button>
+          <a class="btn btn-outline-primary btn-sm w-50" href="{% url 'attendance_devices_v2:tai_mau_excel' %}"><i class="ti ti-download me-1"></i>Lấy file mẫu</a>
+          <button class="btn btn-primary btn-sm w-50" type="submit" onclick="return confirm('Import file Excel và ghi đè các mốc trùng nếu có?');"><i class="ti ti-upload me-1"></i>Import Excel</button>
         </div>
       </div>
     </div>
@@ -326,8 +231,8 @@
 
   <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
     <div class="text-muted small">
-      Danh sách dữ liệu đã thêm trong ngày {{ work_date }}{% if unit %}, theo đơn vị đang lọc{% endif %}.
-      {% if not commit_exists %}<span class="badge status-cho-cong-chot ms-1">Chưa có công chốt</span>{% endif %}
+      Danh sách dữ liệu đã thêm trong ngày {{ work_date }}{% if unit %}, theo phạm vi nhân sự của đơn vị đang lọc{% endif %}.
+      {% if not commit_exists %}<span class="bo-badge bo-badge-danger ms-1">Chưa có công chốt</span>{% endif %}
     </div>
     <div class="d-flex gap-2">
       <form method="post" class="m-0">
@@ -336,26 +241,26 @@
         <input type="hidden" name="date" value="{{ work_date }}">
         <input type="hidden" name="unit" value="{{ unit }}">
         <input type="hidden" name="q" value="{{ q }}">
-        <button class="btn btn-warning btn-sm" type="submit" onclick="return confirm('Tính lại MasterList cho ngày/đơn vị đang chọn?');">Tính lại ngày/đơn vị</button>
+        <button class="btn btn-warning btn-sm" type="submit" onclick="return confirm('Tính lại MasterList cho ngày/đơn vị đang chọn?');"><i class="ti ti-refresh me-1"></i>Tính lại ngày/đơn vị</button>
       </form>
-      <a class="btn btn-outline-primary btn-sm" href="{{ thong_ke_url }}">Mở thống kê ngày</a>
+      <a class="btn btn-outline-primary btn-sm" href="{{ thong_ke_url }}"><i class="ti ti-chart-bar me-1"></i>Mở thống kê ngày</a>
     </div>
   </div>
 
-  <div class="card">
+  <div class="card bo-table-card">
     <div class="table-responsive">
-      <table class="table table-sm table-striped align-middle mb-0 table-manual">
+      <table class="table table-sm table-striped align-middle mb-0 bo-table-compact table-manual">
         <thead>
           <tr>
-            <th style="width:90px;">Thời gian</th>
-            <th style="width:120px;">Loại</th>
-            <th style="width:110px;">Trạng thái</th>
+            <th class="bo-manual-col-time">Thời gian</th>
+            <th class="bo-manual-col-type">Loại</th>
+            <th class="bo-manual-col-status">Trạng thái</th>
             <th>Nhân sự</th>
-            <th style="width:80px;">Đơn vị</th>
+            <th class="bo-manual-col-unit">Đơn vị</th>
             <th>Ghi chú</th>
-            <th style="width:120px;">Người tạo</th>
-            <th style="width:130px;">Tạo lúc</th>
-            <th style="width:80px;"></th>
+            <th class="bo-manual-col-user">Người tạo</th>
+            <th class="bo-manual-col-created">Tạo lúc</th>
+            <th class="bo-actions-cell"></th>
           </tr>
         </thead>
         <tbody>
@@ -365,14 +270,14 @@
             <td class="text-nowrap"><strong>{{ r.thoi_gian_local|date:"H:i" }}</strong></td>
             <td class="text-nowrap">
               {% if "SOURCE:SUA_DU_LIEU" in r.ghi_chu %}
-                <span class="badge bg-warning text-dark">Sửa dữ liệu</span>
+                <span class="bo-badge bo-badge-warning">Sửa dữ liệu</span>
               {% elif "SOURCE:MAY_HONG" in r.ghi_chu %}
-                <span class="badge bg-info text-dark">Máy hỏng</span>
+                <span class="bo-badge bo-badge-info">Máy hỏng</span>
               {% else %}
-                <span class="badge bg-secondary">Cũ</span>
+                <span class="bo-badge bo-badge-secondary">Cũ</span>
               {% endif %}
             </td>
-            <td class="text-nowrap"><span class="badge status-badge {{ st.badge }}">{{ st.label }}</span></td>
+            <td class="text-nowrap"><span class="bo-badge bo-status-badge {{ st.badge }}">{{ st.label }}</span></td>
             <td class="text-nowrap">
               <strong>{{ r.employee.employee_code }}</strong> — {{ r.employee.full_name }}
             </td>
@@ -390,7 +295,7 @@
                 <input type="hidden" name="unit" value="{{ unit }}">
                 <input type="hidden" name="q" value="{{ q }}">
                 <input type="hidden" name="page_size" value="{{ page_size }}">
-                <button class="btn btn-outline-danger btn-sm" type="submit">Xóa</button>
+                <button class="btn btn-outline-danger btn-sm" type="submit"><i class="ti ti-trash me-1"></i>Xóa</button>
               </form>
               {% endif %}
             </td>
@@ -398,7 +303,7 @@
           {% endwith %}
           {% empty %}
           <tr>
-            <td colspan="9" class="text-muted">Chưa có dữ liệu bổ sung trong ngày này.</td>
+            <td colspan="9" class="bo-empty-cell">Chưa có dữ liệu bổ sung trong ngày này.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -406,7 +311,7 @@
     </div>
   </div>
 
-  <nav class="mt-2">
+  <nav class="bo-pagination mt-2">
     <ul class="pagination pagination-sm mb-0">
       {% if page_obj.has_previous %}
         <li class="page-item"><a class="page-link" href="?date={{ work_date }}&unit={{ unit }}&q={{ q|urlencode }}&page_size={{ page_size }}&page={{ page_obj.previous_page_number }}">Trước</a></li>
@@ -431,15 +336,6 @@
   const btnClearEmployees = document.getElementById('btnClearEmployees');
   const employeeSelect = document.getElementById('employee_ids');
 
-  document.querySelectorAll('.js-help-toggle').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      const targetId = btn.getAttribute('data-help-target');
-      const target = document.getElementById(targetId);
-      if (!target) return;
-      const isShown = target.classList.toggle('show');
-      btn.setAttribute('aria-expanded', isShown ? 'true' : 'false');
-    });
-  });
 
   if (btnSelectAllEmployees && employeeSelect) {
     btnSelectAllEmployees.addEventListener('click', function () {

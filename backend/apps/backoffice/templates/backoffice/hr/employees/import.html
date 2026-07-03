@@ -2,13 +2,16 @@
 {% load i18n %}
 {% block title %}{% trans "Nhập Excel - Nhân sự" %}{% endblock %}
 {% block content %}
-<div class="page-title-block">
-  <div class="page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
-  <h2 class="mb-1">{% trans "Nhập Excel - Nhân sự" %}</h2>
-  <div class="text-muted">{% trans "Nên chạy thử dry-run trước khi ghi dữ liệu thật." %}</div>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-file-spreadsheet"></i>{% trans "Nhập Excel - Nhân sự" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Nên chạy thử dry-run trước khi ghi dữ liệu thật." %}</div>
+  </div>
 </div>
 
-<form method="post" enctype="multipart/form-data" class="card card-body">
+<form method="post" enctype="multipart/form-data" class="card bo-form-card">
+  <div class="card-body">
   {% csrf_token %}
   <div class="row g-3">
     <div class="col-md-6">
@@ -52,9 +55,10 @@
       <a href="{% url 'backoffice:employee_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
     </div>
   </div>
+</div>
 </form>
 
-<div class="card mt-4">
+<div class="card bo-card mt-4">
   <div class="card-header"><h3 class="card-title mb-0">{% trans "Lưu ý import" %}</h3></div>
   <div class="card-body">
     <ul class="small mb-0">

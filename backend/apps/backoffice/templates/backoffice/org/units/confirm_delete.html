@@ -2,17 +2,26 @@
 {% load i18n %}
 {% block title %}{% trans "Ngừng/Xóa đơn vị" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Ngừng/Xóa đơn vị" %}: {{ obj.symbol }} - {{ obj.name }}</h2>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-building-off"></i> {% trans "Ngừng/Xóa đơn vị" %}</h2>
+    <div class="bo-page-subtitle">{{ obj.symbol }} - {{ obj.name }}</div>
+  </div>
+  <div class="bo-page-actions">
+    <a href="{% url 'backoffice:orgunit_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a>
+  </div>
+</div>
 
 {% if total_related %}
-  <div class="alert alert-warning">
-    <strong>{% trans "Đơn vị đang có dữ liệu liên kết." %}</strong>
+  <div class="bo-alert bo-alert-warning">
+    <strong><i class="ti ti-alert-triangle"></i> {% trans "Đơn vị đang có dữ liệu liên kết." %}</strong>
     {% trans "Hệ thống sẽ không xóa khỏi cơ sở dữ liệu, chỉ chuyển sang trạng thái ngừng hoạt động để bảo toàn dữ liệu chấm công/nhân sự." %}
   </div>
-  <div class="card mb-3">
-    <div class="card-header">{% trans "Dữ liệu liên kết" %}</div>
+  <div class="card bo-table-card mb-3">
+    <div class="card-header"><h3 class="bo-section-title"><i class="ti ti-link"></i> {% trans "Dữ liệu liên kết" %}</h3></div>
     <div class="table-responsive">
-      <table class="table table-sm mb-0">
+      <table class="table table-sm bo-table mb-0">
         <tbody>
           {% for label, count in related_counts.items %}
             <tr>
@@ -25,18 +34,21 @@
     </div>
   </div>
 {% else %}
-  <div class="alert alert-danger">
-    {% trans "Đơn vị chưa có dữ liệu liên kết. Nếu xác nhận, hệ thống sẽ xóa khỏi cơ sở dữ liệu." %}
+  <div class="bo-alert bo-alert-danger">
+    <i class="ti ti-trash"></i> {% trans "Đơn vị chưa có dữ liệu liên kết. Nếu xác nhận, hệ thống sẽ xóa khỏi cơ sở dữ liệu." %}
   </div>
 {% endif %}
 
-<form method="post" class="card card-body">
+<form method="post" class="card card-body bo-confirm-card">
   {% csrf_token %}
-  {% if total_related %}
-    <button class="btn btn-warning">{% trans "Chuyển sang ngừng hoạt động" %}</button>
-  {% else %}
-    <button class="btn btn-danger">{% trans "Xóa vĩnh viễn" %}</button>
-  {% endif %}
-  <a href="{% url 'backoffice:orgunit_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+  <div class="bo-confirm-title"><i class="ti ti-help-circle"></i> {% trans "Xác nhận thao tác" %}</div>
+  <div class="bo-form-actions mt-0 pt-0 border-0">
+    {% if total_related %}
+      <button class="btn btn-warning btn-sm"><i class="ti ti-player-pause"></i> {% trans "Chuyển sang ngừng hoạt động" %}</button>
+    {% else %}
+      <button class="btn btn-danger btn-sm"><i class="ti ti-trash"></i> {% trans "Xóa vĩnh viễn" %}</button>
+    {% endif %}
+    <a href="{% url 'backoffice:orgunit_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-x"></i> {% trans "Hủy" %}</a>
+  </div>
 </form>
 {% endblock %}

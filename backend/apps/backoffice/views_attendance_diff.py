@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from apps.organization.models import OrgUnit
 from apps.attendance.models_batch import AttendanceBatch, AttendanceCommit
 from .views_attendance_batch import _time_to_str, _parse_work_date
+from apps.backoffice.services.access_scope import unit_in_attendance_scope
 
 @login_required
 def batch_diff_api(request):
@@ -23,6 +24,8 @@ def batch_diff_api(request):
     unit = OrgUnit.objects.filter(id=int(unit_id), is_attendance_unit=True, is_active=True).first()
     if not unit:
         return JsonResponse({"ok": False, "error": "Đơn vị không hợp lệ"}, status=400)
+    if not unit_in_attendance_scope(request.user, unit.id):
+        return JsonResponse({"ok": False, "error": "Bạn không có quyền xem đơn vị này"}, status=403)
 
     batch = AttendanceBatch.objects.filter(unit=unit, work_date=work_date).first()
     commit = AttendanceCommit.objects.filter(unit=unit, work_date=work_date).first()

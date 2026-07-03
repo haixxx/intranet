@@ -66,7 +66,7 @@ def can_view_sensitive_employee_data(user) -> bool:
     if user.is_superuser:
         return True
     return user.groups.filter(
-        name__in=["HR_ADMIN", "HR_SENSITIVE_VIEWER", "HR_SENSITIVE_EXPORTER"]
+        name__in=["HR_MANAGER", "HR_ADMIN", "HR_SENSITIVE_VIEWER", "HR_SENSITIVE_EXPORTER"]
     ).exists()
 
 
@@ -82,7 +82,7 @@ def can_export_sensitive_employee_data(user) -> bool:
         return False
     if user.is_superuser:
         return True
-    return user.groups.filter(name__in=["HR_ADMIN", "HR_SENSITIVE_EXPORTER"]).exists()
+    return user.groups.filter(name__in=["HR_MANAGER", "HR_ADMIN", "HR_SENSITIVE_EXPORTER"]).exists()
 
 
 def vn_slug(s: str) -> str:
@@ -251,7 +251,7 @@ def employee_detail(request, pk):
 
 
 @login_required
-@permission_or_message("auth.add_user")
+@permission_or_message("core.add_user")
 def employee_create_user(request, pk):
     emp = get_object_or_404(Employee.objects.select_related("unit", "job_title"), pk=pk)
     allowed = set(allowed_org_ids_for_user(request.user))
@@ -286,8 +286,8 @@ def employee_create_user(request, pk):
         emp.user = user
         emp.save(update_fields=["user"])
 
-        viewer_group, _ = Group.objects.get_or_create(name="EMPLOYEE_VIEWER")
-        user.groups.add(viewer_group)
+        employee_group, _ = Group.objects.get_or_create(name="EMPLOYEE")
+        user.groups.add(employee_group)
 
         AccessControl.objects.update_or_create(
             user=user,

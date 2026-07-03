@@ -116,7 +116,9 @@ class ApprovalFlowVersionBuilderForm(forms.Form):
                 unit_id = c.get("unit_id")
                 resolver = {
                     "use_requester_unit": bool(c.get("use_requester_unit")),
-                    "unit_ids": ([int(unit_id)] if unit_id else [])
+                    "unit_ids": ([int(unit_id)] if unit_id else []),
+                    # Bước lãnh đạo đơn vị không cho người lập phiếu tự ký mặc định.
+                    "exclude_requester": True,
                 }
             else:
                 resolver = {}

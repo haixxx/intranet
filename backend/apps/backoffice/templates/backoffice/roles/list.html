@@ -1,25 +1,82 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Vai trò (Roles)" %}{% endblock %}
+{% block title %}{% trans "Vai trò" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Vai trò (Roles)" %}</h2>
-<div class="table-responsive">
-<table class="table table-striped align-middle">
-  <thead><tr><th>{% trans "Tên" %}</th><th>{% trans "Số quyền" %}</th><th></th></tr></thead>
-  <tbody>
-    {% for r in roles %}
-      <tr>
-        <td>{{ r.name }}</td>
-        <td>{{ r.permissions.count }}</td>
-        <td class="text-nowrap">
-          <a href="{% url 'backoffice:role_edit' r.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
-          <a href="{% url 'backoffice:role_delete' r.id %}" class="btn btn-sm btn-outline-danger">{% trans "Xóa" %}</a>
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="3" class="text-muted">{% trans "Chưa có vai trò." %}</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-users-group"></i>{% trans "Vai trò" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Quản lý nhóm quyền dùng để phân quyền truy cập các chức năng Backoffice." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    {% if perms.auth.add_group %}
+      <a href="{% url 'backoffice:role_create' %}" class="btn btn-primary btn-sm"><i class="ti ti-plus"></i> {% trans "Tạo vai trò" %}</a>
+    {% endif %}
+    {% if perms.auth.view_permission %}
+      <a href="{% url 'backoffice:permission_matrix' %}" class="btn btn-outline-primary btn-sm"><i class="ti ti-table"></i> {% trans "Ma trận quyền" %}</a>
+    {% endif %}
+  </div>
 </div>
+
+<form class="card card-body bo-filter-card mb-3" method="get">
+  <div class="bo-filter-grid bo-filter-grid-3">
+    <div>
+      <label class="form-label">{% trans "Tìm kiếm" %}</label>
+      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="{% trans 'Tìm tên vai trò' %}">
+    </div>
+    <div>
+      <label class="form-label">{% trans "Dòng" %}</label>
+      <select name="page_size" class="form-select form-select-sm">
+        {% for size in page_size_options %}
+          <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}/trang</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm" type="submit">{% trans "Lọc" %}</button>
+      <a href="{% url 'backoffice:role_list' %}" class="btn btn-outline-secondary btn-sm">{% trans "Xóa lọc" %}</a>
+    </div>
+  </div>
+</form>
+
+<div class="bo-list-meta">
+  {% trans "Tổng" %}: {{ total_count }} | {% trans "Trang" %} {{ current_page }}/{{ paginator.num_pages }}
+</div>
+
+<div class="card bo-table-card">
+  <div class="table-responsive">
+    <table class="table table-striped table-sm align-middle bo-table mb-0">
+      <thead>
+        <tr>
+          <th>{% trans "Tên" %}</th>
+          <th>{% trans "Số quyền" %}</th>
+          <th class="text-end">{% trans "Thao tác" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in roles %}
+          <tr>
+            <td class="bo-cell-main">{{ r.name }}</td>
+            <td>{{ r.permission_count }}</td>
+            <td class="bo-actions-cell">
+              {% if perms.auth.change_group %}
+                <a href="{% url 'backoffice:role_edit' r.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
+              {% endif %}
+              {% if perms.auth.delete_group %}
+                <a href="{% url 'backoffice:role_delete' r.id %}" class="btn btn-sm btn-outline-danger">{% trans "Xóa" %}</a>
+              {% endif %}
+              {% if not perms.auth.change_group and not perms.auth.delete_group %}
+                <span class="bo-muted-dash">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="bo-empty-cell">{% trans "Chưa có vai trò." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "backoffice/includes/pagination.html" %}
 {% endblock %}

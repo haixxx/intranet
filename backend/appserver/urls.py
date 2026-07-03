@@ -3,6 +3,11 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+admin.site.site_header = "Quản trị kỹ thuật Z115"
+admin.site.site_title = "Z115 Admin"
+admin.site.index_title = "Bảng điều khiển Django Admin"
+admin.site.site_url = "/backoffice/"
+
 urlpatterns = [
     path("admin/", admin.site.urls),
 

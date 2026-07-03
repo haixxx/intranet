@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Iterable
 from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth import get_user_model
@@ -137,6 +137,76 @@ def _normalize_commit_item_after_correction(item: AttendanceCommitItem) -> bool:
     return changed
 
 
+
+
+def _mark_device_master_list_stale_for_commit(
+    commit: AttendanceCommit,
+    *,
+    actor=None,
+    reason: str = "",
+    employee_ids: Optional[Iterable[int]] = None,
+) -> int:
+    """
+    Đánh dấu MasterList v2 là STALE sau khi công chốt bị sửa.
+
+    Nguyên tắc vận hành hiện tại:
+    - Sửa 1 vài người sau chốt thì chỉ các dòng MasterList của những người đó cần báo
+      "Cần tính lại" trên Thống kê V2.
+    - Không đánh dấu toàn bộ ngày/đơn vị, vì sẽ gây hiểu nhầm rằng cả danh sách đều sai.
+    - Nếu không truyền employee_ids thì không đánh dấu hàng loạt; chỉ ghi audit nhẹ và
+      để người dùng bấm tính lại theo ngày/đơn vị khi cần.
+    """
+    if not commit:
+        return 0
+    try:
+        from apps.attendance_devices_v2.models_master_list import AttendanceDeviceMasterListV2
+    except Exception:
+        return 0
+
+    ids = {int(x) for x in (employee_ids or []) if x}
+    if not ids:
+        try:
+            audit_log(
+                action_verb="MARK_STALE_SKIPPED",
+                object_type="attendance_device_master_list_v2",
+                object_id=commit.id,
+                object_repr=f"{getattr(commit.unit, 'code', commit.unit_id)}-{commit.work_date}",
+                actor=actor,
+                changes={"stale_rows": 0, "reason": reason or "attendance_commit_changed", "note": "no_affected_employee_ids"},
+                request=None,
+                action_code="ATT_DEVICE_V2_MARK_STALE_SKIPPED",
+            )
+        except Exception:
+            pass
+        return 0
+
+    qs = AttendanceDeviceMasterListV2.objects.filter(
+        work_date=commit.work_date,
+        unit_id=commit.unit_id,
+        employee_id__in=ids,
+    ).exclude(compute_state=AttendanceDeviceMasterListV2.ComputeState.STALE)
+    stale_rows = qs.update(compute_state=AttendanceDeviceMasterListV2.ComputeState.STALE)
+    if stale_rows:
+        try:
+            audit_log(
+                action_verb="MARK_STALE",
+                object_type="attendance_device_master_list_v2",
+                object_id=commit.id,
+                object_repr=f"{getattr(commit.unit, 'code', commit.unit_id)}-{commit.work_date}",
+                actor=actor,
+                changes={
+                    "stale_rows": stale_rows,
+                    "affected_employee_ids": sorted(ids),
+                    "reason": reason or "attendance_commit_changed",
+                },
+                request=None,
+                action_code="ATT_DEVICE_V2_MARK_STALE",
+            )
+        except Exception:
+            pass
+    return stale_rows
+
+
 def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
     """
     Áp dụng thay đổi từ AttendanceCorrectionRequest.payload_json vào công đã chốt cùng ngày/đơn vị.
@@ -167,6 +237,8 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
     changes = acr.payload_json or []
     applied_rows = 0
     deltas: List[Dict[str, Any]] = []
+    commit_changed = False
+    affected_employee_ids = set()
 
     with transaction.atomic():
         for ch in changes:
@@ -203,6 +275,7 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
                     _normalize_commit_item_after_correction(item)
                     item.save()
                     applied_rows += 1
+                    affected_employee_ids.add(int(emp_id))
                     deltas.append({"employee_id": emp_id, "field": "ADD_EMPLOYEE", "old": None, "new": _item_state(item)})
                     continue
 
@@ -228,6 +301,7 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
                         continue
                     item.save()
                     applied_rows += 1
+                    affected_employee_ids.add(int(emp_id))
                     deltas.append({"employee_id": emp_id, "field": "ADD_EMPLOYEE_UPDATE", "old": prev, "new": _item_state(item)})
                     continue
 
@@ -241,6 +315,7 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
                 prev = _item_state(item)
                 item.delete()
                 applied_rows += 1
+                affected_employee_ids.add(int(emp_id))
                 deltas.append({"employee_id": emp_id, "field": "REMOVE_EMPLOYEE", "old": prev, "new": None})
                 continue
 
@@ -290,6 +365,7 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
                 continue
             item.save()
             applied_rows += 1
+            affected_employee_ids.add(int(emp_id))
             deltas.append({
                 "employee_id": emp_id,
                 "field": field,
@@ -298,11 +374,27 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
                 "normalized": new_state,
             })
 
+        if applied_rows > 0:
+            # Touch công chốt để các lần compute sau biết snapshot/commit đã thay đổi.
+            # AttendanceCommit.updated_at là mốc lịch sử của lần sửa công cuối cùng.
+            commit.updated_at = timezone.now()
+            commit.save(update_fields=["updated_at"])
+            commit_changed = True
+
         acr.status = applied_status
         acr.applied_at = timezone.now()
         if not getattr(acr, "approved_hr_by_id", None) and actor and getattr(actor, "id", None):
             acr.approved_hr_by = actor
         acr.save(update_fields=["status", "applied_at", "approved_hr_by"])
+
+    stale_rows = 0
+    if commit_changed:
+        stale_rows = _mark_device_master_list_stale_for_commit(
+            commit,
+            actor=actor,
+            reason=f"attendance_correction_applied:{acr.id}",
+            employee_ids=affected_employee_ids,
+        )
 
     if sync_batch_with_commit:
         try:
@@ -316,9 +408,9 @@ def apply_correction_request(acr_id: int, actor: User) -> Dict[str, Any]:
         object_id=acr.id,
         object_repr=f"{acr.unit.code}-{acr.work_date}",
         actor=actor,
-        changes={"applied_rows": applied_rows, "deltas": deltas},
+        changes={"applied_rows": applied_rows, "stale_rows": stale_rows, "deltas": deltas},
         request=None,
         action_code="ATT_CORRECTION_APPLY"
     )
 
-    return {"ok": True, "applied_rows": applied_rows, "deltas": deltas}
+    return {"ok": True, "applied_rows": applied_rows, "stale_rows": stale_rows, "deltas": deltas}

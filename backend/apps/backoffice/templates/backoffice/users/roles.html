@@ -2,14 +2,28 @@
 {% load i18n %}
 {% block title %}{% trans "Vai trò người dùng" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Vai trò người dùng" %}: {{ target.username }}</h2>
-<form method="post" class="card card-body">
-  {% csrf_token %}
-  {{ form.non_field_errors }}
-  <div class="mb-3">
-    {{ form.roles }}
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-shield-lock"></i>{% trans "Vai trò người dùng" %}: {{ target.username }}</h2>
+    <div class="bo-page-subtitle">{% trans "Gán hoặc gỡ nhóm quyền cho tài khoản." %}</div>
   </div>
-  <button class="btn btn-primary">{% trans "Lưu vai trò" %}</button>
-  <a href="{% url 'backoffice:user_edit' target.id %}" class="btn btn-secondary">{% trans "Quay lại" %}</a>
+  <div class="bo-page-actions">
+    <a href="{% url 'backoffice:user_edit' target.id %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i>{% trans "Quay lại" %}</a>
+  </div>
+</div>
+
+<form method="post" class="card bo-form-card">
+  {% csrf_token %}
+  <div class="card-body">
+    {{ form.non_field_errors }}
+    <div class="mb-3">
+      {{ form.roles }}
+    </div>
+  </div>
+  <div class="card-footer bo-form-actions">
+    <button class="btn btn-primary"><i class="ti ti-device-floppy"></i>{% trans "Lưu vai trò" %}</button>
+    <a href="{% url 'backoffice:user_edit' target.id %}" class="btn btn-outline-secondary">{% trans "Quay lại" %}</a>
+  </div>
 </form>
 {% endblock %}

@@ -1,0 +1,188 @@
+{% load i18n %}
+<a class="list-group-item list-group-item-action bo-nav-item bo-menu-overview {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+   href="{% url 'backoffice:dashboard' %}">
+  <i class="ti ti-home me-2"></i>{% trans "Tổng quan" %}
+</a>
+
+{% if perms.organization.view_orgunit or perms.organization.view_jobtitle or perms.organization.view_shifttemplate or perms.hr.view_employee %}
+  <div class="text-uppercase text-muted sidebar-heading bo-sidebar-heading mt-3 mb-1">{% trans "Tổ chức - Nhân sự" %}</div>
+
+  {% if perms.organization.view_orgunit %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-hr {% if request.resolver_match.url_name == 'orgunit_list' or request.resolver_match.url_name == 'orgunit_create' or request.resolver_match.url_name == 'orgunit_edit' or request.resolver_match.url_name == 'orgunit_delete' or request.resolver_match.url_name == 'import_orgunits' or request.resolver_match.url_name == 'export_orgunits' %}active{% endif %}"
+       href="{% url 'backoffice:orgunit_list' %}">
+      <i class="ti ti-hierarchy-3 me-2"></i>{% trans "Cơ cấu tổ chức" %}
+    </a>
+  {% endif %}
+
+  {% if perms.organization.view_jobtitle %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-hr {% if request.resolver_match.url_name == 'jobtitle_list' or request.resolver_match.url_name == 'jobtitle_create' or request.resolver_match.url_name == 'jobtitle_edit' or request.resolver_match.url_name == 'jobtitle_delete' or request.resolver_match.url_name == 'import_jobtitles' or request.resolver_match.url_name == 'export_jobtitles' %}active{% endif %}"
+       href="{% url 'backoffice:jobtitle_list' %}">
+      <i class="ti ti-id-badge me-2"></i>{% trans "Chức danh" %}
+    </a>
+  {% endif %}
+
+  {% if perms.organization.view_shifttemplate %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-hr {% if request.resolver_match.url_name == 'shift_list' or request.resolver_match.url_name == 'shift_create' or request.resolver_match.url_name == 'shift_edit' or request.resolver_match.url_name == 'shift_delete' or request.resolver_match.url_name == 'import_shifts' or request.resolver_match.url_name == 'export_shifts' %}active{% endif %}"
+       href="{% url 'backoffice:shift_list' %}">
+      <i class="ti ti-clock me-2"></i>{% trans "Ca làm việc" %}
+    </a>
+  {% endif %}
+
+  {% if perms.hr.view_employee %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-hr {% if request.resolver_match.url_name == 'employee_list' or request.resolver_match.url_name == 'employee_create' or request.resolver_match.url_name == 'employee_edit' or request.resolver_match.url_name == 'employee_detail' or request.resolver_match.url_name == 'employee_create_user' or request.resolver_match.url_name == 'export_employees' or request.resolver_match.url_name == 'import_employees' %}active{% endif %}"
+       href="{% url 'backoffice:employee_list' %}">
+      <i class="ti ti-address-book me-2"></i>{% trans "Nhân sự" %}
+    </a>
+
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-hr {% if request.resolver_match.url_name == 'temp_assignment_list' or request.resolver_match.url_name == 'temp_assignment_create' or request.resolver_match.url_name == 'temp_assignment_edit' or request.resolver_match.url_name == 'temp_assignment_cancel' %}active{% endif %}"
+       href="{% url 'backoffice:temp_assignment_list' %}">
+      <i class="ti ti-arrows-left-right me-2"></i>{% trans "Điều động tạm thời" %}
+    </a>
+  {% endif %}
+{% endif %}
+
+{% if perms.attendance.view_attendancebatch or perms.attendance.view_attendancecommit or perms.attendance.view_attendancecode or perms.attendance.change_attendancesettings %}
+  <div class="text-uppercase text-muted sidebar-heading bo-sidebar-heading mt-3 mb-1">{% trans "Quản lý công" %}</div>
+
+  {% if perms.attendance.view_attendancebatch or perms.attendance.view_attendancecommit %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-attendance {% if request.resolver_match.url_name == 'attendance_report_dashboard' %}active{% endif %}"
+       href="{% url 'backoffice:attendance_report_dashboard' %}">
+      <i class="ti ti-report-analytics me-2"></i>{% trans "Báo cáo" %}
+    </a>
+  {% endif %}
+
+  {% if perms.attendance.view_attendancebatch %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-attendance {% if request.resolver_match.url_name == 'attendance_batch_create_or_load' or request.resolver_match.url_name == 'attendance_batch_save' or request.resolver_match.url_name == 'attendance_batch_commit' or request.resolver_match.url_name == 'attendance_batch_refresh' or request.resolver_match.url_name == 'attendance_correction_request_create' %}active{% endif %}"
+       href="{% url 'backoffice:attendance_batch_create_or_load' %}">
+      <i class="ti ti-clipboard-text me-2"></i>{% trans "Đăng ký / chốt công" %}
+    </a>
+  {% endif %}
+
+  {% if perms.attendance.view_attendancecommit %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-attendance {% if request.resolver_match.url_name == 'attendance_committed_view' %}active{% endif %}"
+       href="{% url 'backoffice:attendance_committed_view' %}">
+      <i class="ti ti-eye me-2"></i>{% trans "Xem công chốt" %}
+    </a>
+
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-attendance {% if request.resolver_match.url_name == 'attendance_monthly_view' or request.resolver_match.url_name == 'attendance_monthly_export' %}active{% endif %}"
+       href="{% url 'backoffice:attendance_monthly_view' %}">
+      <i class="ti ti-calendar-stats me-2"></i>{% trans "Công theo tháng" %}
+    </a>
+  {% endif %}
+
+  {% if perms.attendance.view_attendancecode %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-attendance {% if request.resolver_match.url_name == 'attendance_code_list' or request.resolver_match.url_name == 'attendance_code_create' or request.resolver_match.url_name == 'attendance_code_edit' or request.resolver_match.url_name == 'attendance_code_delete' %}active{% endif %}"
+       href="{% url 'backoffice:attendance_code_list' %}">
+      <i class="ti ti-badge me-2"></i>{% trans "Mã chế độ" %}
+    </a>
+  {% endif %}
+
+  {% if perms.attendance.change_attendancesettings %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-attendance {% if request.resolver_match.url_name == 'attendance_settings' %}active{% endif %}"
+       href="{% url 'backoffice:attendance_settings' %}">
+      <i class="ti ti-adjustments-alt me-2"></i>{% trans "Cấu hình công" %}
+    </a>
+  {% endif %}
+{% endif %}
+
+{% if perms.attendance.view_attendancecommit or perms.attendance_devices_v2.view_attendancedevicev2 or perms.attendance_devices_v2.view_attendancedeviceagentv2 or perms.attendance_devices_v2.add_attendancemanualpunch or perms.attendance_devices_v2.view_attendancepunchmatchv2 %}
+  <div class="text-uppercase text-muted sidebar-heading bo-sidebar-heading mt-3 mb-1">{% trans "Quản lý chấm công" %}</div>
+
+  {% if perms.attendance.view_attendancecommit %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-device {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'bao_cao' %}active{% endif %}"
+       href="{% url 'attendance_devices_v2:bao_cao' %}">
+      <i class="ti ti-report-analytics me-2"></i>{% trans "Báo cáo" %}
+    </a>
+
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-device {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'thong_ke' %}active{% endif %}"
+       href="{% url 'attendance_devices_v2:thong_ke' %}">
+      <i class="ti ti-list-details me-2"></i>{% trans "Đối chiếu chấm công" %}
+    </a>
+  {% endif %}
+
+  {% if perms.attendance_devices_v2.add_attendancemanualpunch %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-device {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'them_du_lieu' %}active{% endif %}"
+       href="{% url 'attendance_devices_v2:them_du_lieu' %}">
+      <i class="ti ti-pencil-plus me-2"></i>{% trans "Bổ sung dữ liệu" %}
+    </a>
+  {% endif %}
+
+  {% if perms.attendance_devices_v2.view_attendancedevicev2 %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-device {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'giam_sat_thiet_bi' %}active{% endif %}"
+       href="{% url 'attendance_devices_v2:giam_sat_thiet_bi' %}">
+      <i class="ti ti-activity-heartbeat me-2"></i>{% trans "Giám sát thiết bị" %}
+    </a>
+
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-device {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'device_list' or request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'device_create' or request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'device_edit' %}active{% endif %}"
+       href="{% url 'attendance_devices_v2:device_list' %}">
+      <i class="ti ti-devices me-2"></i>{% trans "Thiết bị" %}
+    </a>
+  {% endif %}
+
+  {% if perms.attendance_devices_v2.view_attendancedeviceagentv2 %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-device {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'agent_list' or request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'agent_create' or request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'agent_edit' %}active{% endif %}"
+       href="{% url 'attendance_devices_v2:agent_list' %}">
+      <i class="ti ti-server me-2"></i>{% trans "Agent" %}
+    </a>
+  {% endif %}
+{% endif %}
+
+{% if request.user.is_superuser or perms.approvals.view_approvalrequest or perms.approvals.view_approvalflow or perms.approvals.view_roletitlemapping %}
+  <div class="text-uppercase text-muted sidebar-heading bo-sidebar-heading mt-3 mb-1">{% trans "Phê duyệt" %}</div>
+
+  <a class="list-group-item list-group-item-action bo-nav-item bo-menu-approval {% if request.resolver_match.url_name == 'approvals_inbox' or request.resolver_match.url_name == 'approval_step_action' %}active{% endif %}"
+     href="{% url 'backoffice:approvals_inbox' %}">
+    <i class="ti ti-checkup-list me-2"></i>{% trans "Tôi cần duyệt" %}
+  </a>
+
+  <a class="list-group-item list-group-item-action bo-nav-item bo-menu-approval {% if request.resolver_match.url_name == 'approvals_my_requests' or request.resolver_match.url_name == 'approvals_request_detail' or request.resolver_match.url_name == 'approvals_request_cancel' %}active{% endif %}"
+     href="{% url 'backoffice:approvals_my_requests' %}">
+    <i class="ti ti-file-description me-2"></i>{% trans "Yêu cầu của tôi" %}
+  </a>
+
+  {% if request.user.is_superuser or perms.approvals.view_approvalflow %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-approval {% if request.resolver_match.url_name == 'approval_flow_list' or request.resolver_match.url_name == 'approval_flow_create' or request.resolver_match.url_name == 'approval_flow_edit' or request.resolver_match.url_name == 'approval_flow_delete' or request.resolver_match.url_name == 'approval_flow_version_list' or request.resolver_match.url_name == 'approval_flow_version_create_builder' or request.resolver_match.url_name == 'approval_flow_version_edit_builder' or request.resolver_match.url_name == 'approval_flow_version_publish' or request.resolver_match.url_name == 'approval_flow_version_delete' %}active{% endif %}"
+       href="{% url 'backoffice:approval_flow_list' %}">
+      <i class="ti ti-route-alt-left me-2"></i>{% trans "Quản trị luồng duyệt" %}
+    </a>
+  {% endif %}
+
+  {% if request.user.is_superuser or perms.approvals.view_roletitlemapping %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-approval {% if request.resolver_match.url_name == 'role_title_mapping_list' or request.resolver_match.url_name == 'role_title_mapping_create' or request.resolver_match.url_name == 'role_title_mapping_edit' or request.resolver_match.url_name == 'role_title_mapping_delete' %}active{% endif %}"
+       href="{% url 'backoffice:role_title_mapping_list' %}">
+      <i class="ti ti-adjustments-alt me-2"></i>{% trans "Cấu hình Role Mapping" %}
+    </a>
+  {% endif %}
+{% endif %}
+
+{% if request.user.is_superuser or perms.core.view_user or perms.auth.view_group or perms.auth.view_permission or perms.audit.view_auditlog %}
+  <div class="text-uppercase text-muted sidebar-heading bo-sidebar-heading mt-3 mb-1">{% trans "Quản trị hệ thống" %}</div>
+
+  {% if request.user.is_superuser or perms.core.view_user %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-admin {% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'user_create' or request.resolver_match.url_name == 'user_edit' or request.resolver_match.url_name == 'user_roles' or request.resolver_match.url_name == 'user_deactivate' or request.resolver_match.url_name == 'user_activate' %}active{% endif %}"
+       href="{% url 'backoffice:user_list' %}">
+      <i class="ti ti-users me-2"></i>{% trans "Người dùng" %}
+    </a>
+  {% endif %}
+
+  {% if request.user.is_superuser or perms.auth.view_group %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-admin {% if request.resolver_match.url_name == 'role_list' or request.resolver_match.url_name == 'role_create' or request.resolver_match.url_name == 'role_edit' or request.resolver_match.url_name == 'role_delete' %}active{% endif %}"
+       href="{% url 'backoffice:role_list' %}">
+      <i class="ti ti-shield-lock me-2"></i>{% trans "Vai trò" %}
+    </a>
+  {% endif %}
+
+  {% if request.user.is_superuser or perms.auth.view_permission %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-admin {% if request.resolver_match.url_name == 'permission_matrix' %}active{% endif %}"
+       href="{% url 'backoffice:permission_matrix' %}">
+      <i class="ti ti-table me-2"></i>{% trans "Ma trận quyền" %}
+    </a>
+  {% endif %}
+
+  {% if request.user.is_superuser or perms.audit.view_auditlog %}
+    <a class="list-group-item list-group-item-action bo-nav-item bo-menu-audit {% if request.resolver_match.url_name == 'audit_list' %}active{% endif %}"
+       href="{% url 'backoffice:audit_list' %}">
+      <i class="ti ti-history me-2"></i>{% trans "Nhật ký" %}
+    </a>
+  {% endif %}
+{% endif %}

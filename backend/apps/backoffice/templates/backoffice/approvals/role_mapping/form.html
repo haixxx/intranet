@@ -1,46 +1,53 @@
 {% extends "backoffice/base.html" %}
-{% block title %}{% if create %}Thêm{% else %}Sửa{% endif %} Role Title Mapping{% endblock %}
+{% load i18n %}
+{% block title %}{% if create %}{% trans "Thêm Role Mapping" %}{% else %}{% trans "Sửa Role Mapping" %}{% endif %}{% endblock %}
 {% block content %}
-<h5 class="mb-3">{% if create %}Thêm{% else %}Sửa{% endif %} Role Title Mapping</h5>
-<form method="post">
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-users-group"></i>{% if create %}{% trans "Thêm Role Mapping" %}{% else %}{% trans "Sửa Role Mapping" %}{% endif %}</h2>
+    <div class="bo-page-subtitle">{% trans "Chỉ mapping các chức danh lãnh đạo thật vào HEAD/DEPUTY/IN_CHARGE." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_list' %}"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a>
+  </div>
+</div>
+
+<div class="bo-alert bo-alert-info">
+  <div class="fw-semibold">{% trans "Lưu ý nghiệp vụ" %}</div>
+  <div class="small mt-1">{% trans "Không mapping chức danh Nhân viên thống kê/Nhân viên thường vào nhóm lãnh đạo. Người lập phiếu đã được loại khỏi bước lãnh đạo mặc định, nhưng cấu hình đúng vẫn là bắt buộc." %}</div>
+</div>
+
+<form method="post" class="card bo-form-card">
   {% csrf_token %}
-  {% if form.non_field_errors %}
-    <div class="alert alert-warning">{{ form.non_field_errors }}</div>
-  {% endif %}
-
-  <div class="mb-2">
-    <label class="form-label">Role key</label>
-    {{ form.role_key }}
-    {% if form.role_key.errors %}
-      <div class="text-danger small">{{ form.role_key.errors|join:", " }}</div>
+  <div class="card-body">
+    {% if form.non_field_errors %}
+      <div class="bo-alert bo-alert-warning">{{ form.non_field_errors }}</div>
     {% endif %}
+
+    <div class="bo-form-grid">
+      <div>
+        <label class="form-label">{% trans "Role key" %}</label>
+        {{ form.role_key }}
+        {% if form.role_key.errors %}<div class="text-danger small mt-1">{{ form.role_key.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div>
+        <label class="form-label">{% trans "Kích hoạt" %}</label>
+        <div class="form-check mt-2">{{ form.is_active }}</div>
+        {% if form.is_active.errors %}<div class="text-danger small mt-1">{{ form.is_active.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div class="bo-form-field-full">
+        <label class="form-label">{% trans "Chức danh" %}<span class="bo-help" data-bs-toggle="tooltip" title="Hệ thống sẽ lưu JobTitle.code vào title_code để resolver tìm người ký.">?</span></label>
+        {{ form.job_title }}
+        {{ form.title_code }}
+        {% if form.job_title.errors %}<div class="text-danger small mt-1">{{ form.job_title.errors|join:", " }}</div>{% endif %}
+        {% if form.title_code.errors %}<div class="text-danger small mt-1">{{ form.title_code.errors|join:", " }}</div>{% endif %}
+      </div>
+    </div>
   </div>
-
-  <div class="mb-2">
-    <label class="form-label">Chức danh</label>
-    {{ form.job_title }}
-    <div class="form-text">Lưu mã chức danh từ JobTitle.code.</div>
-    {% if form.job_title.errors %}
-      <div class="text-danger small">{{ form.job_title.errors|join:", " }}</div>
-    {% endif %}
-  </div>
-
-  {{ form.title_code }} {# hidden #}
-  {% if form.title_code.errors %}
-    <div class="text-danger small">{{ form.title_code.errors|join:", " }}</div>
-  {% endif %}
-
-  <div class="mb-3">
-    <label class="form-label">Kích hoạt</label>
-    {{ form.is_active }}
-    {% if form.is_active.errors %}
-      <div class="text-danger small">{{ form.is_active.errors|join:", " }}</div>
-    {% endif %}
-  </div>
-
-  <div class="d-flex gap-2">
-    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
-    <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_list' %}">Hủy</a>
+  <div class="card-footer bo-form-actions">
+    <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-device-floppy"></i> {% trans "Lưu" %}</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_list' %}">{% trans "Hủy" %}</a>
   </div>
 </form>
 {% endblock %}

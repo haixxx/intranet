@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from django.contrib import admin
-from django.db import connection
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
@@ -23,16 +22,6 @@ except Exception:  # pragma: no cover - Phase 2 chưa migrate/model chưa có
     AttendanceDeviceStatusReportV2 = None
     AttendanceDeviceBackfillReportV2 = None
 
-
-
-def _table_exists_for_model(model) -> bool:
-    """Chỉ dùng cho các model report tùy chọn để tránh admin lỗi khi chưa migrate."""
-    if model is None:
-        return False
-    try:
-        return model._meta.db_table in connection.introspection.table_names()
-    except Exception:
-        return False
 
 def _bool_badge(value, true_text="Có", false_text="Không"):
     if value:
@@ -332,7 +321,7 @@ class AttendanceDeviceMasterListV2Admin(admin.ModelAdmin):
         return False
 
 
-if _table_exists_for_model(AttendanceDeviceStatusReportV2):
+if AttendanceDeviceStatusReportV2 is not None:
     @admin.register(AttendanceDeviceStatusReportV2)
     class AttendanceDeviceStatusReportV2Admin(admin.ModelAdmin):
         list_display = ("id", "device", "agent", "realtime_status_colored", "last_realtime_at", "last_event_time_local", "last_device_seen_at", "pending_backfill_required", "drift_seconds", "last_error_short", "reported_at")
@@ -356,7 +345,7 @@ if _table_exists_for_model(AttendanceDeviceStatusReportV2):
             return False
 
 
-if _table_exists_for_model(AttendanceDeviceBackfillReportV2):
+if AttendanceDeviceBackfillReportV2 is not None:
     @admin.register(AttendanceDeviceBackfillReportV2)
     class AttendanceDeviceBackfillReportV2Admin(admin.ModelAdmin):
         list_display = ("id", "device", "agent", "window_name", "status_colored", "started_at", "finished_at", "days", "read_total", "filtered", "processed", "duplicates", "rejected", "pending_batches", "error_code", "reported_at")

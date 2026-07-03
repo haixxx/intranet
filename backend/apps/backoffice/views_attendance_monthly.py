@@ -19,7 +19,8 @@ except Exception:
 
 from apps.organization.models import OrgUnit
 from apps.attendance.models_batch import AttendanceCommit, AttendanceCommitItem
-from apps.hr.models import Employee, AccessControl
+from apps.hr.models import Employee
+from apps.backoffice.services.access_scope import get_allowed_attendance_units, unit_in_attendance_scope
 try:
     from apps.hr.models.temp_assignment import TempAssignment
 except Exception:
@@ -55,31 +56,8 @@ def _iter_effective_dates_for_assignment(ta, start: dt_date, end: dt_date):
 
 
 def _units_for_attendance(request):
-    """
-    Lấy danh sách đơn vị được phép thao tác (nhất quán với phần Tạo/Xem, Xem đã chốt).
-    """
-    base_qs = OrgUnit.objects.filter(is_attendance_unit=True, is_active=True)
-    ac = getattr(request.user, "access_control", None)
-    if not ac:
-        return base_qs.order_by("symbol")
-    if ac.scope == AccessControl.Scope.ALL_ORG:
-        return base_qs.order_by("symbol")
-    root = ac.root_org_unit
-    if not root:
-        return base_qs.none()
-    from apps.organization.utils import get_subtree_unit_ids
-    subtree_ids = get_subtree_unit_ids(root)
-    if ac.scope == AccessControl.Scope.UNIT_SUBTREE:
-        return base_qs.filter(id__in=subtree_ids).order_by("symbol")
-    elif ac.scope == AccessControl.Scope.PLANT_SUBTREE:
-        plant = root
-        while plant and plant.type != OrgUnit.Type.PLANT:
-            plant = plant.parent
-        if not plant:
-            return base_qs.filter(id__in=subtree_ids).order_by("symbol")
-        plant_subtree_ids = get_subtree_unit_ids(plant)
-        return base_qs.filter(id__in=plant_subtree_ids).order_by("symbol")
-    return base_qs.order_by("symbol")
+    """Lấy danh sách đơn vị chấm công theo AccessControl."""
+    return get_allowed_attendance_units(request.user)
 
 
 def _month_range(year: int, month: int) -> Tuple[dt_date, dt_date, int]:
@@ -512,6 +490,9 @@ def monthly_view(request):
         except Exception:
             unit = None
             messages.warning(request, "Đơn vị không hợp lệ hoặc không được phép chấm công.")
+        if unit and not unit_in_attendance_scope(request.user, unit.id):
+            unit = None
+            messages.error(request, "Bạn không có quyền xem đơn vị này.")
 
     teams = OrgUnit.objects.filter(parent=unit, type=OrgUnit.Type.TEAM).order_by("symbol") if unit else OrgUnit.objects.none()
 
@@ -560,6 +541,9 @@ def monthly_export(request):
         unit = OrgUnit.objects.get(pk=int(unit_id), is_attendance_unit=True, is_active=True)
     except Exception:
         messages.error(request, "Đơn vị không hợp lệ.")
+        return render(request, "backoffice/attendance/monthly_view.html", {"has_data": False})
+    if not unit_in_attendance_scope(request.user, unit.id):
+        messages.error(request, "Bạn không có quyền xuất dữ liệu đơn vị này.")
         return render(request, "backoffice/attendance/monthly_view.html", {"has_data": False})
 
     start, end, dim = _month_range(year, month)

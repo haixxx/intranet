@@ -237,3 +237,8 @@ try:
     )
 except Exception:
     pass
+
+try:
+    from apps.attendance.models_registration import AttendanceRegistration  # noqa: F401
+except Exception:
+    pass

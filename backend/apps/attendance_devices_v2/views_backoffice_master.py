@@ -9,6 +9,7 @@ from django.utils import timezone as dj_timezone
 
 from apps.attendance.models_batch import AttendanceCommit
 from apps.organization.models import OrgUnit
+from apps.backoffice.services.access_scope import get_allowed_attendance_units, get_allowed_attendance_unit_ids
 
 from .models_master_list import AttendanceDeviceMasterListV2
 
@@ -48,12 +49,14 @@ def master_summary_view(request):
 
     rows = []
     if from_date and to_date and from_date <= to_date:
+        allowed_unit_ids = get_allowed_attendance_unit_ids(request.user)
         base = AttendanceDeviceMasterListV2.objects.filter(
             work_date__gte=from_date,
             work_date__lte=to_date,
             expected_marks__gt=0,
             is_exempt=False,
         )
+        base = base.filter(unit_id__in=allowed_unit_ids) if allowed_unit_ids else base.none()
 
         # late/early people: any delta crosses threshold
         late_q = (
@@ -122,14 +125,21 @@ def master_list_view(request):
     threshold_sec = threshold * 60
     q = (request.GET.get("q") or "").strip()
 
+    allowed_unit_ids = get_allowed_attendance_unit_ids(request.user)
+    requested_unit_id = int(unit_raw) if unit_raw.isdigit() else None
+    invalid_unit_filter = requested_unit_id is not None and requested_unit_id not in allowed_unit_ids
+
     qs = AttendanceDeviceMasterListV2.objects.select_related("employee", "unit", "commit").all()
+    qs = qs.filter(unit_id__in=allowed_unit_ids) if allowed_unit_ids else qs.none()
 
     if from_date:
         qs = qs.filter(work_date__gte=from_date)
     if to_date:
         qs = qs.filter(work_date__lte=to_date)
-    if unit_raw.isdigit():
-        qs = qs.filter(unit_id=int(unit_raw))
+    if invalid_unit_filter:
+        qs = qs.none()
+    elif requested_unit_id is not None:
+        qs = qs.filter(unit_id=requested_unit_id)
     if q:
         qs = qs.filter(
             Q(employee__employee_code__icontains=q) |
@@ -161,7 +171,7 @@ def master_list_view(request):
 
     qs = qs.order_by("-work_date", "unit_id", "employee__employee_code")[:2000]
 
-    units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
+    units = get_allowed_attendance_units(request.user)
 
     return render(request, "backoffice/attendance_devices_v2/master_list.html", {
         "from_date": request.GET.get("from") or "",
@@ -186,9 +196,16 @@ def master_edit_view(request):
     work_date = _parse_date(request.GET.get("date")) or _parse_date(request.POST.get("date")) or dj_timezone.localdate()
     unit_raw = (request.GET.get("unit") or request.POST.get("unit") or "").strip()
 
+    allowed_unit_ids = get_allowed_attendance_unit_ids(request.user)
+    requested_unit_id = int(unit_raw) if unit_raw.isdigit() else None
+    invalid_unit_filter = requested_unit_id is not None and requested_unit_id not in allowed_unit_ids
+
     qs = AttendanceDeviceMasterListV2.objects.select_related("employee", "unit").filter(work_date=work_date)
-    if unit_raw.isdigit():
-        qs = qs.filter(unit_id=int(unit_raw))
+    qs = qs.filter(unit_id__in=allowed_unit_ids) if allowed_unit_ids else qs.none()
+    if invalid_unit_filter:
+        qs = qs.none()
+    elif requested_unit_id is not None:
+        qs = qs.filter(unit_id=requested_unit_id)
 
     qs = qs.order_by("employee__employee_code")[:2000]
 
@@ -232,7 +249,7 @@ def master_edit_view(request):
 
         return redirect(f"{request.path}?date={work_date.strftime('%Y-%m-%d')}&unit={unit_raw}")
 
-    units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
+    units = get_allowed_attendance_units(request.user)
     return render(request, "backoffice/attendance_devices_v2/master_edit.html", {
         "work_date": work_date.strftime("%Y-%m-%d"),
         "unit": unit_raw,

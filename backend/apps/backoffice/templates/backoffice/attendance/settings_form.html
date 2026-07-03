@@ -1,29 +1,32 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Cấu hình đối chiếu{% endblock %}
+{% block title %}Cấu hình công{% endblock %}
 {% block content %}
-<h2 class="mb-3">Cấu hình đối chiếu chấm công</h2>
-<form method="post" class="card card-body">
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Quản lý công</div>
+    <h2 class="bo-page-title"><i class="ti ti-settings"></i>Cấu hình công</h2>
+    <div class="bo-page-subtitle">Thiết lập tham số đối chiếu log chấm công và làm tròn giờ nhập.</div>
+  </div>
+</div>
+<form method="post" class="card card-body bo-form-card">
   {% csrf_token %}
-  <div class="row g-3">
-    <div class="col-md-3">
-      <label class="form-label">Cửa sổ (phút)</label>
+  <div class="bo-form-grid">
+    <div>
+      <label class="form-label">Cửa sổ (phút)<span class="bo-help" data-bs-toggle="tooltip" title="Cửa sổ tìm log quanh mốc. Mặc định 60 phút.">?</span></label>
       {{ form.window_minutes }}
-      <div class="form-text">Cửa sổ tìm log quanh mốc. Mặc định 60.</div>
     </div>
-    <div class="col-md-3">
-      <label class="form-label">Cluster (phút)</label>
+    <div>
+      <label class="form-label">Cluster (phút)<span class="bo-help" data-bs-toggle="tooltip" title="Ngưỡng gom cụm log để lọc spam. Mặc định 2 phút.">?</span></label>
       {{ form.cluster_minutes }}
-      <div class="form-text">Ngưỡng gom cụm log để lọc spam. Mặc định 2.</div>
     </div>
-    <div class="col-md-6">
-      <label class="form-label">Làm tròn giờ nhập</label>
+    <div class="bo-form-field-full">
+      <label class="form-label">Làm tròn giờ nhập<span class="bo-help" data-bs-toggle="tooltip" title="Nếu bật, thời gian IN/OUT NTSK được làm tròn về phút 00, ví dụ 06:12 thành 06:00.">?</span></label>
       {{ form.round_registration_to_hour }}
-      <div class="form-text">Nếu bật, thời gian IN/OUT NTSK sẽ được làm tròn về phút 00 (ví dụ 06:12 → 06:00) để nhập nhanh.</div>
     </div>
-    <div class="col-12">
-      <button class="btn btn-primary btn-sm">Lưu</button>
-      <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Quay lại</a>
-    </div>
+  </div>
+  <div class="bo-form-actions">
+    <button class="btn btn-primary btn-sm"><i class="ti ti-device-floppy"></i> Lưu</button>
+    <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> Quay lại</a>
   </div>
 </form>
 {% endblock %}

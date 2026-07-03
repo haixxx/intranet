@@ -2,16 +2,14 @@
 {% load i18n %}
 {% block title %}{% trans "Xóa vai trò" %}{% endblock %}
 {% block content %}
-  <h2 class="mb-3">{% trans "Xóa vai trò" %}: {{ role.name }}</h2>
-  <div class="alert alert-warning">
-    {% trans "Hành động này sẽ xóa vai trò và gỡ vai trò khỏi tất cả người dùng liên quan." %}
+<div class="bo-page-header"><div class="bo-page-heading"><div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div><h2 class="bo-page-title"><i class="ti ti-shield-x"></i> {% trans "Xóa vai trò" %}</h2><div class="bo-page-subtitle">{{ role.name }}</div></div><div class="bo-page-actions"><a href="{% url 'backoffice:role_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a></div></div>
+<div class="bo-alert bo-alert-warning"><i class="ti ti-alert-triangle"></i> {% trans "Hành động này sẽ xóa vai trò và gỡ vai trò khỏi tất cả người dùng liên quan." %}</div>
+<form method="post" class="card card-body bo-confirm-card">
+  {% csrf_token %}
+  <div class="bo-confirm-title"><i class="ti ti-help-circle"></i> {% trans "Bạn có chắc chắn muốn xóa?" %}</div>
+  <div class="bo-form-actions">
+    <button class="btn btn-danger btn-sm"><i class="ti ti-trash"></i> {% trans "Xóa" %}</button>
+    <a href="{% url 'backoffice:role_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-x"></i> {% trans "Hủy" %}</a>
   </div>
-  <form method="post" class="card card-body">
-    {% csrf_token %}
-    <div class="mb-3">
-      <strong>{% trans "Bạn có chắc chắn muốn xóa?" %}</strong>
-    </div>
-    <button class="btn btn-danger">{% trans "Xóa" %}</button>
-    <a href="{% url 'backoffice:role_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
-  </form>
+</form>
 {% endblock %}

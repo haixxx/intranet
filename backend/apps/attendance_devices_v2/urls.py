@@ -6,6 +6,7 @@ from . import views_backoffice_thong_ke
 from . import views_backoffice_bao_cao
 from . import views_backoffice_du_lieu
 from . import views_backoffice_monitor
+from . import views_backoffice_master
 
 app_name = "attendance_devices_v2"
 
@@ -40,7 +41,11 @@ urlpatterns = [
     path("backoffice/attendance-devices-v2/them-du-lieu/<int:punch_id>/xoa/", views_backoffice_du_lieu.xoa_du_lieu_view, name="xoa_du_lieu"),
 
     # UI 3: Thống kê Master List + yêu cầu sửa + lưu override
+    path("backoffice/attendance-devices-v2/master-summary/", views_backoffice_master.master_summary_view, name="master_summary"),
+    path("backoffice/attendance-devices-v2/master-list/", views_backoffice_master.master_list_view, name="master_list"),
+    path("backoffice/attendance-devices-v2/master-edit/", views_backoffice_master.master_edit_view, name="master_edit"),
     path("backoffice/attendance-devices-v2/thong-ke/", views_backoffice_thong_ke.thong_ke_view, name="thong_ke"),
+    path("backoffice/attendance-devices-v2/thong-ke/tinh-lai-masterlist/", views_backoffice_thong_ke.tinh_lai_masterlist_thong_ke_view, name="tinh_lai_masterlist_thong_ke"),
     path("backoffice/attendance-devices-v2/thong-ke/luu-du-lieu/", views_backoffice_thong_ke.luu_du_lieu_view, name="luu_du_lieu"),
     path("backoffice/attendance-devices-v2/yeu-cau-sua/", views_backoffice_thong_ke.tao_yeu_cau_sua_view, name="tao_yeu_cau_sua"),
 

@@ -7,6 +7,7 @@ from django.shortcuts import render
 from django.db.models import Q
 
 from apps.organization.models import OrgUnit
+from apps.backoffice.services.access_scope import get_allowed_attendance_units, unit_in_attendance_scope
 from apps.attendance.models import AttendanceSettings
 from apps.attendance.models_batch import AttendanceCommit
 
@@ -26,7 +27,7 @@ def audit_matches_view(request):
     status = (request.GET.get("status") or "").strip().upper()
     q = (request.GET.get("q") or "").strip()
 
-    units_qs = OrgUnit.objects.filter(is_attendance_unit=True, is_active=True).order_by("symbol")
+    units_qs = get_allowed_attendance_units(request.user)
 
     work_date = None
     if work_date_str:
@@ -36,7 +37,7 @@ def audit_matches_view(request):
             work_date = None
 
     unit_id_int = None
-    if unit_id_raw.isdigit():
+    if unit_id_raw.isdigit() and unit_in_attendance_scope(request.user, int(unit_id_raw)):
         unit_id_int = int(unit_id_raw)
 
     rows = []

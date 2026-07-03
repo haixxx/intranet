@@ -1,0 +1,488 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}Báo cáo quản lý công{% endblock %}
+
+{% block content %}
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Quản lý công</div>
+    <h2 class="bo-page-title"><i class="ti ti-chart-bar"></i>Báo cáo quản lý công</h2>
+    <div class="bo-page-subtitle">Theo dõi tiến độ lập/chốt công, tổng công, mã chế độ, làm thêm, cơm ca và BS đi/BS đến.</div>
+  </div>
+</div>
+
+<form class="card card-body bo-filter-card bo-attendance-report-filter mb-3" method="get">
+  <div class="bo-filter-grid bo-filter-grid-attendance-report">
+    <div>
+      <label class="form-label">Từ ngày</label>
+      <input type="date" name="from" value="{{ from_date }}" class="form-control form-control-sm">
+    </div>
+    <div>
+      <label class="form-label">Đến ngày</label>
+      <input type="date" name="to" value="{{ to_date }}" class="form-control form-control-sm">
+    </div>
+    <div>
+      <label class="form-label">Đơn vị</label>
+      <select class="form-select form-select-sm" name="unit" onchange="this.form.submit()">
+        <option value="">Toàn bộ đơn vị được phân quyền</option>
+        {% for u in units %}
+          <option value="{{ u.id }}"{% if unit == u.id|stringformat:"s" %} selected{% endif %}>{{ u.symbol }} - {{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">Tổ</label>
+      <select class="form-select form-select-sm" name="team" {% if not unit %}disabled{% endif %}>
+        <option value="">Tất cả</option>
+        {% for t in teams %}
+          <option value="{{ t.id }}"{% if team == t.id|stringformat:"s" %} selected{% endif %}>{{ t.symbol }} - {{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">Trạng thái</label>
+      <select class="form-select form-select-sm" name="status">
+        <option value=""{% if not status %} selected{% endif %}>Tất cả</option>
+        <option value="COMMITTED"{% if status == 'COMMITTED' %} selected{% endif %}>Đã chốt đủ</option>
+        <option value="DRAFT"{% if status == 'DRAFT' %} selected{% endif %}>Đang nháp</option>
+        <option value="MISSING"{% if status == 'MISSING' %} selected{% endif %}>Chưa tạo</option>
+        <option value="WARNING"{% if status == 'WARNING' %} selected{% endif %}>Có cảnh báo</option>
+      </select>
+    </div>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm"><i class="ti ti-filter"></i> Xem</button>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:attendance_report_dashboard' %}"><i class="ti ti-rotate-clockwise"></i> Xóa lọc</a>
+    </div>
+  </div>
+</form>
+
+<div class="bo-alert bo-alert-info small">
+  Dữ liệu ưu tiên lấy từ <strong>công đã chốt</strong>. Đơn vị/ngày chưa chốt nhưng đã có nháp sẽ được <strong>tạm tính từ nháp</strong> để phục vụ vận hành trong ngày.
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">Tổng lượt đơn vị/ngày</div>
+      <div class="bo-kpi-value">{{ kpi.unit_day_total }}</div>
+      <div class="bo-kpi-sub">{{ kpi.unit_count }} đơn vị × {{ day_count }} ngày</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="bo-kpi-link" href="{{ kpi_links.committed }}">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">Đã chốt</div>
+        <div class="bo-kpi-value text-success">{{ kpi.committed_unit_days }}</div>
+        <div class="bo-kpi-sub">Bấm để lọc đơn vị đã chốt đủ</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="bo-kpi-link" href="{{ kpi_links.draft }}">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">Đang nháp</div>
+        <div class="bo-kpi-value text-primary">{{ kpi.draft_unit_days }}</div>
+        <div class="bo-kpi-sub">Có nháp nhưng chưa chốt</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="bo-kpi-link" href="{{ kpi_links.missing }}">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">Chưa tạo bảng công</div>
+        <div class="bo-kpi-value text-danger">{{ kpi.missing_unit_days }}</div>
+        <div class="bo-kpi-sub">Cần lập mới{% if kpi.locked_without_commit_unit_days %} · {{ kpi.locked_without_commit_unit_days }} khóa lỗi{% endif %}</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">Tổng công làm</div>
+      <div class="bo-kpi-value">{{ kpi.work_total }}</div>
+      <div class="bo-kpi-sub">Gồm người thuộc đơn vị và BS đến</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">Công hưởng lương</div>
+      <div class="bo-kpi-value">{{ kpi.paid_total }}</div>
+      <div class="bo-kpi-sub">Theo mã chế độ đã đăng ký/chốt</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">T.Thưởng</div>
+      <div class="bo-kpi-value">{{ kpi.reward_total }}</div>
+      <div class="bo-kpi-sub">Tổng công làm + công BS đi đã khớp</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">Tổng làm thêm</div>
+      <div class="bo-kpi-value">{{ kpi.overtime_total }}</div>
+      <div class="bo-kpi-sub">Giờ đăng ký làm thêm</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">Cơm ca</div>
+      <div class="bo-kpi-value">{{ kpi.meal_total }}</div>
+      <div class="bo-kpi-sub">Số suất theo mã công</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="bo-kpi-link" href="{{ kpi_links.bs }}">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">Người BS đi / BS đến</div>
+        <div class="bo-kpi-value">{{ kpi.bs_out_people_count }} / {{ kpi.bs_in_people_count }}</div>
+        <div class="bo-kpi-sub">Số người bổ sung trong kỳ đang chọn</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="bo-kpi-link" href="{{ kpi_links.corrections }}">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">Phiếu sửa đang mở</div>
+        <div class="bo-kpi-value">{{ kpi.open_corrections_count }}</div>
+        <div class="bo-kpi-sub">Chờ duyệt: {{ kpi.open_corrections_pending }} · Chờ áp dụng: {{ kpi.open_corrections_waiting_apply }}</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-5">
+    <div class="card chart-card">
+      <div class="card-header"><strong>Cơ cấu mã công</strong></div>
+      <div class="card-body">
+        {% if not chart_payload.code_breakdown %}
+          <div class="text-muted">Chưa có dữ liệu mã công trong khoảng đang chọn.</div>
+        {% else %}
+          <canvas id="chartCodeBreakdown" height="150"></canvas>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-7">
+    <div class="card chart-card">
+      <div class="card-header"><strong>Tiến độ chốt công theo ngày</strong></div>
+      <div class="card-body">
+        {% if not chart_payload.progress_series %}
+          <div class="text-muted">Chưa có dữ liệu tiến độ.</div>
+        {% else %}
+          <canvas id="chartCommitProgress" height="150"></canvas>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><strong>Việc cần xử lý</strong></div>
+      <div class="card-body">
+        {% if not warnings %}
+          <div class="text-muted">Không có cảnh báo nghiệp vụ trong khoảng ngày/đơn vị đang chọn.</div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Mức</th>
+                  <th>Nội dung</th>
+                  <th class="text-end">SL</th>
+                  <th class="text-end">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for w in warnings %}
+                <tr>
+                  <td>
+                    {% if w.level == 'danger' %}
+                      <span class="bo-badge bo-badge-danger">Cần xử lý</span>
+                    {% else %}
+                      <span class="bo-badge bo-badge-warning">Cần kiểm tra</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div><strong>{{ w.title }}</strong></div>
+                    <div class="text-muted small">{{ w.note }}</div>
+                  </td>
+                  <td class="text-end"><strong>{{ w.count }}</strong></td>
+                  <td class="text-end">
+                    {% if w.url %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ w.url }}">Xem</a>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-7" id="bs-section">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Danh sách bổ sung</strong>
+        <span class="text-muted small">Ưu tiên người đang bổ sung · tối đa 10 dòng</span>
+      </div>
+      <div class="card-body">
+        {% if not bs_rows %}
+          <div class="text-muted">Không có phát sinh BS đi/BS đến trong khoảng đang chọn.</div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 bo-report-table bo-table-compact">
+              <thead>
+                <tr>
+                  <th class="bo-cell-employee">Nhân sự</th>
+                  <th class="bo-bo-col-date-short">Bắt đầu</th>
+                  <th class="bo-bo-col-date-short">Kết thúc</th>
+                  <th class="bo-col-unit-code">Từ</th>
+                  <th class="bo-col-unit-code">Đến</th>
+                  <th class="bo-col-status">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in bs_rows %}
+                <tr>
+                  <td class="bo-cell-employee"><strong>{{ r.employee_code }}</strong> — {{ r.employee_name }}</td>
+                  <td class="text-nowrap">{{ r.assignment_start_label }}</td>
+                  <td class="text-nowrap">{{ r.assignment_end_label }}</td>
+                  <td><strong>{{ r.from_unit_label }}</strong></td>
+                  <td><strong>{{ r.to_unit_label }}</strong></td>
+                  <td>
+                    {% if r.assignment_status == 'ACTIVE' %}
+                      <span class="bo-badge bo-badge-success">{{ r.assignment_status_label }}</span>
+                    {% elif r.assignment_status == 'COMPLETED' %}
+                      <span class="bo-badge bo-badge-primary">{{ r.assignment_status_label }}</span>
+                    {% elif r.assignment_status == 'EXPIRED' %}
+                      <span class="bo-badge bo-badge-warning">{{ r.assignment_status_label }}</span>
+                    {% else %}
+                      <span class="bo-badge bo-badge-secondary">{{ r.assignment_status_label }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if bs_rows_total > 10 %}
+            <div class="text-muted small mt-2">Còn {{ bs_rows_total|add:"-10" }} dòng khác. Xem chi tiết tại bảng công của từng đơn vị.</div>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3" id="correction-section">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Phiếu sửa công đang mở</strong>
+    <span class="text-muted small">Không tính phiếu đã hủy, đã từ chối hoặc đã áp dụng</span>
+  </div>
+  <div class="card-body">
+    {% if not correction_rows and not correction_stale_rows %}
+      <div class="text-muted">Không có phiếu sửa công đang mở hoặc lệch trạng thái trong khoảng đang chọn.</div>
+    {% else %}
+      {% if correction_rows %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0 bo-report-table bo-table-compact">
+            <thead>
+              <tr>
+                <th class="bo-col-date">Ngày công</th>
+                <th class="bo-col-unit-code">ĐV</th>
+                <th>Người gửi</th>
+                <th class="text-end">Thay đổi</th>
+                <th class="bo-col-status">Nghiệp vụ</th>
+                <th class="bo-col-status">Phê duyệt</th>
+                <th class="text-end bo-col-action">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in correction_rows %}
+              <tr>
+                <td>{{ r.work_date|date:"d/m/Y" }}</td>
+                <td><strong>{{ r.unit_symbol }}</strong></td>
+                <td class="bo-cell-user" title="{{ r.requested_by }}">{{ r.requested_by }}</td>
+                <td class="text-end">{{ r.change_count }}</td>
+                <td><span class="bo-badge {{ r.status_class }}">{{ r.status_label }}</span></td>
+                <td>
+                  <span class="bo-badge {{ r.approval_status_class|default:'bo-badge-secondary' }}">{{ r.approval_status_label }}</span>
+                  {% if r.approval_note %}<div class="text-muted small mt-1">{{ r.approval_note }}</div>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if r.approval_url %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ r.approval_url }}">Xem phiếu</a>
+                  {% else %}
+                    <span class="bo-badge bo-badge-danger">Chưa có yêu cầu phê duyệt</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if correction_rows_total > 20 %}
+          <div class="text-muted small mt-2">Còn {{ correction_rows_total|add:"-20" }} phiếu khác trong khoảng đang chọn.</div>
+        {% endif %}
+      {% endif %}
+
+      {% if correction_stale_rows %}
+        <div class="bo-alert bo-alert-warning mt-3 mb-0 small">
+          Có {{ correction_stale_rows_total }} phiếu dữ liệu cũ bị lệch trạng thái: yêu cầu phê duyệt đã hủy/từ chối nhưng bản ghi sửa công chưa đồng bộ. Các phiếu này không được tính là “đang mở”.
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-3" id="unit-summary-section">
+  <div class="card-header"><strong>Tiến độ và tổng hợp theo đơn vị</strong></div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped align-middle mb-0 bo-report-table bo-table-compact">
+        <thead>
+          <tr>
+            <th class="bo-col-unit-code">ĐV</th>
+            <th class="bo-col-status">Trạng thái</th>
+            <th class="text-end">Nhân sự</th>
+            <th class="text-end">Ngày chốt</th>
+            <th class="text-end">Ngày nháp</th>
+            <th class="text-end">Chưa tạo</th>
+            <th class="text-end">Dòng chốt</th>
+            <th class="text-end">Dòng nháp</th>
+            <th class="text-end">T.Làm</th>
+            <th class="text-end">T.Hưởng lương</th>
+            <th class="text-end">T.Thưởng</th>
+            <th class="text-end">Thêm giờ</th>
+            <th class="text-end">Cơm ca</th>
+            <th class="text-end">BS đi</th>
+            <th class="text-end">BS đến</th>
+            <th class="text-end">Cảnh báo</th>
+            <th class="text-end">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in unit_rows %}
+          <tr>
+            <td class="text-nowrap"><strong>{{ r.unit_symbol }}</strong></td>
+            <td><span class="bo-badge {{ r.status.class }}">{{ r.status.label }}</span></td>
+            <td class="text-end">{{ r.employee_count }}</td>
+            <td class="text-end">{{ r.committed_days }}/{{ day_count }}</td>
+            <td class="text-end">{{ r.draft_days }}</td>
+            <td class="text-end">{{ r.missing_days }}</td>
+            <td class="text-end">{{ r.commit_item_count }}</td>
+            <td class="text-end">{{ r.draft_item_count }}</td>
+            <td class="text-end"><strong>{{ r.work_total }}</strong></td>
+            <td class="text-end">{{ r.paid_total }}</td>
+            <td class="text-end"><strong>{{ r.reward_total }}</strong></td>
+            <td class="text-end">{{ r.overtime_total }}</td>
+            <td class="text-end">{{ r.meal_total }}</td>
+            <td class="text-end">{{ r.bs_out_count }}</td>
+            <td class="text-end">{{ r.bs_in_count }}</td>
+            <td class="text-end">
+              {% if r.warning_count %}
+                <span class="bo-badge bo-badge-danger">{{ r.warning_count }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-nowrap">
+              <a class="btn btn-sm btn-outline-primary" href="{{ r.batch_url }}">Nháp</a>
+              <a class="btn btn-sm btn-outline-success" href="{{ r.committed_url }}">Chốt</a>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ r.monthly_url }}">Tháng</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="17" class="text-muted p-3">Không có dữ liệu theo bộ lọc hiện tại.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/chartjs-4.5.0/chart.umd.min.js' %}"></script>
+{{ chart_payload|json_script:"attendance-report-chart-payload" }}
+<script>
+(function () {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chưa tải được Chart.js. Kiểm tra file static/vendor/chartjs-4.5.0/chart.umd.min.js');
+    return;
+  }
+
+  const payloadEl = document.getElementById('attendance-report-chart-payload');
+  const payload = payloadEl ? JSON.parse(payloadEl.textContent) : {};
+
+  const codeEl = document.getElementById('chartCodeBreakdown');
+  if (codeEl) {
+    const rows = payload.code_breakdown || [];
+    new Chart(codeEl, {
+      type: 'doughnut',
+      data: {
+        labels: rows.map(r => r.label),
+        datasets: [{
+          data: rows.map(r => r.count),
+          backgroundColor: ['#198754', '#0d6efd', '#20c997', '#6f42c1', '#ffc107', '#fd7e14', '#dc3545', '#6c757d', '#adb5bd'],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.label + ': ' + context.formattedValue + ' dòng';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  const progressEl = document.getElementById('chartCommitProgress');
+  if (progressEl) {
+    const rows = payload.progress_series || [];
+    new Chart(progressEl, {
+      type: 'bar',
+      data: {
+        labels: rows.map(r => r.date),
+        datasets: [
+          { label: 'Đã chốt', data: rows.map(r => r.da_chot), backgroundColor: '#198754' },
+          { label: 'Đang nháp', data: rows.map(r => r.dang_nhap), backgroundColor: '#0d6efd' },
+          { label: 'Khóa lỗi', data: rows.map(r => r.khoa_loi || 0), backgroundColor: '#fd7e14' },
+          { label: 'Chưa tạo', data: rows.map(r => r.chua_tao), backgroundColor: '#dc3545' }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { stacked: true, ticks: { autoSkip: true, maxTicksLimit: 15, maxRotation: 0 } },
+          y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+        },
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

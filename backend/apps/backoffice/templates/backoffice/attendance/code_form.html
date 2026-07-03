@@ -1,26 +1,30 @@
 {% extends "backoffice/base.html" %}
 {% block title %}{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}</h2>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Quản lý công</div>
+    <h2 class="bo-page-title"><i class="ti ti-id-badge-2"></i>{% if create %}Tạo mã chế độ{% else %}Sửa mã chế độ{% endif %}</h2>
+    <div class="bo-page-subtitle">Thiết lập mã công, mốc thời gian mặc định và các chỉ tiêu phục vụ báo cáo/chốt công.</div>
+  </div>
+</div>
 
 {% if form.non_field_errors %}
-  <div class="alert alert-danger py-2">
-    {{ form.non_field_errors }}
-  </div>
+  <div class="bo-alert bo-alert-danger">{{ form.non_field_errors }}</div>
 {% endif %}
 
 {% if usage and usage.total > 0 %}
-  <div class="alert alert-warning py-2">
+  <div class="bo-alert bo-alert-warning">
     Mã này đã phát sinh dữ liệu: {{ usage.batch_items }} dòng nháp, {{ usage.commit_items }} dòng đã chốt.
     Không được đổi <strong>Mã</strong>; nếu cần đổi bản chất nghiệp vụ, nên tạo mã mới.
   </div>
 {% endif %}
 
-<form method="post" class="card card-body" id="attendance-code-form">
+<form method="post" class="card card-body bo-form-card" id="attendance-code-form">
   {% csrf_token %}
 
-  <div class="mb-3 pb-2 border-bottom">
-    <h6 class="fw-bold mb-2">1. Thông tin chung</h6>
+  <div class="bo-form-section">
+    <h3 class="bo-section-title mb-3"><i class="ti ti-info-circle"></i>1. Thông tin chung</h3>
     <div class="row g-3">
       <div class="col-md-2">
         <label class="form-label">Mã</label>
@@ -52,15 +56,15 @@
     </div>
   </div>
 
-  <div class="mb-3 pb-2 border-bottom">
-    <h6 class="fw-bold mb-2">2. Phân loại và mốc giờ</h6>
+  <div class="bo-form-section">
+    <h3 class="bo-section-title mb-3"><i class="ti ti-clock-hour-4"></i>2. Phân loại và mốc giờ</h3>
     <div class="row g-3">
       <div class="col-md-3">
-        <label class="form-label">Phần 1 <span class="text-muted" title="Tên kỹ thuật cũ là AM, nhưng nghiệp vụ mới hiểu là mốc/phần 1.">?</span></label>
+        <label class="form-label">Phần 1 <span class="bo-help" data-bs-toggle="tooltip" title="Tên kỹ thuật cũ là AM, nhưng nghiệp vụ mới hiểu là mốc/phần 1.">?</span></label>
         {{ form.segments_am_type }}
       </div>
       <div class="col-md-3">
-        <label class="form-label">Phần 2 <span class="text-muted" title="Tên kỹ thuật cũ là PM, nhưng nghiệp vụ mới hiểu là mốc/phần 2.">?</span></label>
+        <label class="form-label">Phần 2 <span class="bo-help" data-bs-toggle="tooltip" title="Tên kỹ thuật cũ là PM, nhưng nghiệp vụ mới hiểu là mốc/phần 2.">?</span></label>
         {{ form.segments_pm_type }}
       </div>
       <div class="col-md-2 d-flex align-items-end">
@@ -105,31 +109,31 @@
     </div>
   </div>
 
-  <div class="mb-3 pb-2 border-bottom">
-    <h6 class="fw-bold mb-2">3. Chỉ tiêu tính công</h6>
+  <div class="bo-form-section">
+    <h3 class="bo-section-title mb-3"><i class="ti ti-calculator"></i>3. Chỉ tiêu tính công</h3>
     <div class="row g-3">
       <div class="col-md-2">
-        <label class="form-label">Công làm <span class="text-muted" title="Số công lao động thực tế.">?</span></label>
+        <label class="form-label">Công làm <span class="bo-help" data-bs-toggle="tooltip" title="Số công lao động thực tế.">?</span></label>
         {{ form.work_credit }}
         {% if form.work_credit.errors %}<div class="text-danger small">{{ form.work_credit.errors }}</div>{% endif %}
       </div>
       <div class="col-md-2">
-        <label class="form-label">Công hưởng lương <span class="text-muted" title="Số công hưởng lương/chế độ.">?</span></label>
+        <label class="form-label">Công hưởng lương <span class="bo-help" data-bs-toggle="tooltip" title="Số công hưởng lương/chế độ.">?</span></label>
         {{ form.paid_credit }}
         {% if form.paid_credit.errors %}<div class="text-danger small">{{ form.paid_credit.errors }}</div>{% endif %}
       </div>
       <div class="col-md-2">
-        <label class="form-label">Công nhận thưởng <span class="text-muted" title="Số công phục vụ báo cáo/tính thưởng riêng.">?</span></label>
+        <label class="form-label">Công nhận thưởng <span class="bo-help" data-bs-toggle="tooltip" title="Số công phục vụ báo cáo/tính thưởng riêng.">?</span></label>
         {{ form.bonus_credit }}
         {% if form.bonus_credit.errors %}<div class="text-danger small">{{ form.bonus_credit.errors }}</div>{% endif %}
       </div>
       <div class="col-md-2">
-        <label class="form-label">Giờ đăng ký <span class="text-muted" title="Số giờ theo mã; không phải giờ thực tế lấy từ máy.">?</span></label>
+        <label class="form-label">Giờ đăng ký <span class="bo-help" data-bs-toggle="tooltip" title="Số giờ theo mã; không phải giờ thực tế lấy từ máy.">?</span></label>
         {{ form.registered_hours }}
         {% if form.registered_hours.errors %}<div class="text-danger small">{{ form.registered_hours.errors }}</div>{% endif %}
       </div>
       <div class="col-md-2">
-        <label class="form-label">Số suất cơm ca <span class="text-muted" title="0 = không, 1 = một suất; có thể dùng 0.5 hoặc 2 nếu quy chế cần.">?</span></label>
+        <label class="form-label">Số suất cơm ca <span class="bo-help" data-bs-toggle="tooltip" title="0 = không, 1 = một suất; có thể dùng 0.5 hoặc 2 nếu quy chế cần.">?</span></label>
         {{ form.meal_allowance_count }}
         {% if form.meal_allowance_count.errors %}<div class="text-danger small">{{ form.meal_allowance_count.errors }}</div>{% endif %}
       </div>
@@ -141,15 +145,15 @@
     </div>
   </div>
 
-  <div class="mb-3">
-    <h6 class="fw-bold mb-2">4. Ghi chú</h6>
+  <div class="bo-form-section">
+    <h3 class="bo-section-title mb-3"><i class="ti ti-note"></i>4. Ghi chú</h3>
     {{ form.notes }}
     {% if form.notes.errors %}<div class="text-danger small">{{ form.notes.errors }}</div>{% endif %}
   </div>
 
-  <div class="d-flex gap-2">
-    <button class="btn btn-primary btn-sm">Lưu</button>
-    <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Huỷ</a>
+  <div class="bo-form-actions">
+    <button class="btn btn-primary btn-sm"><i class="ti ti-device-floppy"></i> Lưu</button>
+    <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> Quay lại</a>
   </div>
 </form>
 

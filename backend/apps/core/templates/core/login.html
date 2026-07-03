@@ -1,41 +1,57 @@
+{% load static %}
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-bs-theme="light">
 <head>
   <meta charset="utf-8">
-  <title>Đăng nhập</title>
+  <title>Đăng nhập · Z115 Backoffice</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Tạm dùng Tabler CDN (sẽ tự host sau) -->
-  <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet">
+  <link rel="icon" href="{% static 'backoffice/img/favicon.ico' %}">
+  <link href="{% static 'vendor/tabler-1.4.0/css/tabler.min.css' %}" rel="stylesheet">
+  <link href="{% static 'vendor/tabler-icons-3.35.0/css/tabler-icons.min.css' %}" rel="stylesheet">
+  <link href="{% static 'backoffice/css/app-ui.css' %}" rel="stylesheet">
 </head>
-<body class="border-top-wide border-primary">
+<body class="bo-body bo-login-body">
   <div class="page page-center">
     <div class="container-tight py-4">
       <div class="text-center mb-4">
-        <h2>Intranet Login</h2>
+        <img src="{% static 'backoffice/img/logo-full.png' %}" class="bo-login-logo" alt="EMC15">
+        <div class="bo-login-brand"><span class="bo-brand-title-z">Z115</span> <span class="bo-brand-title-main">Backoffice</span></div>
+        <div class="bo-login-subtitle">Đăng nhập hệ thống quản trị nội bộ</div>
       </div>
+
       {% if messages %}
         {% for m in messages %}
-          <div class="alert alert-danger">{{ m }}</div>
+          <div class="alert alert-danger" role="alert">{{ m }}</div>
         {% endfor %}
       {% endif %}
-      <form method="post" class="card card-md">
+
+      <form method="post" class="card card-md bo-card">
         {% csrf_token %}
         <div class="card-body">
           <div class="mb-3">
-            <label class="form-label">Username</label>
-            <input type="text" name="username" class="form-control" autofocus required>
+            <label class="form-label">Tên đăng nhập</label>
+            <div class="input-icon">
+              <span class="input-icon-addon"><i class="ti ti-user"></i></span>
+              <input type="text" name="username" class="form-control" autocomplete="username" autofocus required>
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Mật khẩu</label>
-            <input type="password" name="password" class="form-control" required>
+            <div class="input-icon">
+              <span class="input-icon-addon"><i class="ti ti-lock"></i></span>
+              <input type="password" name="password" class="form-control" autocomplete="current-password" required>
+            </div>
           </div>
           <div class="form-footer">
-            <button class="btn btn-primary w-100">Đăng nhập</button>
+            <button class="btn btn-primary w-100" type="submit">
+              <i class="ti ti-login me-1"></i>Đăng nhập
+            </button>
           </div>
         </div>
       </form>
     </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
+  <script src="{% static 'vendor/tabler-1.4.0/js/tabler.min.js' %}"></script>
+  <script src="{% static 'backoffice/js/app-ui.js' %}"></script>
 </body>
 </html>

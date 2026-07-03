@@ -1,0 +1,157 @@
+{% extends "admin/base_site.html" %}
+{% load i18n log static %}
+
+{% block content %}
+<div class="zadmin-home">
+  <section class="zadmin-hero">
+    <div>
+      <div class="zadmin-eyebrow">Kênh quản trị kỹ thuật</div>
+      <h1>Quản trị dữ liệu nền hệ thống</h1>
+      <p>
+        Trang này dùng cho tài khoản quản trị để kiểm tra, hiệu chỉnh dữ liệu lõi và xử lý tình huống kỹ thuật.
+        Các thao tác nghiệp vụ hằng ngày nên ưu tiên thực hiện tại Backoffice.
+      </p>
+    </div>
+    <div class="zadmin-hero-actions">
+      {% url 'backoffice:dashboard' as backoffice_dashboard_url %}
+      {% url 'admin:password_change' as password_change_url %}
+      {% if backoffice_dashboard_url %}
+        <a class="zadmin-btn zadmin-btn-primary" href="{{ backoffice_dashboard_url }}">
+          <i class="ti ti-layout-dashboard"></i> Về Backoffice
+        </a>
+      {% endif %}
+      {% if password_change_url %}
+        <a class="zadmin-btn" href="{{ password_change_url }}">
+          <i class="ti ti-lock-password"></i> Đổi mật khẩu
+        </a>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="zadmin-quick-grid" aria-label="Lối tắt quản trị">
+    {% url 'backoffice:employee_list' as employee_list_url %}
+    {% url 'backoffice:orgunit_list' as orgunit_list_url %}
+    {% url 'backoffice:approval_flow_list' as approval_flow_list_url %}
+    {% url 'backoffice:role_list' as role_list_url %}
+    {% url 'attendance_devices_v2:giam_sat_thiet_bi' as device_monitor_url %}
+    {% url 'attendance_devices_v2:thong_ke' as device_stats_url %}
+
+    {% if employee_list_url %}
+      <a class="zadmin-quick-card" href="{{ employee_list_url }}">
+        <span class="zadmin-quick-icon"><i class="ti ti-id-badge-2"></i></span>
+        <span><strong>Nhân sự</strong><small>Danh sách, hồ sơ, mã thẻ</small></span>
+      </a>
+    {% endif %}
+    {% if orgunit_list_url %}
+      <a class="zadmin-quick-card" href="{{ orgunit_list_url }}">
+        <span class="zadmin-quick-icon"><i class="ti ti-sitemap"></i></span>
+        <span><strong>Cơ cấu tổ chức</strong><small>Đơn vị, phòng ban, phân xưởng</small></span>
+      </a>
+    {% endif %}
+    {% if device_monitor_url %}
+      <a class="zadmin-quick-card" href="{{ device_monitor_url }}">
+        <span class="zadmin-quick-icon"><i class="ti ti-fingerprint"></i></span>
+        <span><strong>Giám sát thiết bị</strong><small>Realtime, backfill, trạng thái máy</small></span>
+      </a>
+    {% endif %}
+    {% if device_stats_url %}
+      <a class="zadmin-quick-card" href="{{ device_stats_url }}">
+        <span class="zadmin-quick-icon"><i class="ti ti-chart-dots-3"></i></span>
+        <span><strong>Thống kê chấm công</strong><small>Raw, normalized, Master List</small></span>
+      </a>
+    {% endif %}
+    {% if approval_flow_list_url %}
+      <a class="zadmin-quick-card" href="{{ approval_flow_list_url }}">
+        <span class="zadmin-quick-icon"><i class="ti ti-route"></i></span>
+        <span><strong>Luồng phê duyệt</strong><small>Flow, version, bước ký</small></span>
+      </a>
+    {% endif %}
+    {% if role_list_url %}
+      <a class="zadmin-quick-card" href="{{ role_list_url }}">
+        <span class="zadmin-quick-icon"><i class="ti ti-shield-check"></i></span>
+        <span><strong>Vai trò & quyền</strong><small>Nhóm quyền vận hành hệ thống</small></span>
+      </a>
+    {% endif %}
+  </section>
+
+  <div class="zadmin-layout">
+    <main class="zadmin-main-panel">
+      <div class="zadmin-panel-head">
+        <div>
+          <h2>Dữ liệu trong Django Admin</h2>
+          <p>Các nhóm model đang được đăng ký cho tài khoản của bạn.</p>
+        </div>
+        <span class="zadmin-chip">{{ app_list|length }} nhóm</span>
+      </div>
+
+      {% if app_list %}
+        <div class="zadmin-app-grid">
+          {% for app in app_list %}
+            <section class="zadmin-app-card app-{{ app.app_label }}">
+              <div class="zadmin-app-head">
+                <a href="{{ app.app_url }}">{{ app.name }}</a>
+                <span>{{ app.models|length }} mục</span>
+              </div>
+              <div class="zadmin-model-list">
+                {% for model in app.models %}
+                  <div class="zadmin-model-row model-{{ model.object_name|lower }}">
+                    <div class="zadmin-model-name">
+                      {% if model.admin_url %}
+                        <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                      {% else %}
+                        <span>{{ model.name }}</span>
+                      {% endif %}
+                      {% if model.view_only %}<small>Chỉ xem</small>{% endif %}
+                    </div>
+                    <div class="zadmin-model-actions">
+                      {% if model.add_url %}
+                        <a href="{{ model.add_url }}" class="zadmin-mini-action addlink">Thêm</a>
+                      {% endif %}
+                      {% if model.admin_url %}
+                        <a href="{{ model.admin_url }}" class="zadmin-mini-action changelink">Xem</a>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </section>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="zadmin-empty">
+          <i class="ti ti-info-circle"></i>
+          <p>Bạn chưa có quyền xem model nào trong Django Admin.</p>
+        </div>
+      {% endif %}
+    </main>
+
+    <aside class="zadmin-side-panel">
+      <div class="zadmin-note-card">
+        <h2>Lưu ý vận hành</h2>
+        <ul>
+          <li>Không sửa trực tiếp dữ liệu đã chốt nếu nghiệp vụ đã có màn hình Backoffice riêng.</li>
+          <li>Raw/Normalized/Master List nên ưu tiên xem, chỉ chỉnh khi đã xác định rõ nguyên nhân.</li>
+          <li>Sau khi sửa dữ liệu nền có liên quan chấm công, cần tính lại Master List nếu màn hình nghiệp vụ báo STALE.</li>
+        </ul>
+      </div>
+
+      <div class="zadmin-note-card">
+        <h2>Hoạt động gần đây</h2>
+        {% get_admin_log 8 as admin_log for_user user %}
+        {% if admin_log %}
+          <ul class="zadmin-admin-log">
+            {% for entry in admin_log %}
+              <li class="{% if entry.is_addition %}is-add{% elif entry.is_change %}is-change{% elif entry.is_deletion %}is-delete{% endif %}">
+                <span>{{ entry.object_repr }}</span>
+                <small>{{ entry.action_time|date:"d/m/Y H:i" }}</small>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="zadmin-muted">Chưa có hoạt động admin gần đây.</p>
+        {% endif %}
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

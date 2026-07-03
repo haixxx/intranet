@@ -2,71 +2,21 @@
 {% load i18n %}
 {% block title %}Xem công chốt{% endblock %}
 {% block content %}
-<style>
-  .attendance-committed-filter .form-label {
-    margin-bottom: .2rem;
-    font-size: .82rem;
-    font-weight: 600;
-  }
-  .approval-status-card {
-    border: 1px solid #cfe2ff;
-    background: #f8fbff;
-    color: #052c65;
-    border-radius: .5rem;
-    padding: .55rem .75rem;
-  }
-  .approval-status-pill {
-    display: inline-flex;
-    align-items: center;
-    border-radius: 999px;
-    border: 1px solid transparent;
-    padding: .25rem .6rem;
-    font-size: .82rem;
-    font-weight: 700;
-    line-height: 1.1;
-  }
-  .approval-status-pill.is-applied {
-    background: #d1e7dd;
-    border-color: #badbcc;
-    color: #0f5132;
-  }
-  .approval-status-pill.is-requested {
-    background: #fff3cd;
-    border-color: #ffecb5;
-    color: #664d03;
-  }
-  .approval-status-pill.is-rejected {
-    background: #f8d7da;
-    border-color: #f5c2c7;
-    color: #842029;
-  }
-  .approval-status-pill.is-cancelled {
-    background: #e2e3e5;
-    border-color: #d3d6d8;
-    color: #41464b;
-  }
-  .approval-status-pill.is-other {
-    background: #e2e3e5;
-    border-color: #d3d6d8;
-    color: #41464b;
-  }
-  .bs-warning-card {
-    border: 1px solid #ffecb5;
-    background: #fff8e1;
-    color: #664d03;
-    border-radius: .5rem;
-    padding: .65rem .75rem;
-  }
-</style>
-<h2 class="mb-3">Xem công chốt</h2>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Quản lý công</div>
+    <h2 class="bo-page-title"><i class="ti ti-lock-check"></i>Xem công chốt</h2>
+    <div class="bo-page-subtitle">Tra cứu bảng công đã chốt theo ngày, đơn vị, tổ và nhân sự.</div>
+  </div>
+</div>
 
-<form method="get" class="card card-body mb-3 attendance-committed-filter">
-  <div class="row g-2 align-items-end">
-    <div class="col-xl-2 col-lg-2 col-md-3">
+<form method="get" class="card card-body bo-filter-card bo-attendance-committed-filter mb-3">
+  <div class="bo-filter-grid bo-filter-grid-attendance-committed">
+    <div>
       <label class="form-label">Ngày</label>
       <input type="text" name="date" value="{{ work_date }}" class="form-control form-control-sm" placeholder="dd/mm/yyyy" inputmode="numeric">
     </div>
-    <div class="col-xl-3 col-lg-3 col-md-4">
+    <div>
       <label class="form-label">Đơn vị</label>
       <select name="unit" class="form-select form-select-sm">
         {% for u in units_qs %}
@@ -76,43 +26,54 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-xl-3 col-lg-3 col-md-3">
+    <div>
       <label class="form-label">Lọc nhanh</label>
       <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Mã / tên NV">
     </div>
-    <div class="col-xl-2 col-lg-2 col-md-2">
+    <div>
       <label class="form-label">Tổ</label>
       <input type="text" name="team" value="{{ team }}" class="form-control form-control-sm" placeholder="Tổ">
     </div>
-    <div class="col-xl-2 col-lg-2 col-md-12 d-flex gap-2">
-      <button class="btn btn-primary btn-sm flex-fill" type="submit">Lọc</button>
-      <a href="{% url 'backoffice:attendance_committed_view' %}" class="btn btn-outline-secondary btn-sm flex-fill text-nowrap">Xóa lọc</a>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-filter"></i> Lọc</button>
+      <a href="{% url 'backoffice:attendance_committed_view' %}" class="btn btn-outline-secondary btn-sm text-nowrap"><i class="ti ti-rotate-clockwise"></i> Xóa lọc</a>
     </div>
   </div>
 </form>
 
 {# Chip trạng thái ACR gần nhất + link chi tiết phê duyệt #}
 {% if latest_acr %}
-  <div class="approval-status-card d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      <span class="approval-status-pill
-        {% if latest_acr_status == 'APPLIED' %}is-applied
-        {% elif latest_acr_status == 'REQUESTED' %}is-requested
-        {% elif latest_acr_status == 'REJECTED' %}is-rejected
-        {% elif latest_acr_status == 'CANCELLED' %}is-cancelled
-        {% else %}is-other{% endif %}">
-        {% trans "Yêu cầu sửa công" %}: {{ latest_acr_status }}
-      </span>
-      <span class="small">Có thông tin phê duyệt/sửa công liên quan đến bảng công chốt này.</span>
+  <div class="bo-alert bo-alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <div class="d-flex flex-column gap-1">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="bo-badge bo-status-badge {{ latest_acr_status_class }}">
+          {% trans "Yêu cầu sửa công" %}: {{ latest_acr_status_label|default:latest_acr_status }}
+        </span>
+        <span class="small">Có thông tin phê duyệt/sửa công liên quan đến bảng công chốt này.</span>
+      </div>
+      {% if latest_acr_status_note %}<div class="text-muted small">{{ latest_acr_status_note }}</div>{% endif %}
+      <div class="text-muted small">ACR: {{ latest_acr.get_status_display|default:latest_acr_status }}</div>
     </div>
     {% if latest_acr_request_url %}
-      <a class="btn btn-outline-primary btn-sm" href="{{ latest_acr_request_url }}">{% trans "Xem chi tiết phê duyệt" %}</a>
+      <a class="btn btn-outline-primary btn-sm" href="{{ latest_acr_request_url }}"><i class="ti ti-external-link"></i> {% trans "Xem chi tiết phê duyệt" %}</a>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if device_v2_stale_count %}
+  <div class="bo-alert bo-alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 small">
+    <div>
+      <div class="fw-bold">Kết quả đối chiếu thiết bị V2 cần tính lại</div>
+      <div>Có {{ device_v2_stale_count }} dòng MasterList đã cũ do công chốt/sửa công thay đổi. Vào Thống kê V2 để xem và tính lại.</div>
+    </div>
+    {% if device_v2_stale_url %}
+      <a class="btn btn-warning btn-sm" href="{{ device_v2_stale_url }}"><i class="ti ti-refresh"></i> Mở Thống kê thiết bị</a>
     {% endif %}
   </div>
 {% endif %}
 
 {% if bs_warnings %}
-  <div class="bs-warning-card mb-2 small">
+  <div class="bo-alert bo-alert-warning mb-2 small">
     <div class="fw-bold mb-1">Cảnh báo BS đi/BS đến theo điều động</div>
     <ul class="mb-0 ps-3">
       {% for warning in bs_warnings %}
@@ -122,8 +83,8 @@
   </div>
 {% endif %}
 
-<div class="table-responsive">
-<table class="table table-sm table-striped align-middle">
+<div class="card bo-table-card"><div class="table-responsive">
+<table class="table table-sm table-striped align-middle bo-table-compact bo-attendance-committed-table mb-0">
   <thead>
     <tr>
       <th>Mã NV</th>
@@ -146,7 +107,7 @@
         <td>{{ it.employee.full_name }}</td>
         <td>{% if it.employee.team %}{{ it.employee.team.name }}{% else %}—{% endif %}</td>
         <td>
-          {% if it.bs_direction == 'IN' %}<span class="badge bg-primary text-white">BS đến</span>{% elif it.bs_direction == 'OUT' %}<span class="badge" style="background:#fff3cd;color:#664d03;">BS đi</span>{% else %}<span class="text-muted">—</span>{% endif %}
+          {% if it.bs_direction == 'IN' %}<span class="bo-badge bo-badge-info">BS đến</span>{% elif it.bs_direction == 'OUT' %}<span class="bo-badge bo-badge-warning">BS đi</span>{% else %}<span class="text-muted">—</span>{% endif %}
           {% if it.bs_peer_unit %} ({{ it.bs_peer_unit.code }}){% endif %}
         </td>
         <td><code>{{ it.effective_code_text }}</code>{% if it.label_snapshot %} - {{ it.label_snapshot }}{% elif it.code %} - {{ it.code.label_vi }}{% endif %}</td>
@@ -158,11 +119,11 @@
         <td>{{ it.notes }}</td>
       </tr>
     {% empty %}
-      <tr><td colspan="11" class="text-muted">Chưa có dữ liệu.</td></tr>
+      <tr><td colspan="11" class="bo-empty-cell">Chưa có dữ liệu.</td></tr>
     {% endfor %}
   </tbody>
 </table>
-</div>
+</div></div>
 
 <div class="d-flex justify-content-between align-items-center mt-2">
   <div class="text-muted">

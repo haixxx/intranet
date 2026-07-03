@@ -1,39 +1,97 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Quản trị Luồng phê duyệt{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Quản trị luồng phê duyệt" %}{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h5 class="mb-0">Luồng phê duyệt</h5>
-  <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approval_flow_create' %}">Tạo luồng</a>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-route"></i>{% trans "Quản trị luồng duyệt" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Quản lý luồng, trạng thái xuất bản và các phiên bản builder." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    {% if perms.approvals.add_approvalflow %}
+      <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approval_flow_create' %}"><i class="ti ti-plus"></i> {% trans "Tạo luồng" %}</a>
+    {% endif %}
+  </div>
 </div>
-<table class="table table-sm table-striped">
-  <thead>
-    <tr>
-      <th>Mã</th>
-      <th>Tên</th>
-      <th>Trạng thái</th>
-      <th>Phiên bản hiện hành</th>
-      <th>Đơn vị admin</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for it in items %}
-      <tr>
-        <td><code>{{ it.flow_key }}</code></td>
-        <td>{{ it.name }}</td>
-        <td>{{ it.status }}</td>
-        <td>{{ it.current_version|default:"—" }}</td>
-        <td>{{ it.admin_unit_id|default:"—" }}</td>
-        <td class="text-end">
-          <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_edit' it.id %}">Sửa</a>
-          <a class="btn btn-outline-danger btn-sm" href="{% url 'backoffice:approval_flow_delete' it.id %}">Xóa</a>
-          <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:approval_flow_version_list' it.id %}">Phiên bản</a>
-          <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approval_flow_version_create_builder' it.id %}">Tạo phiên bản (Builder)</a>
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="6" class="text-muted">Chưa có luồng.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+
+<form class="card card-body bo-filter-card mb-3" method="get">
+  <div class="bo-filter-grid bo-filter-grid-4">
+    <div>
+      <label class="form-label">{% trans "Tìm kiếm" %}</label>
+      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="{% trans 'Mã / tên / mô tả' %}">
+    </div>
+    <div>
+      <label class="form-label">{% trans "Trạng thái" %}</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">{% trans "— Tất cả —" %}</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}"{% if status_selected == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">{% trans "Dòng" %}</label>
+      <select name="page_size" class="form-select form-select-sm">
+        {% for size in page_size_options %}
+          <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}/trang</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm" type="submit">{% trans "Lọc" %}</button>
+      <a href="{% url 'backoffice:approval_flow_list' %}" class="btn btn-outline-secondary btn-sm">{% trans "Xóa lọc" %}</a>
+    </div>
+  </div>
+</form>
+
+<div class="bo-list-meta">
+  {% trans "Tổng" %}: {{ total_count }} | {% trans "Trang" %} {{ current_page }}/{{ paginator.num_pages }}
+</div>
+
+<div class="card bo-table-card">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle bo-table mb-0">
+      <thead>
+        <tr>
+          <th>{% trans "Mã" %}</th>
+          <th>{% trans "Tên" %}</th>
+          <th>{% trans "Trạng thái" %}</th>
+          <th>{% trans "Phiên bản hiện hành" %}</th>
+          <th>{% trans "Đơn vị admin" %}</th>
+          <th class="text-end">{% trans "Thao tác" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+          <tr>
+            <td><code>{{ it.flow_key }}</code></td>
+            <td class="bo-cell-main">{{ it.name }}</td>
+            <td><span class="bo-badge bo-badge-secondary">{{ it.status }}</span></td>
+            <td>{{ it.current_version|default:"—" }}</td>
+            <td>{{ it.admin_unit_id|default:"—" }}</td>
+            <td class="bo-actions-cell">
+              {% if perms.approvals.change_approvalflow %}
+                <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_edit' it.id %}">{% trans "Sửa" %}</a>
+              {% endif %}
+              {% if perms.approvals.delete_approvalflow %}
+                <a class="btn btn-outline-danger btn-sm" href="{% url 'backoffice:approval_flow_delete' it.id %}">{% trans "Xóa" %}</a>
+              {% endif %}
+              {% if perms.approvals.view_approvalflowversion %}
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:approval_flow_version_list' it.id %}">{% trans "Phiên bản" %}</a>
+              {% endif %}
+              {% if perms.approvals.add_approvalflowversion %}
+                <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approval_flow_version_create_builder' it.id %}">{% trans "Tạo phiên bản" %}</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="bo-empty-cell">{% trans "Chưa có luồng." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "backoffice/includes/pagination.html" %}
 {% endblock %}

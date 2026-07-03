@@ -15,6 +15,7 @@ from django.utils import timezone as dj_timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.organization.models import OrgUnit
+from apps.backoffice.services.access_scope import get_allowed_attendance_units, get_allowed_attendance_unit_ids
 from apps.hr.models import Employee
 from apps.attendance.models_batch import AttendanceCommit
 
@@ -276,8 +277,44 @@ def _unmapped_raw_qs():
     )
 
 
-def _filtered_device_ids(*, q: str = "", agent_raw: str = "", unit_raw: str = "", active_raw: str = "") -> list[int]:
+
+
+def _uid_scope_bounds(scope: str, *, work_date, tz):
+    """Trả về khoảng thời gian UTC cho bảng UID chưa map trên Giám sát thiết bị."""
+    scope = (scope or "last7").strip().lower()
+    if scope not in {"date", "last7", "last30", "all"}:
+        scope = "last7"
+
+    day_start_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(0, 0, 0)), tz)
+    day_end_local = day_start_local + timedelta(days=1)
+
+    if scope == "date":
+        return scope, "ngày đang xem", day_start_local.astimezone(datetime_timezone.utc), day_end_local.astimezone(datetime_timezone.utc)
+    if scope == "last30":
+        start_local = day_end_local - timedelta(days=30)
+        return scope, "30 ngày gần nhất đến ngày đang xem", start_local.astimezone(datetime_timezone.utc), day_end_local.astimezone(datetime_timezone.utc)
+    if scope == "all":
+        return scope, "toàn bộ lịch sử", None, None
+
+    start_local = day_end_local - timedelta(days=7)
+    return "last7", "7 ngày gần nhất đến ngày đang xem", start_local.astimezone(datetime_timezone.utc), day_end_local.astimezone(datetime_timezone.utc)
+
+
+def _apply_uid_scope(qs, *, scope: str, work_date, tz):
+    scope, label, start_utc, end_utc = _uid_scope_bounds(scope, work_date=work_date, tz=tz)
+    if start_utc is not None:
+        qs = qs.filter(event_time_utc__gte=start_utc)
+    if end_utc is not None:
+        qs = qs.filter(event_time_utc__lt=end_utc)
+    return qs, scope, label
+
+def _filtered_device_ids(*, q: str = "", agent_raw: str = "", unit_raw: str = "", active_raw: str = "", user=None) -> list[int]:
     qs = AttendanceDeviceV2.objects.all()
+    if user is not None:
+        allowed_ids = get_allowed_attendance_unit_ids(user)
+        qs = qs.filter(org_unit_id__in=allowed_ids) if allowed_ids else qs.none()
+        if unit_raw.isdigit() and int(unit_raw) not in allowed_ids:
+            qs = qs.none()
     if q:
         qs = qs.filter(
             Q(name__icontains=q) |
@@ -356,14 +393,20 @@ def tinh_lai_masterlist_view(request):
     work_date = _parse_date(request.POST.get("date")) or dj_timezone.localdate()
     unit_raw = (request.POST.get("unit") or "").strip()
 
+    allowed_unit_ids = get_allowed_attendance_unit_ids(request.user)
     commit_qs = AttendanceCommit.objects.filter(work_date=work_date)
+    commit_qs = commit_qs.filter(unit_id__in=allowed_unit_ids) if allowed_unit_ids else commit_qs.none()
 
     if unit_raw.isdigit():
         requested_unit_id = int(unit_raw)
-        unit_ids = [requested_unit_id]
-        commit_unit_ids = set(
-            commit_qs.filter(unit_id=requested_unit_id).values_list("unit_id", flat=True)
-        )
+        if requested_unit_id not in allowed_unit_ids:
+            unit_ids = []
+            commit_unit_ids = set()
+        else:
+            unit_ids = [requested_unit_id]
+            commit_unit_ids = set(
+                commit_qs.filter(unit_id=requested_unit_id).values_list("unit_id", flat=True)
+            )
     else:
         unit_ids = list(
             commit_qs
@@ -478,6 +521,26 @@ def xoa_raw_chua_map_view(request):
         if confirm_text != "XOA_RAW_CHUA_MAP":
             messages.error(request, "Chưa xác nhận đúng. Không xóa raw chưa map.")
             return redirect(next_url or "attendance_devices_v2:giam_sat_thiet_bi")
+
+        # Chỉ xóa theo đúng phạm vi đang lọc trên màn Giám sát thiết bị.
+        # Tránh thao tác "xóa toàn bộ" quét/xóa cả lịch sử ngoài ý muốn.
+        work_date = _parse_date(request.POST.get("date")) or dj_timezone.localdate()
+        tz = dj_timezone.get_current_timezone()
+        device_ids = _filtered_device_ids(
+            q=(request.POST.get("q") or "").strip(),
+            agent_raw=(request.POST.get("agent") or "").strip(),
+            unit_raw=(request.POST.get("unit") or "").strip(),
+            active_raw=(request.POST.get("active") or "").strip(),
+            user=request.user,
+        )
+        if not device_ids:
+            messages.warning(request, "Không có thiết bị phù hợp bộ lọc để xóa raw chưa map.")
+            return redirect(next_url or "attendance_devices_v2:giam_sat_thiet_bi")
+        qs = qs.filter(device_id__in=device_ids)
+        qs, _, _ = _apply_uid_scope(qs, scope=(request.POST.get("uid_scope") or "last7"), work_date=work_date, tz=tz)
+        uid_q = (request.POST.get("uid_q") or "").strip()
+        if uid_q:
+            qs = qs.filter(device_user_id__icontains=uid_q)
     else:
         device_id = (request.POST.get("device_id") or "").strip()
         uid = (request.POST.get("uid") or "").strip()
@@ -485,6 +548,9 @@ def xoa_raw_chua_map_view(request):
             messages.error(request, "Thiếu device_id hoặc UID cần xóa.")
             return redirect(next_url or "attendance_devices_v2:giam_sat_thiet_bi")
         qs = qs.filter(device_id=int(device_id), device_user_id=uid)
+        work_date = _parse_date(request.POST.get("date")) or dj_timezone.localdate()
+        tz = dj_timezone.get_current_timezone()
+        qs, _, _ = _apply_uid_scope(qs, scope=(request.POST.get("uid_scope") or "last7"), work_date=work_date, tz=tz)
 
     count = qs.count()
     if count <= 0:
@@ -526,7 +592,12 @@ def giam_sat_thiet_bi_view(request):
     day_end_utc = day_end_local.astimezone(datetime_timezone.utc)
     since_24h = dj_timezone.now() - timedelta(hours=24)
 
+    allowed_unit_ids = get_allowed_attendance_unit_ids(request.user)
+    requested_unit_id = int(unit_raw) if unit_raw.isdigit() else None
+    invalid_unit_filter = requested_unit_id is not None and requested_unit_id not in allowed_unit_ids
+
     devices_qs = AttendanceDeviceV2.objects.select_related("assigned_agent", "org_unit").order_by("name")
+    devices_qs = devices_qs.filter(org_unit_id__in=allowed_unit_ids) if allowed_unit_ids else devices_qs.none()
 
     if q:
         devices_qs = devices_qs.filter(
@@ -539,8 +610,10 @@ def giam_sat_thiet_bi_view(request):
         )
     if agent_raw.isdigit():
         devices_qs = devices_qs.filter(assigned_agent_id=int(agent_raw))
-    if unit_raw.isdigit():
-        devices_qs = devices_qs.filter(org_unit_id=int(unit_raw))
+    if invalid_unit_filter:
+        devices_qs = devices_qs.none()
+    elif requested_unit_id is not None:
+        devices_qs = devices_qs.filter(org_unit_id=requested_unit_id)
     if active_raw in {"0", "1"}:
         devices_qs = devices_qs.filter(is_active=(active_raw == "1"))
 
@@ -575,7 +648,7 @@ def giam_sat_thiet_bi_view(request):
 
     if not device_ids:
         agents = AttendanceDeviceAgentV2.objects.order_by("name")
-        units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
+        units = get_allowed_attendance_units(request.user)
         return render(request, "backoffice/attendance_devices_v2/giam_sat_thiet_bi.html", {
             "work_date": work_date.strftime("%Y-%m-%d"),
             "q": q,
@@ -589,17 +662,21 @@ def giam_sat_thiet_bi_view(request):
             "rows": [],
             "kpi": {
                 "total": 0, "online": 0, "stale": 0, "offline": 0, "unknown": 0, "disabled": 0,
-                "raw_today": 0, "raw_pending": 0, "unresolved_today": 0, "unresolved_raw_today": 0,
+                "raw_today": 0, "raw_24h": 0, "raw_pending": 0, "unresolved_today": 0, "unresolved_raw_today": 0,
                 "normalized_today": 0, "agent_offline": 0, "realtime_error": 0, "backfill_failed": 0,
             },
             "status_links": [],
             "unmapped_uid_details": [],
             "unmapped_uid_page": None,
             "unmapped_uid_page_items": [],
-            "unmapped_uid_total_groups": 0,
-            "unmapped_uid_total_raw": 0,
+            "unmapped_uid_total_groups": None,
+            "unmapped_uid_total_raw": None,
+            "unmapped_uid_has_more": False,
+            "uid_panel": "0",
             "uid_page_size": 20,
             "uid_q": "",
+            "uid_scope": "last7",
+            "uid_scope_label": "7 ngày gần nhất đến ngày đang xem",
             "online_minutes": ONLINE_MINUTES,
             "stale_minutes": STALE_MINUTES,
             "agent_online_minutes": AGENT_ONLINE_MINUTES,
@@ -617,9 +694,17 @@ def giam_sat_thiet_bi_view(request):
         .values("device_id").annotate(cnt=Count("id")),
         "device_id",
     )
+    # Chỉ số trên màn giám sát nên là theo ngày đang xem để mở trang nhanh và dễ hiểu.
+    # Dữ liệu tồn đọng toàn lịch sử có thể xử lý bằng Normalize lại hoặc báo cáo riêng,
+    # không count toàn bộ mỗi lần mở dashboard.
     raw_pending_counts = _dict_counts(
         AttendanceRawPunchV2.objects
-        .filter(device_id__in=device_ids, normalized_at__isnull=True)
+        .filter(
+            device_id__in=device_ids,
+            normalized_at__isnull=True,
+            event_time_utc__gte=day_start_utc,
+            event_time_utc__lt=day_end_utc,
+        )
         .values("device_id").annotate(cnt=Count("id")),
         "device_id",
     )
@@ -695,6 +780,7 @@ def giam_sat_thiet_bi_view(request):
         "unknown": 0,
         "disabled": 0,
         "raw_today": 0,
+        "raw_24h": 0,
         "raw_pending": 0,
         "unresolved_today": 0,
         "unresolved_raw_today": 0,
@@ -798,6 +884,7 @@ def giam_sat_thiet_bi_view(request):
         if latest_backfill and latest_backfill.status in {"FAILED", "PARTIAL_PENDING"}:
             kpi["backfill_failed"] += 1
         kpi["raw_today"] += raw_today
+        kpi["raw_24h"] += raw_24h
         kpi["raw_pending"] += raw_pending
         kpi["unresolved_today"] += unresolved_today
         kpi["unresolved_raw_today"] += unresolved_raw_today
@@ -806,52 +893,70 @@ def giam_sat_thiet_bi_view(request):
     # Với số lượng máy nhỏ, phân trang chưa cần; vẫn giới hạn nếu sau này nhiều thiết bị.
     rows = rows[:page_size]
 
-    # Bảng chi tiết UID chưa map: lấy TOÀN BỘ raw chưa map theo bộ lọc thiết bị hiện tại,
-    # không chỉ ngày đang xem. Query được group + phân trang ở DB, tránh load toàn bộ raw vào Python.
+    # Bảng chi tiết UID chưa map là phần nặng nhất vì phải group raw theo UID.
+    # Mặc định KHÔNG chạy group/count chi tiết khi mở dashboard; chỉ tải khi người dùng
+    # bấm "Mở chi tiết UID" hoặc lọc UID. KPI phía trên vẫn cho biết ngày chọn có UID chưa map hay không.
     uid_q = (request.GET.get("uid_q") or "").strip()
+    uid_scope_raw = (request.GET.get("uid_scope") or "last7").strip().lower()
     uid_page_size = _safe_int(request.GET.get("uid_page_size") or "20", 20)
     if uid_page_size not in (10, 20, 50):
         uid_page_size = 20
+    uid_panel = "1" if ((request.GET.get("uid_panel") or "").strip() == "1" or uid_q) else "0"
 
-    unmapped_all_qs = _unmapped_raw_qs().filter(device_id__in=device_ids)
-    if uid_q:
-        unmapped_all_qs = unmapped_all_qs.filter(device_user_id__icontains=uid_q)
+    # Luôn chuẩn hóa nhãn phạm vi để UI hiển thị rõ, nhưng chỉ apply query chi tiết khi uid_panel=1.
+    uid_scope, uid_scope_label, _, _ = _uid_scope_bounds(uid_scope_raw, work_date=work_date, tz=tz)
 
-    unmapped_total_raw = unmapped_all_qs.count()
-    unmapped_group_qs = (
-        unmapped_all_qs
-        .values("device_id", "device_user_id")
-        .annotate(cnt=Count("id"), first_seen=Min("event_time_local"), last_seen=Max("event_time_local"))
-        .order_by("device_id", "device_user_id")
-    )
-
-    unmapped_uid_paginator = Paginator(unmapped_group_qs, uid_page_size)
-    uid_page_number = request.GET.get("uid_page") or 1
-    unmapped_uid_page = unmapped_uid_paginator.get_page(uid_page_number)
-
-    page_device_ids = [x["device_id"] for x in unmapped_uid_page.object_list if x.get("device_id")]
-    page_devices = {
-        d.id: d
-        for d in AttendanceDeviceV2.objects.filter(id__in=page_device_ids).select_related("org_unit")
-    }
     unmapped_uid_page_items = []
-    for item in unmapped_uid_page.object_list:
-        device = page_devices.get(item["device_id"])
-        if not device:
-            continue
-        unmapped_uid_page_items.append({
-            "device": device,
-            "uid": item["device_user_id"],
-            "cnt": item["cnt"],
-            "first_seen": item["first_seen"],
-            "last_seen": item["last_seen"],
-        })
+    unmapped_uid_details = []
+    unmapped_uid_total_groups = None
+    unmapped_uid_total_raw = None
+    unmapped_uid_has_more = False
 
-    # Giữ biến cũ để template/logic khác không vỡ; bảng mới dùng unmapped_uid_page_items.
-    unmapped_uid_details = unmapped_uid_page_items
+    if uid_panel == "1":
+        unmapped_all_qs = _unmapped_raw_qs().filter(device_id__in=device_ids)
+        unmapped_all_qs, uid_scope, uid_scope_label = _apply_uid_scope(
+            unmapped_all_qs,
+            scope=uid_scope,
+            work_date=work_date,
+            tz=tz,
+        )
+        if uid_q:
+            unmapped_all_qs = unmapped_all_qs.filter(device_user_id__icontains=uid_q)
+
+        # Không dùng Paginator.count trên queryset đã GROUP BY vì đây là điểm gây chậm.
+        # Chỉ lấy N+1 nhóm đầu để biết còn dữ liệu hay không. Khi cần rà sâu, người dùng lọc hẹp hơn.
+        grouped_items = list(
+            unmapped_all_qs
+            .values("device_id", "device_user_id")
+            .annotate(cnt=Count("id"), first_seen=Min("event_time_local"), last_seen=Max("event_time_local"))
+            .order_by("-cnt", "device_id", "device_user_id")[: uid_page_size + 1]
+        )
+        if len(grouped_items) > uid_page_size:
+            unmapped_uid_has_more = True
+            grouped_items = grouped_items[:uid_page_size]
+
+        page_device_ids = [x["device_id"] for x in grouped_items if x.get("device_id")]
+        page_devices = {
+            d.id: d
+            for d in AttendanceDeviceV2.objects.filter(id__in=page_device_ids).select_related("org_unit")
+        }
+        for item in grouped_items:
+            device = page_devices.get(item["device_id"])
+            if not device:
+                continue
+            unmapped_uid_page_items.append({
+                "device": device,
+                "uid": item["device_user_id"],
+                "cnt": item["cnt"],
+                "first_seen": item["first_seen"],
+                "last_seen": item["last_seen"],
+            })
+        unmapped_uid_details = unmapped_uid_page_items
+        unmapped_uid_total_groups = len(unmapped_uid_page_items)
+        unmapped_uid_total_raw = sum(int(x.get("cnt") or 0) for x in unmapped_uid_page_items)
 
     agents = AttendanceDeviceAgentV2.objects.order_by("name")
-    units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
+    units = get_allowed_attendance_units(request.user)
 
     query_base = {
         "date": f"{work_date:%Y-%m-%d}",
@@ -889,12 +994,16 @@ def giam_sat_thiet_bi_view(request):
         "kpi": kpi,
         "status_links": status_links,
         "unmapped_uid_details": unmapped_uid_details,
-        "unmapped_uid_page": unmapped_uid_page,
+        "unmapped_uid_page": None,
         "unmapped_uid_page_items": unmapped_uid_page_items,
-        "unmapped_uid_total_groups": unmapped_uid_paginator.count,
-        "unmapped_uid_total_raw": unmapped_total_raw,
+        "unmapped_uid_total_groups": unmapped_uid_total_groups,
+        "unmapped_uid_total_raw": unmapped_uid_total_raw,
+        "unmapped_uid_has_more": unmapped_uid_has_more,
+        "uid_panel": uid_panel,
         "uid_page_size": uid_page_size,
         "uid_q": uid_q,
+        "uid_scope": uid_scope,
+        "uid_scope_label": uid_scope_label,
         "online_minutes": ONLINE_MINUTES,
         "stale_minutes": STALE_MINUTES,
         "agent_online_minutes": AGENT_ONLINE_MINUTES,

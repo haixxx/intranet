@@ -1,18 +1,29 @@
 {% extends "backoffice/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Thông báo" %}{% endblock %}
 {% block content %}
-<h6>Thông báo</h6>
-<ul class="list-group">
-  {% for n in notes %}
-    <li class="list-group-item d-flex justify-content-between align-items-center">
-      <div>
-        <div><strong>{{ n.title }}</strong></div>
-        {% if n.body %}<div class="text-muted">{{ n.body }}</div>{% endif %}
-        {% if n.url %}<a href="{{ n.url }}" class="btn btn-link btn-sm">Xem</a>{% endif %}
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Hệ thống" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-bell"></i>{% trans "Thông báo" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Các thông báo hệ thống và nhắc việc liên quan đến tài khoản của bạn." %}</div>
+  </div>
+</div>
+
+<div class="card bo-table-card">
+  <div class="list-group list-group-flush">
+    {% for n in notes %}
+      <div class="list-group-item d-flex justify-content-between gap-3 align-items-start">
+        <div class="min-w-0">
+          <div class="fw-bold">{{ n.title }}</div>
+          {% if n.body %}<div class="text-muted small mt-1">{{ n.body }}</div>{% endif %}
+          {% if n.url %}<a href="{{ n.url }}" class="btn btn-link btn-sm px-0 mt-1">{% trans "Xem" %}</a>{% endif %}
+        </div>
+        <small class="text-muted bo-text-nowrap">{{ n.created_at|date:"Y-m-d H:i" }}</small>
       </div>
-      <small class="text-muted">{{ n.created_at|date:"Y-m-d H:i" }}</small>
-    </li>
-  {% empty %}
-    <li class="list-group-item text-muted">Không có thông báo.</li>
-  {% endfor %}
-</ul>
+    {% empty %}
+      <div class="bo-empty-state">{% trans "Không có thông báo." %}</div>
+    {% endfor %}
+  </div>
+</div>
 {% endblock %}

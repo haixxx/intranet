@@ -4,6 +4,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.db.models import Q
+from django.db import transaction
 from datetime import date, time
 from types import SimpleNamespace
 from urllib.parse import urlencode
@@ -11,18 +12,19 @@ from django.utils import timezone
 
 from apps.audit.utils import audit_log
 from apps.organization.models import OrgUnit
-from apps.organization.utils import get_subtree_unit_ids
 from apps.attendance.models import AttendanceCode, AttendanceSettings
 from apps.attendance.models_batch import (
     AttendanceBatch, AttendanceBatchItem,
     AttendanceCommit, AttendanceCommitItem,
     AttendanceCorrectionRequest
 )
+from apps.attendance_devices_v2.models_master_list import AttendanceDeviceMasterListV2
 
 # Approvals
 from apps.approvals.services import create_request
 from apps.approvals.services_runtime import activate_next_step_if_any
 from apps.approvals.models import ApprovalFlow
+from apps.approvals.status_utils import build_approval_status_context
 
 # ROSTER
 try:
@@ -31,7 +33,8 @@ except Exception:
     build_expected_roster = None
     scan_impacts_for_temp_assignment = None
 
-from apps.hr.models import Employee, AccessControl
+from apps.hr.models import Employee
+from apps.backoffice.services.access_scope import get_allowed_attendance_units, unit_in_attendance_scope
 try:
     from apps.hr.models.temp_assignment import TempAssignment
 except Exception:
@@ -86,27 +89,7 @@ def _url_with_query(view_name: str, **params) -> str:
 
 
 def _units_for_attendance(request):
-    base_qs = OrgUnit.objects.filter(is_attendance_unit=True, is_active=True)
-    ac = getattr(request.user, "access_control", None)
-    if not ac:
-        return base_qs.order_by("symbol")
-    if ac.scope == AccessControl.Scope.ALL_ORG:
-        return base_qs.order_by("symbol")
-    root = ac.root_org_unit
-    if not root:
-        return base_qs.none()
-    subtree_ids = get_subtree_unit_ids(root)
-    if ac.scope == AccessControl.Scope.UNIT_SUBTREE:
-        return base_qs.filter(id__in=subtree_ids).order_by("symbol")
-    elif ac.scope == AccessControl.Scope.PLANT_SUBTREE:
-        plant = root
-        while plant and plant.type != OrgUnit.Type.PLANT:
-            plant = plant.parent
-        if not plant:
-            return base_qs.filter(id__in=subtree_ids).order_by("symbol")
-        plant_subtree_ids = get_subtree_unit_ids(plant)
-        return base_qs.filter(id__in=plant_subtree_ids).order_by("symbol")
-    return base_qs.order_by("symbol")
+    return get_allowed_attendance_units(request.user)
 
 
 def _apply_code_defaults_to_item(it: AttendanceBatchItem, code: AttendanceCode, settings: AttendanceSettings | None):
@@ -189,7 +172,7 @@ def _compare_roster_simple(batch: AttendanceBatch) -> bool:
 def _pending_acr_qs(unit: OrgUnit, work_date: date):
     """
     Xác định ACR còn “chờ duyệt/thực hiện” để khóa nháp.
-    Chỉ coi là pending nếu STATUS ∈ {REQUESTED, APPROVED_BY_UNIT}.
+    Chỉ coi là pending nếu STATUS ∈ {REQUESTED, APPROVED_BY_UNIT, APPROVED_BY_HR}.
     Các trạng thái đã kết thúc (REJECTED, APPLIED, CANCELLED, ...) sẽ KHÔNG khóa.
     """
     try:
@@ -200,9 +183,13 @@ def _pending_acr_qs(unit: OrgUnit, work_date: date):
         approved_unit = AttendanceCorrectionRequest.Status.APPROVED_BY_UNIT
     except Exception:
         approved_unit = "APPROVED_BY_UNIT"
+    try:
+        approved_hr = AttendanceCorrectionRequest.Status.APPROVED_BY_HR
+    except Exception:
+        approved_hr = "APPROVED_BY_HR"
 
     return AttendanceCorrectionRequest.objects.filter(
-        unit=unit, work_date=work_date, status__in=[requested, approved_unit]
+        unit=unit, work_date=work_date, status__in=[requested, approved_unit, approved_hr]
     )
 
 
@@ -261,12 +248,9 @@ def batch_create_or_load(request):
             unit = None
             messages.warning(request, "Đơn vị không hợp lệ hoặc không được phép chấm công.")
 
-        ac = getattr(request.user, "access_control", None)
-        if ac and unit:
-            allowed_ids = list(units_qs.values_list("id", flat=True))
-            if unit.id not in allowed_ids:
-                messages.error(request, "Bạn không có quyền thao tác với đơn vị này.")
-                unit = None
+        if unit and not unit_in_attendance_scope(request.user, unit.id):
+            messages.error(request, "Bạn không có quyền thao tác với đơn vị này.")
+            unit = None
 
         if unit:
             teams = OrgUnit.objects.filter(parent=unit, type=OrgUnit.Type.TEAM).order_by("symbol")
@@ -1014,8 +998,13 @@ def committed_view(request):
     total_count = 0
     latest_acr = None
     latest_acr_status = ""
+    latest_acr_status_label = ""
+    latest_acr_status_class = "bo-badge-secondary"
+    latest_acr_status_note = ""
     latest_acr_request_url = ""
     bs_warnings = []
+    device_v2_stale_count = 0
+    device_v2_stale_url = ""
 
     if work_date_str and unit_id:
         work_date = _parse_work_date(work_date_str)
@@ -1025,12 +1014,9 @@ def committed_view(request):
         except Exception:
             unit = None
 
-        ac = getattr(request.user, "access_control", None)
-        if ac and unit:
-            allowed_ids = list(units_qs.values_list("id", flat=True))
-            if unit.id not in allowed_ids:
-                unit = None
-                messages.error(request, "Bạn không có quyền xem đơn vị này.")
+        if unit and not unit_in_attendance_scope(request.user, unit.id):
+            unit = None
+            messages.error(request, "Bạn không có quyền xem đơn vị này.")
 
         if work_date and unit:
             commit = AttendanceCommit.objects.filter(unit=unit, work_date=work_date).first()
@@ -1050,6 +1036,29 @@ def committed_view(request):
             except Exception:
                 bs_warnings = []
 
+            try:
+                device_v2_stale_count = AttendanceDeviceMasterListV2.objects.filter(
+                    work_date=work_date,
+                    unit=unit,
+                    expected_marks__gt=0,
+                    compute_state=AttendanceDeviceMasterListV2.ComputeState.STALE,
+                ).count()
+                if device_v2_stale_count:
+                    device_v2_stale_url = _url_with_query(
+                        "attendance_devices_v2:thong_ke",
+                        **{
+                            "from": work_date.isoformat(),
+                            "to": work_date.isoformat(),
+                            "unit": unit.id,
+                            "status": "CAN_TINH_LAI",
+                            "source": "DA_SUA",
+                            "page": 1,
+                        }
+                    )
+            except Exception:
+                device_v2_stale_count = 0
+                device_v2_stale_url = ""
+
             # Bảng công chốt chỉ hiển thị AttendanceCommitItem thật.
             # Điều động chưa/thiếu công chốt được đưa vào khối cảnh báo, không trộn thành dòng chốt ảo.
             combined_items = real_items
@@ -1064,6 +1073,7 @@ def committed_view(request):
             ).order_by("-requested_at").first()
             if latest_acr:
                 latest_acr_status = latest_acr.status
+                latest_acr_status_label = latest_acr.get_status_display()
                 try:
                     from apps.approvals.models import ApprovalRequest
                     approval_req = ApprovalRequest.objects.filter(
@@ -1072,6 +1082,19 @@ def committed_view(request):
                     ).order_by("-created_at").first()
                     if approval_req:
                         latest_acr_request_url = reverse("backoffice:approvals_request_detail", args=[approval_req.id])
+                        status_ctx = build_approval_status_context(approval_req, acr=latest_acr)
+                        latest_acr_status_label = status_ctx.get("label") or latest_acr_status_label
+                        latest_acr_status_class = status_ctx.get("bo_badge_class") or latest_acr_status_class
+                        latest_acr_status_note = status_ctx.get("note") or ""
+                    else:
+                        latest_acr_status_class = {
+                            AttendanceCorrectionRequest.Status.APPLIED: "bo-badge-success",
+                            AttendanceCorrectionRequest.Status.REJECTED: "bo-badge-danger",
+                            AttendanceCorrectionRequest.Status.CANCELLED: "bo-badge-secondary",
+                            AttendanceCorrectionRequest.Status.APPROVED_BY_HR: "bo-badge-info",
+                            AttendanceCorrectionRequest.Status.APPROVED_BY_UNIT: "bo-badge-warning",
+                            AttendanceCorrectionRequest.Status.REQUESTED: "bo-badge-warning",
+                        }.get(latest_acr.status, "bo-badge-secondary")
                 except Exception:
                     latest_acr_request_url = ""
     total_pages = (total_count + per_page - 1) // per_page if total_count else 1
@@ -1089,8 +1112,13 @@ def committed_view(request):
         "total_count": total_count,
         "latest_acr": latest_acr,
         "latest_acr_status": latest_acr_status,
+        "latest_acr_status_label": latest_acr_status_label,
+        "latest_acr_status_class": latest_acr_status_class,
+        "latest_acr_status_note": latest_acr_status_note,
         "latest_acr_request_url": latest_acr_request_url,
         "bs_warnings": bs_warnings,
+        "device_v2_stale_count": device_v2_stale_count,
+        "device_v2_stale_url": device_v2_stale_url,
     })
 
 
@@ -1205,40 +1233,48 @@ def attendance_correction_request_create(request, batch_id):
     if reason:
         changes.insert(0, {"type": "NOTE", "value": reason, "acr_code": acr_code})
 
-    acr = AttendanceCorrectionRequest.objects.create(
-        unit=batch.unit,
-        work_date=batch.work_date,
-        status=AttendanceCorrectionRequest.Status.REQUESTED,
-        requested_by=request.user,
-        payload_json=changes
-    )
-
-    metadata = {
-        "flow": "Phê duyệt sửa chấm công",
-        "object_type": "attendance_correction",
-        "object_id": str(acr.id),
-        "acr_code": acr_code,
-        "unit_id": batch.unit.id,
-        "unit_code": batch.unit.code,
-        "work_date": batch.work_date.strftime("%Y-%m-%d"),
-        "requester_username": request.user.username,
-        "reason": reason,
-        "diff_count": len(real_changes),
-        "payload_changes": real_changes,
-    }
     try:
-        req = create_request(
-            flow_key=selected_flow_key,
-            requester=request.user,
-            object_type="attendance_correction",
-            object_id=str(acr.id),
-            title=f"Đề nghị sửa chấm công {batch.work_date.strftime('%Y-%m-%d')}",
-            unit_id=batch.unit.id,
-            metadata_json=metadata
-        )
-        activate_next_step_if_any(req)
+        with transaction.atomic():
+            acr = AttendanceCorrectionRequest.objects.create(
+                unit=batch.unit,
+                work_date=batch.work_date,
+                status=AttendanceCorrectionRequest.Status.REQUESTED,
+                requested_by=request.user,
+                payload_json=changes
+            )
+
+            metadata = {
+                "flow": "Phê duyệt sửa chấm công",
+                "object_type": "attendance_correction",
+                "object_id": str(acr.id),
+                "acr_code": acr_code,
+                "unit_id": batch.unit.id,
+                "unit_code": batch.unit.code,
+                "work_date": batch.work_date.strftime("%Y-%m-%d"),
+                "requester_username": request.user.username,
+                "reason": reason,
+                "diff_count": len(real_changes),
+                "payload_changes": real_changes,
+            }
+            req = create_request(
+                flow_key=selected_flow_key,
+                requester=request.user,
+                object_type="attendance_correction",
+                object_id=str(acr.id),
+                title=f"Đề nghị sửa chấm công {batch.work_date.strftime('%Y-%m-%d')}",
+                unit_id=batch.unit.id,
+                metadata_json=metadata
+            )
+            activate_next_step_if_any(req, actor=request.user)
     except Exception as e:
-        messages.warning(request, f"Đã tạo Phiếu đề nghị, nhưng mở quy trình phê duyệt gặp lỗi: {e}")
+        messages.error(request, f"Không tạo được Phiếu đề nghị sửa chấm công hoặc quy trình phê duyệt: {e}")
+        date_arg = request.POST.get("date", "")
+        unit_arg = request.POST.get("unit", "")
+        q_arg = request.POST.get("q", "")
+        team_arg = request.POST.get("team", "")
+        page_arg = request.POST.get("page", "1")
+        page_size_arg = request.POST.get("page_size", "50")
+        return redirect(f"/backoffice/attendance/batch/?date={date_arg}&unit={unit_arg}&q={q_arg}&team={team_arg}&page={page_arg}&page_size={page_size_arg}")
 
     audit_log(
         action_verb="REQUEST",

@@ -2,18 +2,35 @@
 {% load i18n %}
 {% block title %}{% if create %}{% trans "Tạo ca" %}{% else %}{% trans "Sửa ca" %}{% endif %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% if create %}{% trans "Tạo ca" %}{% else %}{% trans "Sửa ca" %}{% endif %}</h2>
-<form method="post" class="card card-body">
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-clock-hour-4"></i> {% if create %}{% trans "Tạo ca" %}{% else %}{% trans "Sửa ca" %}{% endif %}</h2>
+    <div class="bo-page-subtitle">{% trans "Thiết lập ca làm việc nền cho đăng ký công, đối chiếu giờ vào ra và báo cáo." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    <a href="{% url 'backoffice:shift_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a>
+  </div>
+</div>
+
+<form method="post" class="card card-body bo-form-card">
   {% csrf_token %}
-  {{ form.non_field_errors }}
-  {% for field in form %}
-    <div class="mb-3">
-      <label class="form-label">{{ field.label }}</label>
-      {{ field }}
-      {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-    </div>
-  {% endfor %}
-  <button class="btn btn-primary">{% trans "Lưu" %}</button>
-  <a href="{% url 'backoffice:shift_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+  {% if form.non_field_errors %}<div class="bo-alert bo-alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="bo-form-grid">
+    {% for field in form %}
+      <div>
+        <label class="form-label" for="{{ field.id_for_label }}">
+          {{ field.label }}
+          {% if field.help_text %}<span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ field.help_text|striptags }}">?</span>{% endif %}
+        </label>
+        {{ field }}
+        {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+  <div class="bo-form-actions">
+    <button class="btn btn-primary btn-sm"><i class="ti ti-device-floppy"></i> {% trans "Lưu" %}</button>
+    <a href="{% url 'backoffice:shift_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-x"></i> {% trans "Hủy" %}</a>
+  </div>
 </form>
 {% endblock %}

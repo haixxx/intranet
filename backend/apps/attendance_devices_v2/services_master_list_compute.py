@@ -178,15 +178,16 @@ class _PunchLike(Protocol):
 class _ManualPunchAdapter:
     """
     Chuyển AttendanceManualPunch về interface giống NormalizedPunchV2:
-    - canonical_time_utc = thoi_gian_utc
-    - id dùng offset để không đụng id NormalizedPunch (chỉ để "used_ids" hoạt động)
+    - canonical_time_utc mặc định = thoi_gian_utc;
+    - có thể truyền canonical_time_utc đã hiệu chỉnh cho mốc OUT qua ngày.
+    - id dùng offset để không đụng id NormalizedPunch (chỉ để "used_ids" hoạt động).
     """
     __slots__ = ("id", "canonical_time_utc", "_src")
 
-    def __init__(self, src: AttendanceManualPunch):
+    def __init__(self, src: AttendanceManualPunch, canonical_time_utc: datetime | None = None):
         self._src = src
         self.id = 1_000_000_000 + int(src.id)  # offset lớn để tránh trùng
-        self.canonical_time_utc = src.thoi_gian_utc
+        self.canonical_time_utc = canonical_time_utc or src.thoi_gian_utc
 
 
 @dataclass
@@ -219,6 +220,64 @@ def _manual_clean_note(mp: AttendanceManualPunch) -> str:
     note = (mp.ghi_chu or "").strip()
     # Giữ nguyên để audit, chỉ thêm prefix dễ hiểu khi đưa vào override_note.
     return note
+
+
+def _target_is_next_day(work_date, target_dt: datetime | None) -> bool:
+    if not target_dt:
+        return False
+    return dj_timezone.localtime(target_dt).date() > work_date
+
+
+def _adjust_manual_local_for_target(
+    *,
+    work_date,
+    field: str,
+    local_dt: datetime,
+    target_dt: datetime | None,
+) -> datetime:
+    """
+    Sửa cách hiểu dữ liệu nhập tay cho ca qua ngày.
+
+    Trước đây dữ liệu nhập OUT1=05:47 cho L3 có thể bị lưu thành 05:47 cùng ngày.
+    Nếu target OUT1/OUT2 của công chốt nằm ở ngày hôm sau, ta hiệu chỉnh local_dt
+    sang ngày hôm sau để không tính về sớm 24 giờ.
+    """
+    if field in ("OUT1", "OUT2") and _target_is_next_day(work_date, target_dt):
+        local_dt = dj_timezone.localtime(local_dt)
+        if local_dt.date() == work_date and local_dt.time() < OVERNIGHT_END_CUTOFF:
+            return _make_local_dt(work_date + timedelta(days=1), local_dt.time())
+    return local_dt
+
+
+def _adjust_manual_utc_for_target(
+    *,
+    mp: AttendanceManualPunch,
+    work_date,
+    targets: dict[str, datetime | None],
+) -> datetime:
+    field = _manual_target_field(mp)
+    local_dt = _adjust_manual_local_for_target(
+        work_date=work_date,
+        field=field,
+        local_dt=mp.thoi_gian_local,
+        target_dt=targets.get(field),
+    )
+    return local_dt.astimezone(datetime_timezone.utc)
+
+
+def _adjust_override_value_for_target(
+    *,
+    value: _ManualOverrideValue,
+    field: str,
+    work_date,
+    targets: dict[str, datetime | None],
+) -> datetime:
+    return _adjust_manual_local_for_target(
+        work_date=work_date,
+        field=field,
+        local_dt=value.local_dt,
+        target_dt=targets.get(field),
+    )
 
 
 def _pick_nearest_punch(
@@ -325,6 +384,7 @@ def compute_master_list_for_unit_date(
     )
 
     punches_by_emp: dict[int, list[_PunchLike]] = {}
+    manual_actual_by_emp: dict[int, list[AttendanceManualPunch]] = {}
     manual_override_by_emp: dict[int, dict[str, _ManualOverrideValue]] = {}
 
     for p in normalized_qs:
@@ -345,9 +405,10 @@ def compute_master_list_for_unit_date(
                         note=_manual_clean_note(mp),
                     )
         else:
-            punches_by_emp.setdefault(mp.employee_id, []).append(_ManualPunchAdapter(mp))
+            # Chưa đưa ngay vào punches_by_emp vì với ca qua ngày cần biết target của dòng công chốt.
+            manual_actual_by_emp.setdefault(mp.employee_id, []).append(mp)
 
-    # Đảm bảo danh sách theo thời gian tăng dần
+    # Đảm bảo danh sách punch máy theo thời gian tăng dần. Manual actual sẽ được trộn vào sau khi biết target.
     for emp_id, arr in punches_by_emp.items():
         arr.sort(key=lambda x: x.canonical_time_utc)
 
@@ -416,10 +477,17 @@ def compute_master_list_for_unit_date(
 
         is_exempt = bool(getattr(emp, "skip_device_attendance", False))
         used: set[int] = set()
-        punches = punches_by_emp.get(emp.id, [])
-        manual_overrides = manual_override_by_emp.get(emp.id, {})
 
         # target đã được build từ công chốt, trong đó OUT nhỏ hơn/ bằng IN thì thuộc ngày hôm sau.
+        # Trộn manual actual sau khi biết target để sửa đúng các mốc OUT1/OUT2 qua ngày.
+        manual_actual_punches = [
+            _ManualPunchAdapter(mp, canonical_time_utc=_adjust_manual_utc_for_target(mp=mp, work_date=work_date, targets=targets))
+            for mp in manual_actual_by_emp.get(emp.id, [])
+        ]
+        punches = list(punches_by_emp.get(emp.id, [])) + manual_actual_punches
+        punches.sort(key=lambda x: x.canonical_time_utc)
+        manual_overrides = manual_override_by_emp.get(emp.id, {})
+
         t_in1 = targets["IN1"]
         t_out1 = targets["OUT1"]
         t_in2 = targets["IN2"]
@@ -528,8 +596,20 @@ def compute_master_list_for_unit_date(
         def pick_override(field: str, old_val, actual_val):
             mo = manual_overrides.get(field)
             if mo:
-                return mo.local_dt
+                return _adjust_override_value_for_target(
+                    value=mo,
+                    field=field,
+                    work_date=work_date,
+                    targets=targets,
+                )
             if preserve_override:
+                if old_val:
+                    return _adjust_manual_local_for_target(
+                        work_date=work_date,
+                        field=field,
+                        local_dt=old_val,
+                        target_dt=targets.get(field),
+                    )
                 return old_val
             return actual_val
 

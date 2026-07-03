@@ -2,10 +2,12 @@
 {% load i18n %}
 {% block title %}{% trans "Chi tiết nhân sự" %}{% endblock %}
 {% block content %}
-<div class="page-title-block">
-  <div class="page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
-  <h2 class="mb-1">{% trans "Chi tiết nhân sự" %}</h2>
-  <div class="text-muted">{% trans "Thông tin hồ sơ, tổ chức, chấm công, tài khoản và lịch sử điều động." %}</div>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-user-circle"></i>{% trans "Chi tiết nhân sự" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Thông tin hồ sơ, tổ chức, chấm công, tài khoản và lịch sử điều động." %}</div>
+  </div>
 </div>
 
 <div class="row row-cards">
@@ -43,7 +45,7 @@
         {% if perms.hr.change_employee %}
           <a href="{% url 'backoffice:employee_edit' emp.id %}" class="btn btn-sm btn-outline-primary">{% trans "Sửa" %}</a>
         {% endif %}
-        {% if not emp.user_id and perms.auth.add_user %}
+        {% if not emp.user_id and perms.core.add_user %}
           <a href="{% url 'backoffice:employee_create_user' emp.id %}" class="btn btn-sm btn-outline-success">{% trans "Tạo user" %}</a>
         {% endif %}
         <a href="{% url 'backoffice:employee_list' %}" class="btn btn-sm btn-secondary">{% trans "Quay lại" %}</a>

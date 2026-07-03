@@ -1,33 +1,129 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Role Title Mapping{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Cấu hình Role Mapping" %}{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <h5 class="mb-0">Role Title Mapping</h5>
-  <a class="btn btn-primary btn-sm" href="{% url 'backoffice:role_title_mapping_create' %}">Thêm mapping</a>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-users-group"></i>{% trans "Cấu hình Role Mapping" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Ánh xạ vai trò lãnh đạo ký duyệt theo mã chức danh HR." %}</div>
+  </div>
+  <div class="bo-page-actions">
+    {% if perms.approvals.add_roletitlemapping %}
+      <a class="btn btn-primary btn-sm" href="{% url 'backoffice:role_title_mapping_create' %}"><i class="ti ti-plus"></i> {% trans "Thêm mapping" %}</a>
+    {% endif %}
+    {% if perms.approvals.view_approvalflow %}
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}"><i class="ti ti-settings"></i> {% trans "Luồng duyệt" %}</a>
+    {% endif %}
+  </div>
 </div>
-<table class="table table-sm table-striped">
-  <thead>
-    <tr>
-      <th>Role key</th>
-      <th>Mã chức danh</th>
-      <th>Trạng thái</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for it in items %}
-      <tr>
-        <td>{{ it.role_key }}</td>
-        <td><code>{{ it.title_code }}</code></td>
-        <td>{% if it.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
-        <td class="text-end">
-          <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_edit' it.id %}">Sửa</a>
-          <a class="btn btn-outline-danger btn-sm" href="{% url 'backoffice:role_title_mapping_delete' it.id %}">Xóa</a>
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="4" class="text-muted">Chưa có cấu hình.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card bo-kpi-card card-body">
+      <div class="bo-kpi-label">{% trans "Mapping active" %}</div>
+      <div class="bo-kpi-value">{{ rolemap_diagnostics.active_count }}/{{ rolemap_diagnostics.total_count }}</div>
+      <div class="bo-kpi-sub">HEAD: {{ rolemap_diagnostics.counts_by_role.HEAD|default:"0" }} · DEPUTY: {{ rolemap_diagnostics.counts_by_role.DEPUTY|default:"0" }} · IN_CHARGE: {{ rolemap_diagnostics.counts_by_role.IN_CHARGE|default:"0" }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card bo-kpi-card card-body">
+      <div class="bo-kpi-label">{% trans "Cảnh báo cấu hình" %}</div>
+      <div class="bo-kpi-value">{{ rolemap_diagnostics.issue_count }}</div>
+      <div class="bo-kpi-sub">{% trans "Nguy cơ cao" %}: {{ rolemap_diagnostics.danger_count }} · {% trans "Cần rà" %}: {{ rolemap_diagnostics.warning_count }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card bo-kpi-card card-body">
+      <div class="bo-kpi-label">{% trans "Kiểm tra nhanh" %}</div>
+      <div class="bo-kpi-value">{% if rolemap_diagnostics.issue_count %}{% trans "Cần rà" %}{% else %}{% trans "Ổn" %}{% endif %}</div>
+      <div class="bo-kpi-sub"><code>python manage.py check_role_mapping</code></div>
+    </div>
+  </div>
+</div>
+
+{% if rolemap_diagnostics.issues %}
+  <div class="bo-alert bo-alert-warning">
+    <div class="fw-semibold mb-2"><i class="ti ti-alert-triangle"></i> {% trans "Cảnh báo Role Mapping" %}</div>
+    <div class="approval-diagnostic-list">
+      {% for issue in rolemap_diagnostics.issues %}
+        <div class="approval-diagnostic-item">
+          <span class="bo-badge {% if issue.severity == 'danger' %}bo-badge-danger{% elif issue.severity == 'warning' %}bo-badge-warning{% else %}bo-badge-info{% endif %}">{{ issue.title }}</span>
+          <span>{{ issue.message }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% else %}
+  <div class="bo-alert bo-alert-success"><i class="ti ti-circle-check"></i> {% trans "Chưa phát hiện cảnh báo lớn trong cấu hình Role Mapping." %}</div>
+{% endif %}
+
+<form class="card card-body bo-filter-card mb-3" method="get">
+  <div class="bo-filter-grid bo-filter-grid-4">
+    <div>
+      <label class="form-label">{% trans "Tìm kiếm" %}</label>
+      <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="{% trans 'Role key / mã chức danh' %}">
+    </div>
+    <div>
+      <label class="form-label">{% trans "Trạng thái" %}</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">{% trans "— Tất cả —" %}</option>
+        <option value="active"{% if status_selected == "active" %} selected{% endif %}>Active</option>
+        <option value="inactive"{% if status_selected == "inactive" %} selected{% endif %}>Inactive</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label">{% trans "Dòng" %}</label>
+      <select name="page_size" class="form-select form-select-sm">
+        {% for size in page_size_options %}
+          <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}/trang</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-filter"></i> {% trans "Lọc" %}</button>
+      <a href="{% url 'backoffice:role_title_mapping_list' %}" class="btn btn-outline-secondary btn-sm">{% trans "Xóa lọc" %}</a>
+    </div>
+  </div>
+</form>
+
+<div class="bo-list-meta">
+  {% trans "Tổng" %}: {{ total_count }} | {% trans "Trang" %} {{ current_page }}/{{ paginator.num_pages }}
+</div>
+
+<div class="card bo-table-card">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle bo-table bo-table-compact mb-0">
+      <thead>
+        <tr>
+          <th>{% trans "Role key" %}</th>
+          <th>{% trans "Mã chức danh" %}</th>
+          <th>{% trans "Trạng thái" %}</th>
+          <th class="text-end">{% trans "Thao tác" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+          <tr>
+            <td class="bo-cell-main"><span class="bo-badge bo-badge-primary">{{ it.role_key }}</span></td>
+            <td><code class="bo-inline-code">{{ it.title_code }}</code></td>
+            <td>{% if it.is_active %}<span class="bo-badge bo-badge-success">Active</span>{% else %}<span class="bo-badge bo-badge-secondary">Inactive</span>{% endif %}</td>
+            <td class="bo-actions-cell">
+              {% if perms.approvals.change_roletitlemapping %}
+                <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_edit' it.id %}"><i class="ti ti-edit"></i> {% trans "Sửa" %}</a>
+              {% endif %}
+              {% if perms.approvals.delete_roletitlemapping %}
+                <a class="btn btn-outline-danger btn-sm" href="{% url 'backoffice:role_title_mapping_delete' it.id %}"><i class="ti ti-trash"></i> {% trans "Xóa" %}</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="bo-empty-cell">{% trans "Chưa có cấu hình." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "backoffice/includes/pagination.html" %}
 {% endblock %}

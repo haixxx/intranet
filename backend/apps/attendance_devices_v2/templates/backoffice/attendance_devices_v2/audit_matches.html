@@ -1,21 +1,24 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
 
-{% block title %}{% trans "Đối chiếu chấm công (v2)" %}{% endblock %}
+{% block title %}{% trans "Đối chiếu chấm công" %}{% endblock %}
 
 {% block content %}
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h2 class="mb-0">{% trans "Đối chiếu chấm công" %}</h2>
-    <div class="text-muted small">
-      {% if has_commit %}
-        {% trans "Nguồn: công đã chốt (Commit)" %}
-      {% else %}
-        {% trans "Chưa có công đã chốt cho đơn vị/ngày này." %}
-      {% endif %}
+  <div class="bo-page-header">
+    <div class="bo-page-heading">
+      <div class="bo-page-pretitle">{% trans "Quản lý chấm công" %}</div>
+      <h2 class="bo-page-title"><i class="ti ti-list-check"></i>{% trans "Đối chiếu chấm công" %}</h2>
+      <div class="bo-page-subtitle">
+        {% if has_commit %}
+          {% trans "Nguồn dữ liệu: công đã chốt." %}
+        {% else %}
+          {% trans "Chưa có công đã chốt cho đơn vị/ngày này." %}
+        {% endif %}
+      </div>
     </div>
   </div>
 
-  <form class="card card-body mb-3" method="get">
+  <form class="card card-body bo-filter-card mb-3" method="get">
     <div class="row g-2 align-items-end">
       <div class="col-12 col-md-2">
         <label class="form-label">{% trans "Ngày" %}</label>
@@ -51,22 +54,22 @@
 
       <div class="col-6 col-md-1">
         <label class="form-label">&nbsp;</label>
-        <button class="btn btn-primary btn-sm w-100" type="submit">{% trans "Xem" %}</button>
+        <button class="btn btn-primary btn-sm w-100" type="submit"><i class="ti ti-search me-1"></i>{% trans "Xem" %}</button>
       </div>
 
       <div class="col-6 col-md-1">
         <label class="form-label">&nbsp;</label>
-        <a class="btn btn-outline-secondary btn-sm w-100" href="{% url 'attendance_devices_v2:audit_matches' %}">{% trans "Xóa" %}</a>
+        <a class="btn btn-outline-secondary btn-sm w-100" href="{% url 'attendance_devices_v2:audit_matches' %}"><i class="ti ti-refresh me-1"></i>{% trans "Xóa lọc" %}</a>
       </div>
     </div>
   </form>
 
   {% if not rows %}
-    <div class="text-muted">{% trans "Chưa có dữ liệu đối chiếu. Hãy chạy compute trước." %}</div>
+    <div class="bo-empty-state">{% trans "Chưa có dữ liệu đối chiếu. Hãy chạy compute trước." %}</div>
   {% else %}
-    <div class="card">
+    <div class="card bo-table-card">
       <div class="table-responsive">
-        <table class="table table-vcenter table-striped table-sm">
+        <table class="table table-striped table-sm align-middle bo-table-compact mb-0">
           <thead>
             <tr>
               <th>{% trans "Mã NV" %}</th>
@@ -93,13 +96,13 @@
                         <div><strong>Target:</strong> {{ m.target_time_local|date:"H:i" }}</div>
                         <div>
                           {% if m.status == "MATCHED" %}
-                            <span class="badge bg-success">{% trans "Khớp" %}</span>
+                            <span class="bo-badge bo-badge-success">{% trans "Khớp" %}</span>
                           {% elif m.status == "MISSING" %}
-                            <span class="badge bg-danger">{% trans "Thiếu" %}</span>
+                            <span class="bo-badge bo-badge-danger">{% trans "Thiếu" %}</span>
                           {% elif m.status == "EXEMPT" %}
-                            <span class="badge bg-secondary">{% trans "Đặc cách" %}</span>
+                            <span class="bo-badge bo-badge-secondary">{% trans "Đặc cách" %}</span>
                           {% else %}
-                            <span class="badge bg-warning">{{ m.status }}</span>
+                            <span class="bo-badge bo-badge-warning">{{ m.status }}</span>
                           {% endif %}
                         </div>
                         {% if m.matched_time_local %}
@@ -124,13 +127,13 @@
                         <div><strong>Target:</strong> {{ m.target_time_local|date:"H:i" }}</div>
                         <div>
                           {% if m.status == "MATCHED" %}
-                            <span class="badge bg-success">{% trans "Khớp" %}</span>
+                            <span class="bo-badge bo-badge-success">{% trans "Khớp" %}</span>
                           {% elif m.status == "MISSING" %}
-                            <span class="badge bg-danger">{% trans "Thiếu" %}</span>
+                            <span class="bo-badge bo-badge-danger">{% trans "Thiếu" %}</span>
                           {% elif m.status == "EXEMPT" %}
-                            <span class="badge bg-secondary">{% trans "Đặc cách" %}</span>
+                            <span class="bo-badge bo-badge-secondary">{% trans "Đặc cách" %}</span>
                           {% else %}
-                            <span class="badge bg-warning">{{ m.status }}</span>
+                            <span class="bo-badge bo-badge-warning">{{ m.status }}</span>
                           {% endif %}
                         </div>
                         {% if m.matched_time_local %}
@@ -155,13 +158,13 @@
                         <div><strong>Target:</strong> {{ m.target_time_local|date:"H:i" }}</div>
                         <div>
                           {% if m.status == "MATCHED" %}
-                            <span class="badge bg-success">{% trans "Khớp" %}</span>
+                            <span class="bo-badge bo-badge-success">{% trans "Khớp" %}</span>
                           {% elif m.status == "MISSING" %}
-                            <span class="badge bg-danger">{% trans "Thiếu" %}</span>
+                            <span class="bo-badge bo-badge-danger">{% trans "Thiếu" %}</span>
                           {% elif m.status == "EXEMPT" %}
-                            <span class="badge bg-secondary">{% trans "Đặc cách" %}</span>
+                            <span class="bo-badge bo-badge-secondary">{% trans "Đặc cách" %}</span>
                           {% else %}
-                            <span class="badge bg-warning">{{ m.status }}</span>
+                            <span class="bo-badge bo-badge-warning">{{ m.status }}</span>
                           {% endif %}
                         </div>
                         {% if m.matched_time_local %}
@@ -186,13 +189,13 @@
                         <div><strong>Target:</strong> {{ m.target_time_local|date:"H:i" }}</div>
                         <div>
                           {% if m.status == "MATCHED" %}
-                            <span class="badge bg-success">{% trans "Khớp" %}</span>
+                            <span class="bo-badge bo-badge-success">{% trans "Khớp" %}</span>
                           {% elif m.status == "MISSING" %}
-                            <span class="badge bg-danger">{% trans "Thiếu" %}</span>
+                            <span class="bo-badge bo-badge-danger">{% trans "Thiếu" %}</span>
                           {% elif m.status == "EXEMPT" %}
-                            <span class="badge bg-secondary">{% trans "Đặc cách" %}</span>
+                            <span class="bo-badge bo-badge-secondary">{% trans "Đặc cách" %}</span>
                           {% else %}
-                            <span class="badge bg-warning">{{ m.status }}</span>
+                            <span class="bo-badge bo-badge-warning">{{ m.status }}</span>
                           {% endif %}
                         </div>
                         {% if m.matched_time_local %}

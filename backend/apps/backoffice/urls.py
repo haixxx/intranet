@@ -19,6 +19,7 @@ from apps.backoffice import views_attendance_batch
 from apps.backoffice import views_attendance_codes
 from apps.backoffice import views_attendance_diff
 from apps.backoffice import views_attendance_monthly
+from apps.backoffice import views_attendance_report
 from apps.backoffice import views_attendance_roster
 from apps.backoffice import views_notifications
 from apps.backoffice import views_role_mapping
@@ -39,6 +40,7 @@ urlpatterns = [
 
     # Roles / permissions / audit
     path("roles/", views_roles.role_list, name="role_list"),
+    path("roles/new/", views_roles.role_create, name="role_create"),
     path("roles/<int:role_id>/", views_roles.role_edit, name="role_edit"),
     path("roles/<int:role_id>/delete/", views_roles.role_delete, name="role_delete"),
     path("roles/matrix/", views_permissions.permission_matrix, name="permission_matrix"),
@@ -93,6 +95,7 @@ urlpatterns = [
     path("attendance/codes/<int:pk>/edit/", views_attendance_codes.attendance_code_edit, name="attendance_code_edit"),
     path("attendance/codes/<int:pk>/delete/", views_attendance_codes.attendance_code_delete, name="attendance_code_delete"),
     path("attendance/settings/", views_attendance_codes.attendance_settings_view, name="attendance_settings"),
+    path("attendance/bao-cao/", views_attendance_report.attendance_report_dashboard, name="attendance_report_dashboard"),
 
     # Attendance batch/commit
     path("attendance/batch/", views_attendance_batch.batch_create_or_load, name="attendance_batch_create_or_load"),
@@ -125,6 +128,7 @@ urlpatterns = [
     path("approvals/requests/<int:request_id>/", views_approvals.approval_request_detail, name="approvals_request_detail"),
     path("approvals/requests/<int:request_id>/steps/<int:order_index>/action/", views_approvals.approval_step_action, name="approval_step_action"),
     path("approvals/requests/<int:request_id>/cancel/", views_approvals_manage.approval_request_cancel, name="approvals_request_cancel"),
+    path("approvals/requests/<int:request_id>/retry-apply/", views_approvals.approval_request_retry_apply, name="approvals_request_retry_apply"),
 
     # Approvals admin / builder
     path("approvals/admin/flows/", views_approvals_admin.flow_list, name="approval_flow_list"),
@@ -141,5 +145,5 @@ urlpatterns = [
     path("approvals/role-mapping/", views_role_mapping.role_title_mapping_list, name="role_title_mapping_list"),
     path("approvals/role-mapping/new/", views_role_mapping.role_title_mapping_create, name="role_title_mapping_create"),
     path("approvals/role-mapping/<int:pk>/", views_role_mapping.role_title_mapping_edit, name="role_title_mapping_edit"),
-    path("approvals/role-mapping/<int:pk>/delete/", views_role_mapping.role_title_mapping_delete, name="approval_role_title_mapping_delete"),
+    path("approvals/role-mapping/<int:pk>/delete/", views_role_mapping.role_title_mapping_delete, name="role_title_mapping_delete"),
 ]

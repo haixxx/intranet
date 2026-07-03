@@ -1,40 +1,63 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Phiên bản luồng: {{ flow.name }}{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Phiên bản luồng" %}: {{ flow.name }}{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h5 class="mb-0">Phiên bản của {{ flow.name }} (<code>{{ flow.flow_key }}</code>)</h5>
-  <div class="d-flex gap-2">
-    <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approval_flow_version_create_builder' flow.id %}">Tạo phiên bản (Builder)</a>
-    {# Ẩn nút tạo phiên bản JSON để chỉ dùng builder #}
-    {# <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_create' flow.id %}">Tạo phiên bản (JSON)</a> #}
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-versions"></i>{% trans "Phiên bản luồng" %}: {{ flow.name }}</h2>
+    <div class="bo-page-subtitle"><code>{{ flow.flow_key }}</code></div>
+  </div>
+  <div class="bo-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}"><i class="ti ti-arrow-left"></i> {% trans "Luồng duyệt" %}</a>
+    {% if perms.approvals.add_approvalflowversion %}
+      <a class="btn btn-primary btn-sm" href="{% url 'backoffice:approval_flow_version_create_builder' flow.id %}"><i class="ti ti-plus"></i> {% trans "Tạo phiên bản" %}</a>
+    {% endif %}
   </div>
 </div>
-<table class="table table-sm table-striped">
-  <thead>
-    <tr>
-      <th>Version</th>
-      <th>Active</th>
-      <th>Published at</th>
-      <th>Notes</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for v in items %}
-      <tr>
-        <td>{{ v.version }}</td>
-        <td>{% if v.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
-        <td>{% if v.published_at %}{{ v.published_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
-        <td class="text-truncate" style="max-width:320px">{{ v.notes }}</td>
-        <td class="text-end">
-          <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_edit_builder' flow.id v.id %}">Sửa (Builder)</a>
-          <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:approval_flow_version_publish' flow.id v.id %}">Publish</a>
-          <a class="btn btn-outline-danger btn-sm" href="{% url 'backoffice:approval_flow_version_delete' flow.id v.id %}">Xóa</a>
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="5" class="text-muted">Chưa có phiên bản.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+
+<div class="bo-list-meta">
+  {% trans "Tổng" %}: {{ total_count }} | {% trans "Trang" %} {{ current_page }}/{{ paginator.num_pages }}
+</div>
+
+<div class="card bo-table-card">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle bo-table mb-0">
+      <thead>
+        <tr>
+          <th>{% trans "Version" %}</th>
+          <th>{% trans "Active" %}</th>
+          <th>{% trans "Published at" %}</th>
+          <th>{% trans "Notes" %}</th>
+          <th class="text-end">{% trans "Thao tác" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in items %}
+          <tr>
+            <td><strong>{{ v.version }}</strong></td>
+            <td>{% if v.is_active %}<span class="bo-badge bo-badge-success">Active</span>{% else %}<span class="bo-badge bo-badge-secondary">Inactive</span>{% endif %}</td>
+            <td>{% if v.published_at %}{{ v.published_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+            <td class="bo-cell-truncate">{{ v.notes }}</td>
+            <td class="bo-actions-cell">
+              {% if perms.approvals.change_approvalflowversion %}
+                <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_version_edit_builder' flow.id v.id %}">{% trans "Sửa" %}</a>
+              {% endif %}
+              {% if perms.approvals.change_approvalflow %}
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'backoffice:approval_flow_version_publish' flow.id v.id %}">Publish</a>
+              {% endif %}
+              {% if perms.approvals.delete_approvalflowversion %}
+                <a class="btn btn-outline-danger btn-sm" href="{% url 'backoffice:approval_flow_version_delete' flow.id v.id %}">{% trans "Xóa" %}</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="bo-empty-cell">{% trans "Chưa có phiên bản." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "backoffice/includes/pagination.html" %}
 {% endblock %}

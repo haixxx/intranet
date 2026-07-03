@@ -1,25 +1,35 @@
 {% extends "backoffice/base.html" %}
 {% block title %}Hủy điều động{% endblock %}
 {% block content %}
-<h2 class="mb-3">Hủy điều động</h2>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Tổ chức - Nhân sự</div>
+    <h2 class="bo-page-title"><i class="ti ti-ban"></i> Hủy điều động</h2>
+    <div class="bo-page-subtitle">{{ obj.employee.employee_code }} - {{ obj.employee.full_name }}</div>
+  </div>
+  <div class="bo-page-actions"><a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> Quay lại</a></div>
+</div>
 
-<div class="alert alert-danger">
+<div class="bo-alert bo-alert-danger">
+  <i class="ti ti-alert-triangle"></i>
   Hủy điều động nghĩa là phiếu này không còn hiệu lực cho chấm công, kể cả dữ liệu lịch sử trong khoảng ngày của phiếu.
   Nếu nhân sự đã thực tế đi điều động và chỉ muốn kết thúc nhiệm vụ, hãy dùng chức năng <strong>Hoàn thành</strong> thay vì Hủy.
 </div>
 
-<div class="card mb-3">
-  <div class="card-body">
-    <p><strong>Nhân sự:</strong> {{ obj.employee.employee_code }} - {{ obj.employee.full_name }}</p>
-    <p><strong>Đơn vị gốc:</strong> {{ obj.from_unit.symbol }}</p>
-    <p><strong>Đơn vị nhận:</strong> {{ obj.to_unit.symbol }}</p>
-    <p><strong>Khoảng:</strong> {{ obj.start_date|date:'d/m/Y' }} → {% if obj.end_date %}{{ obj.end_date|date:'d/m/Y' }}{% else %}Chưa xác định{% endif %}</p>
-  </div>
+<div class="card card-body bo-confirm-card mb-3">
+  <dl class="bo-confirm-summary">
+    <dt>Nhân sự</dt><dd>{{ obj.employee.employee_code }} - {{ obj.employee.full_name }}</dd>
+    <dt>Đơn vị gốc</dt><dd>{{ obj.from_unit.symbol }}</dd>
+    <dt>Đơn vị nhận</dt><dd>{{ obj.to_unit.symbol }}</dd>
+    <dt>Khoảng</dt><dd>{{ obj.start_date|date:'d/m/Y' }} → {% if obj.end_date %}{{ obj.end_date|date:'d/m/Y' }}{% else %}Chưa xác định{% endif %}</dd>
+  </dl>
 </div>
 
-<form method="post" class="card card-body">
+<form method="post" class="card card-body bo-confirm-card">
   {% csrf_token %}
-  <button class="btn btn-danger">Xác nhận hủy</button>
-  <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-secondary">Quay lại</a>
+  <div class="bo-form-actions mt-0 pt-0 border-0">
+    <button class="btn btn-danger btn-sm"><i class="ti ti-ban"></i> Xác nhận hủy</button>
+    <a href="{% url 'backoffice:temp_assignment_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-x"></i> Quay lại</a>
+  </div>
 </form>
 {% endblock %}

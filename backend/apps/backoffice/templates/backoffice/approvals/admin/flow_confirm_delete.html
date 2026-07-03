@@ -1,11 +1,28 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Xóa luồng phê duyệt{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Xóa luồng phê duyệt" %}{% endblock %}
 {% block content %}
-<h5>Xóa luồng phê duyệt</h5>
-<p>Bạn chắc chắn muốn xóa luồng: <code>{{ obj.flow_key }}</code> - {{ obj.name }}?</p>
-<form method="post">
-  {% csrf_token %}
-  <button class="btn btn-danger btn-sm" type="submit">Xóa</button>
-  <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}">Hủy</a>
-</form>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-trash"></i>{% trans "Xóa luồng phê duyệt" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Chỉ xóa khi chắc chắn luồng không còn được sử dụng." %}</div>
+  </div>
+</div>
+<div class="card bo-confirm-card">
+  <div class="card-body">
+    <h3 class="bo-confirm-title">{% trans "Bạn chắc chắn muốn xóa luồng này?" %}</h3>
+    <dl class="bo-confirm-summary">
+      <dt>{% trans "Mã luồng" %}</dt><dd><code>{{ obj.flow_key }}</code></dd>
+      <dt>{% trans "Tên luồng" %}</dt><dd>{{ obj.name }}</dd>
+    </dl>
+  </div>
+  <div class="card-footer bo-form-actions">
+    <form method="post" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-danger btn-sm" type="submit"><i class="ti ti-trash"></i> {% trans "Xóa" %}</button>
+    </form>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approval_flow_list' %}">{% trans "Hủy" %}</a>
+  </div>
+</div>
 {% endblock %}

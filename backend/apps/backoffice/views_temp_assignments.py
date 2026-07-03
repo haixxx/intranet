@@ -10,6 +10,7 @@ from apps.audit.utils import audit_log
 from apps.hr.models import Employee, TempAssignment
 from apps.hr.services import allowed_org_ids_for_user
 from apps.organization.models import OrgUnit
+from .utils.pagination import paginate_queryset
 
 try:
     from apps.attendance.services_bs import scan_impacts_for_temp_assignment
@@ -94,20 +95,15 @@ def temp_assignment_list(request):
     if status in [choice[0] for choice in TempAssignment.Status.choices]:
         qs = qs.filter(status=status)
 
-    assignments = list(qs[:500])
     if over60 == "1":
-        assignments = [
-            a for a in assignments
-            if a.status == TempAssignment.Status.ACTIVE and a.duration_days() > 60
-        ]
+        cutoff_date = timezone.localdate() - timedelta(days=60)
+        qs = qs.filter(status=TempAssignment.Status.ACTIVE, start_date__lte=cutoff_date)
 
     units = _allowed_assignment_units(request.user)
-
-    return render(
-        request,
-        "backoffice/hr/assignments/list.html",
+    context = paginate_queryset(request, qs, default_page_size=50, allowed_page_sizes=(25, 50, 100, 200))
+    context.update(
         {
-            "items": assignments,
+            "items": context["items"],
             "query": q,
             "to_unit_selected": to_unit,
             "status_selected": status,
@@ -115,8 +111,10 @@ def temp_assignment_list(request):
             "units": units,
             "status_choices": TempAssignment.Status.choices,
             "manage_allowed": _can_manage_assignments(request.user),
-        },
+        }
     )
+
+    return render(request, "backoffice/hr/assignments/list.html", context)
 
 
 @login_required

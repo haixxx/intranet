@@ -2,25 +2,28 @@
 {% load i18n %}
 {% block title %}{% trans "Tạo user" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Tạo tài khoản cho nhân sự" %}</h2>
-<div class="card card-body">
-  <p><strong>{% trans "Nhân sự" %}:</strong> {{ emp.full_name }} ({{ emp.employee_code }})</p>
-  <p><strong>{% trans "Đơn vị" %}:</strong> {{ emp.unit.symbol }} - {{ emp.unit.name }}</p>
-  <p class="mb-2">
-    <strong>{% trans "Username sẽ tạo" %}:</strong>
-    <code>{{ proposed_username }}</code>
-    <br>
-    <small class="text-muted">
-      {% trans "Cách tạo: (unit_symbol + '_' + họ_tên) đã bỏ dấu, chữ thường, bỏ khoảng trắng và ký tự đặc biệt." %}
-      {% trans "Nếu username đã tồn tại sẽ thêm số 2,3,... phía sau." %}
-    </small>
-  </p>
-  <p class="mb-2"><strong>{% trans "Mật khẩu" %}:</strong> {% trans "Hệ thống sẽ sinh mật khẩu tạm thời khi xác nhận tạo user. Mật khẩu chỉ hiển thị một lần trong thông báo sau khi tạo." %}</p>
-  <p class="mb-2"><strong>{% trans "Quyền mặc định" %}:</strong> {% trans "Chỉ xem dữ liệu trong đơn vị (UNIT_SUBTREE) của nhân sự" %} – {% trans "nhóm" %} <code>EMPLOYEE_VIEWER</code>.</p>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Tổ chức - Nhân sự" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-user-plus"></i> {% trans "Tạo tài khoản cho nhân sự" %}</h2>
+    <div class="bo-page-subtitle">{{ emp.full_name }} ({{ emp.employee_code }})</div>
+  </div>
+  <div class="bo-page-actions"><a href="{% url 'backoffice:employee_detail' emp.id %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a></div>
+</div>
+<div class="card card-body bo-confirm-card">
+  <dl class="bo-confirm-summary mb-3">
+    <dt>{% trans "Nhân sự" %}</dt><dd>{{ emp.full_name }} ({{ emp.employee_code }})</dd>
+    <dt>{% trans "Đơn vị" %}</dt><dd>{{ emp.unit.symbol }} - {{ emp.unit.name }}</dd>
+    <dt>{% trans "Username sẽ tạo" %}</dt><dd><code class="bo-inline-code">{{ proposed_username }}</code> <span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Cách tạo: unit_symbol + họ tên đã bỏ dấu, chữ thường, bỏ khoảng trắng/ký tự đặc biệt. Nếu username đã tồn tại sẽ thêm số phía sau.' %}">?</span></dd>
+    <dt>{% trans "Mật khẩu" %}</dt><dd>{% trans "Hệ thống sẽ sinh mật khẩu tạm thời khi xác nhận tạo user. Mật khẩu chỉ hiển thị một lần trong thông báo sau khi tạo." %}</dd>
+    <dt>{% trans "Quyền mặc định" %}</dt><dd>{% trans "Chỉ xem dữ liệu trong đơn vị (UNIT_SUBTREE) của nhân sự" %} – {% trans "nhóm" %} <code>EMPLOYEE</code>.</dd>
+  </dl>
   <form method="post">
     {% csrf_token %}
-    <button class="btn btn-success">{% trans "Xác nhận tạo user" %}</button>
-    <a href="{% url 'backoffice:employee_detail' emp.id %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
+    <div class="bo-form-actions mt-0 pt-0 border-0">
+      <button class="btn btn-success btn-sm"><i class="ti ti-user-plus"></i> {% trans "Xác nhận tạo user" %}</button>
+      <a href="{% url 'backoffice:employee_detail' emp.id %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-x"></i> {% trans "Hủy" %}</a>
+    </div>
   </form>
 </div>
 {% endblock %}

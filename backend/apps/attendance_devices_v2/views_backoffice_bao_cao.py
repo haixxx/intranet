@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, date as date_cls, timedelta
+from datetime import datetime, date as date_cls, time as dt_time, timedelta, timezone as datetime_timezone
 from math import ceil
 
 from django.contrib.auth.decorators import login_required
@@ -9,9 +9,13 @@ from django.db.models import Count
 from django.shortcuts import render
 from django.utils import timezone as dj_timezone
 
+from apps.attendance.models import AttendanceSettings
 from apps.organization.models import OrgUnit
+from apps.backoffice.services.access_scope import get_allowed_attendance_units
 
 from .models_master_list import AttendanceDeviceMasterListV2
+from .models import AttendanceNormalizedPunchV2
+from .models_manual_punch import AttendanceManualPunch
 
 
 def _parse_date(s: str) -> date_cls | None:
@@ -59,10 +63,61 @@ def _get_effective_dt(row: AttendanceDeviceMasterListV2, field: str, source: str
     return getattr(row, f"override_{field}_local")
 
 
-def _is_present(row: AttendanceDeviceMasterListV2, source: str) -> bool:
-    if row.is_exempt or row.expected_marks <= 0:
-        return False
+def _get_window_minutes() -> int:
+    s = AttendanceSettings.objects.first()
+    if s and getattr(s, "window_minutes", None):
+        return int(s.window_minutes)
+    return 60
 
+
+def _work_date_bounds_utc(work_date: date_cls, *, window_minutes: int) -> tuple[datetime, datetime]:
+    tz = dj_timezone.get_current_timezone()
+    start_local = dj_timezone.make_aware(datetime.combine(work_date, dt_time(0, 0)), tz) - timedelta(minutes=window_minutes)
+    end_local = dj_timezone.make_aware(datetime.combine(work_date + timedelta(days=1), dt_time(8, 0)), tz) + timedelta(minutes=window_minutes)
+    return start_local.astimezone(datetime_timezone.utc), end_local.astimezone(datetime_timezone.utc)
+
+
+def _annotate_device_data_presence(rows: list[AttendanceDeviceMasterListV2]) -> None:
+    """
+    Gắn cờ _has_device_data_in_window cho từng dòng để phân biệt đúng:
+    - Vắng: không có bất kỳ dữ liệu máy/bổ sung máy hỏng nào trong phạm vi ngày công.
+    - Thiếu mốc: có dữ liệu chấm công nhưng không đủ mốc expected.
+    """
+    if not rows:
+        return
+    window_minutes = _get_window_minutes()
+    emp_ids = sorted({r.employee_id for r in rows if r.employee_id})
+    if not emp_ids:
+        return
+
+    bounds_by_date = {r.work_date: _work_date_bounds_utc(r.work_date, window_minutes=window_minutes) for r in rows}
+    global_start = min(start for start, _ in bounds_by_date.values())
+    global_end = max(end for _, end in bounds_by_date.values())
+
+    punches_by_emp: dict[int, list[datetime]] = {eid: [] for eid in emp_ids}
+    for emp_id, ts in AttendanceNormalizedPunchV2.objects.filter(
+        employee_id__in=emp_ids,
+        canonical_time_utc__gte=global_start,
+        canonical_time_utc__lte=global_end,
+    ).values_list("employee_id", "canonical_time_utc"):
+        punches_by_emp.setdefault(emp_id, []).append(ts)
+
+    for emp_id, ts in AttendanceManualPunch.objects.filter(
+        employee_id__in=emp_ids,
+        thoi_gian_utc__gte=global_start,
+        thoi_gian_utc__lte=global_end,
+    ).exclude(ghi_chu__icontains="SOURCE:SUA_DU_LIEU").values_list("employee_id", "thoi_gian_utc"):
+        punches_by_emp.setdefault(emp_id, []).append(ts)
+
+    for arr in punches_by_emp.values():
+        arr.sort()
+
+    for row in rows:
+        start, end = bounds_by_date[row.work_date]
+        setattr(row, "_has_device_data_in_window", any(start <= ts <= end for ts in punches_by_emp.get(row.employee_id, [])))
+
+
+def _has_any_expected_mark(row: AttendanceDeviceMasterListV2, source: str) -> bool:
     checks = []
     if row.expected_in1:
         checks.append(_get_effective_dt(row, "in1", source))
@@ -72,8 +127,15 @@ def _is_present(row: AttendanceDeviceMasterListV2, source: str) -> bool:
         checks.append(_get_effective_dt(row, "in2", source))
     if row.expected_out2:
         checks.append(_get_effective_dt(row, "out2", source))
-
     return any(x is not None for x in checks)
+
+
+def _is_present(row: AttendanceDeviceMasterListV2, source: str) -> bool:
+    if row.is_exempt or row.expected_marks <= 0:
+        return False
+    if _has_any_expected_mark(row, source):
+        return True
+    return bool(getattr(row, "_has_device_data_in_window", False))
 
 
 def _missing_marks_by_source(row: AttendanceDeviceMasterListV2, source: str) -> int:
@@ -259,8 +321,11 @@ def bao_cao_view(request):
     threshold_sec = threshold_min * 60
 
     is_daily_mode = (from_date == to_date)
-    units = OrgUnit.objects.filter(is_attendance_unit=True).order_by("symbol")
-    unit_id: int | None = int(unit_raw) if unit_raw.isdigit() else None
+    units = get_allowed_attendance_units(request.user)
+    allowed_unit_ids = list(units.values_list("id", flat=True))
+    requested_unit_id: int | None = int(unit_raw) if unit_raw.isdigit() else None
+    invalid_unit_filter = requested_unit_id is not None and requested_unit_id not in allowed_unit_ids
+    unit_id: int | None = requested_unit_id if requested_unit_id in allowed_unit_ids else None
 
     # Base: expected_marks>0 ~ is_work=True (theo compute)
     base = AttendanceDeviceMasterListV2.objects.filter(
@@ -269,12 +334,19 @@ def bao_cao_view(request):
         expected_marks__gt=0,
         is_exempt=False,
     ).select_related("employee", "unit")
+    base = base.filter(unit_id__in=allowed_unit_ids) if allowed_unit_ids else base.none()
 
-    if unit_id is not None:
+    if invalid_unit_filter:
+        base = base.none()
+    elif unit_id is not None:
         base = base.filter(unit_id=unit_id)
 
-    # HR: việc cần làm
+    # HR: việc cần làm theo đúng bộ lọc ngày/đơn vị đang xem.
+    # Trước đây phần này đếm toàn bộ lịch sử, nhưng link mở Thống kê V2 lại truyền
+    # from/to hiện tại -> KPI có thể hiện 1 nhưng bấm vào không thấy dòng nào.
     qs_yeu_cau = AttendanceDeviceMasterListV2.objects.filter(
+        work_date__gte=from_date,
+        work_date__lte=to_date,
         expected_marks__gt=0,
         is_exempt=False,
         yeu_cau_sua_trang_thai__in=[
@@ -282,7 +354,10 @@ def bao_cao_view(request):
             AttendanceDeviceMasterListV2.YeuCauSuaTrangThai.DANG_XU_LY,
         ],
     )
-    if unit_id is not None:
+    qs_yeu_cau = qs_yeu_cau.filter(unit_id__in=allowed_unit_ids) if allowed_unit_ids else qs_yeu_cau.none()
+    if invalid_unit_filter:
+        qs_yeu_cau = qs_yeu_cau.none()
+    elif unit_id is not None:
         qs_yeu_cau = qs_yeu_cau.filter(unit_id=unit_id)
 
     viec_can_lam = list(
@@ -323,7 +398,7 @@ def bao_cao_view(request):
     emp_total_rows: dict[int, int] = {}
     emp_violation_minutes: dict[int, int] = {}
 
-    rows_iter = base.only(
+    rows_iter = list(base.only(
         "id",
         "work_date",
         "expected_in1", "expected_out1", "expected_in2", "expected_out2", "expected_marks",
@@ -332,11 +407,13 @@ def bao_cao_view(request):
         "override_in1_local", "override_out1_local", "override_in2_local", "override_out2_local",
         "employee__id", "employee__employee_code", "employee__full_name",
         "unit__id", "unit__symbol", "unit__name",
-    )
+    ))
+    _annotate_device_data_presence(rows_iter)
 
     for r in rows_iter:
-        is_present = _is_present(r, source)
-        miss = _missing_marks_by_source(r, source)
+        b = _status_bucket(r, source, threshold_sec)
+        is_present = b != "ABSENT"
+        miss = _missing_marks_by_source(r, source) if b == "MISSING" else 0
         # Vi phạm: áp ngưỡng.
         muon_vio_sec, som_vio_sec = _compute_late_early_seconds(r, source, threshold_sec)
 
@@ -347,16 +424,14 @@ def bao_cao_view(request):
         late_min = int(muon_vio_sec // 60) if muon_vio_sec > 0 else 0
         early_min = int(som_vio_sec // 60) if som_vio_sec > 0 else 0
 
-        if is_present:
-            present += 1
-        else:
+        if b == "ABSENT":
             absent += 1
+        else:
+            present += 1
 
-        if miss > 0:
+        if b == "MISSING":
             missing += 1
-
-        b = _status_bucket(r, source, threshold_sec)
-        if b == "VIOLATION":
+        elif b == "VIOLATION":
             violation += 1
         elif b == "NORMAL":
             normal += 1
@@ -374,31 +449,31 @@ def bao_cao_view(request):
         total_early_actual_sec += som_actual_sec
 
         # incidents for daily
-        if is_daily_mode and (miss > 0 or vio_min > 0):
+        if is_daily_mode and b in ("ABSENT", "MISSING", "VIOLATION"):
             incidents_all.append({
                 "employee_code": getattr(r.employee, "employee_code", ""),
                 "employee_name": getattr(r.employee, "full_name", ""),
                 "unit_symbol": getattr(r.unit, "symbol", ""),
                 "unit_name": getattr(r.unit, "name", ""),
-                "missing_marks": miss,
-                "late_min": late_min,
-                "early_min": early_min,
-                "violation_min": vio_min,
-                "suggest_status": "THIEU_MOC" if miss > 0 else "VI_PHAM",
+                "missing_marks": _missing_marks_by_source(r, source) if b == "MISSING" else 0,
+                "late_min": late_min if b == "VIOLATION" else 0,
+                "early_min": early_min if b == "VIOLATION" else 0,
+                "violation_min": vio_min if b == "VIOLATION" else 0,
+                "suggest_status": "VANG" if b == "ABSENT" else ("THIEU_MOC" if b == "MISSING" else "VI_PHAM"),
             })
 
         # top aggregations (ngày & khoảng đều tính được)
         uid = r.unit_id
         unit_total_rows[uid] = unit_total_rows.get(uid, 0) + 1
-        if miss > 0:
+        if b == "MISSING":
             unit_missing_rows[uid] = unit_missing_rows.get(uid, 0) + 1
         # phút vi phạm chỉ cộng khi đủ mốc
-        if miss == 0 and vio_min > 0:
+        if b == "VIOLATION" and vio_min > 0:
             unit_violation_minutes[uid] = unit_violation_minutes.get(uid, 0) + vio_min
 
         eid = r.employee_id
         emp_total_rows[eid] = emp_total_rows.get(eid, 0) + 1
-        if miss == 0 and vio_min > 0:
+        if b == "VIOLATION" and vio_min > 0:
             emp_violation_minutes[eid] = emp_violation_minutes.get(eid, 0) + vio_min
 
     kpi = {

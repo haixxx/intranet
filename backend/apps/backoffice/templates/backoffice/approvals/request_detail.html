@@ -1,92 +1,171 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
-{% block title %}Chi tiết phê duyệt{% endblock %}
+{% block title %}{% trans "Chi tiết phê duyệt" %}{% endblock %}
 {% block content %}
-<div class="card mb-3">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <strong>{% trans "Chi tiết phê duyệt" %}</strong>
-    <div class="d-flex align-items-center gap-2">
-      {% if active_step and my_signer and my_signer.status == "PENDING" %}
-        <form method="post" action="{% url 'backoffice:approval_step_action' req.id active_step.order_index %}" class="d-flex gap-2">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="APPROVE">
-          <input type="text" name="comment" class="form-control form-control-sm" placeholder="{% trans 'Ghi chú (tuỳ chọn)' %}" style="width:240px">
-          <button class="btn btn-success btn-sm" type="submit">{% trans "Phê duyệt" %}</button>
-        </form>
-        <form method="post" action="{% url 'backoffice:approval_step_action' req.id active_step.order_index %}" class="d-flex gap-2 ms-2">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="REJECT">
-          <input type="text" name="comment" class="form-control form-control-sm" placeholder="{% trans 'Lý do từ chối' %}" style="width:240px">
-          <button class="btn btn-danger btn-sm" type="submit">{% trans "Từ chối" %}</button>
-        </form>
-      {% endif %}
-
-      {# Nút Hủy yêu cầu cho requester khi chưa hoàn tất và chưa có phê duyệt #}
-      {% if req.requester_id == request.user.id and req.status != "APPROVED" and req.status != "REJECTED" and req.status != "CANCELLED" %}
-        {# Để tối ưu, vẫn hiển thị nút; guard sẽ kiểm tra trong view #}
-        <a class="btn btn-outline-danger btn-sm" href="{% url 'backoffice:approvals_request_cancel' req.id %}">{% trans "Hủy yêu cầu" %}</a>
-      {% endif %}
-    </div>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-file-check"></i>{% trans "Chi tiết phê duyệt" %} #{{ req.id }}</h2>
+    <div class="bo-page-subtitle">{{ req.title }}</div>
   </div>
+  <div class="bo-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:approvals_inbox' %}"><i class="ti ti-arrow-left"></i> {% trans "Danh sách" %}</a>
+    {% if can_retry_apply %}
+      <form method="post" action="{% url 'backoffice:approvals_request_retry_apply' req.id %}" class="d-inline" onsubmit="return confirm('Áp dụng lại thay đổi sửa công vào công chốt?');">
+        {% csrf_token %}
+        <button class="btn btn-warning btn-sm" type="submit"><i class="ti ti-refresh"></i> {% trans "Áp dụng lại" %}</button>
+      </form>
+    {% endif %}
+    {% if req.requester_id == request.user.id and req.status != "APPROVED" and req.status != "REJECTED" and req.status != "CANCELLED" %}
+      <a class="btn btn-outline-danger btn-sm" href="{% url 'backoffice:approvals_request_cancel' req.id %}"><i class="ti ti-x"></i> {% trans "Hủy yêu cầu" %}</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if status_ctx.is_waiting_apply %}
+  <div class="bo-alert bo-alert-info">
+    <div class="fw-semibold">{% trans "Phiếu đã được HR duyệt nhưng chưa áp dụng vào công chốt." %}</div>
+    <div class="small mt-1">{% trans "Người có quyền HR/quản trị có thể bấm “Áp dụng lại”. Nếu vẫn lỗi, kiểm tra audit ATT_CORRECTION_APPLY_FAILED/ERROR." %}</div>
+  </div>
+{% endif %}
+
+<div class="card bo-form-card mb-3">
   <div class="card-body">
-    <div class="row">
-      <div class="col-md-6">
-        <div><strong>{% trans "Tiêu đề" %}:</strong> {{ req.title }}</div>
-        <div><strong>{% trans "Luồng" %}:</strong> {{ req.flow.name }} (v{{ req.flow_version.version }})</div>
-        <div><strong>{% trans "Trạng thái" %}:</strong>
-          {% if req.status == "APPROVED" %}<span class="badge text-bg-success">{{ req.get_status_display }}</span>
-          {% elif req.status == "REJECTED" %}<span class="badge text-bg-danger">{{ req.get_status_display }}</span>
-          {% elif req.status == "CANCELLED" %}<span class="badge text-bg-secondary">{{ req.get_status_display }}</span>
-          {% elif req.status == "IN_PROGRESS" or req.status == "SUBMITTED" %}<span class="badge text-bg-warning">{{ req.get_status_display }}</span>
-          {% else %}<span class="badge text-bg-light text-dark">{{ req.get_status_display }}</span>{% endif %}
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="bo-detail-stack">
+          <div>
+            <div class="text-muted small">{% trans "Trạng thái vận hành" %}</div>
+            <span class="bo-badge {{ status_ctx.bo_badge_class }}">{{ status_ctx.label }}</span>
+            {% if status_ctx.note %}<div class="text-muted small mt-1">{{ status_ctx.note }}</div>{% endif %}
+          </div>
+          <div>
+            <div class="text-muted small">{% trans "Luồng" %}</div>
+            <div class="fw-semibold">{{ req.flow.name }} <span class="text-muted">(v{{ req.flow_version.version }})</span></div>
+          </div>
+          <div>
+            <div class="text-muted small">{% trans "Đơn vị" %}</div>
+            <div>{{ unit_label }}</div>
+          </div>
         </div>
       </div>
-      <div class="col-md-6">
-        <div><strong>{% trans "Người lập" %}:</strong> {{ req.requester.get_full_name|default:req.requester.username }}</div>
-        <div><strong>{% trans "Ngày gửi" %}:</strong> {% if req.submitted_at %}{{ req.submitted_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</div>
-      </div>
-    </div>
-    <hr>
-    <div class="mb-2">
-      <strong>{% trans "Nội dung phê duyệt" %}</strong>
-      <div class="mt-2">
-        {{ content_html|safe }}
+      <div class="col-lg-5">
+        <dl class="bo-confirm-summary mb-0">
+          <dt>{% trans "Người lập" %}</dt><dd>{{ req.requester.get_full_name|default:req.requester.username }}</dd>
+          <dt>{% trans "Ngày gửi" %}</dt><dd>{% if req.submitted_at %}{{ req.submitted_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</dd>
+          <dt>{% trans "Bước hiện tại" %}</dt><dd>{{ status_ctx.current_step_label }}</dd>
+          <dt>{% trans "Hệ thống" %}</dt><dd>AR: {{ status_ctx.request_status_label }}{% if status_ctx.acr_status_label != '—' %} · ACR: {{ status_ctx.acr_status_label }}{% endif %}</dd>
+        </dl>
       </div>
     </div>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-header"><strong>{% trans "Quy trình" %}</strong></div>
-  <div class="card-body p-0">
-    <table class="table table-sm table-striped mb-0">
+{% if active_step and my_signer and my_signer.status == "PENDING" %}
+<div class="card bo-form-card mb-3">
+  <div class="card-header">
+    <h3 class="bo-section-title"><i class="ti ti-signature"></i>{% trans "Thao tác của tôi" %}</h3>
+  </div>
+  <div class="card-body">
+    <div class="row g-2">
+      <div class="col-lg-6">
+        <form method="post" action="{% url 'backoffice:approval_step_action' req.id active_step.order_index %}" class="approval-action-form approval-action-approve">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="APPROVE">
+          <label class="form-label">{% trans "Ghi chú phê duyệt" %}</label>
+          <div class="input-group input-group-sm">
+            <input type="text" name="comment" class="form-control" placeholder="{% trans 'Tùy chọn' %}">
+            <button class="btn btn-success" type="submit"><i class="ti ti-check"></i> {% trans "Phê duyệt" %}</button>
+          </div>
+        </form>
+      </div>
+      <div class="col-lg-6">
+        <form method="post" action="{% url 'backoffice:approval_step_action' req.id active_step.order_index %}" class="approval-action-form approval-action-reject">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="REJECT">
+          <label class="form-label">{% trans "Lý do từ chối" %}</label>
+          <div class="input-group input-group-sm">
+            <input type="text" name="comment" class="form-control" placeholder="{% trans 'Bắt buộc khi từ chối' %}" required>
+            <button class="btn btn-danger" type="submit"><i class="ti ti-x"></i> {% trans "Từ chối" %}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card bo-form-card mb-3">
+  <div class="card-header">
+    <h3 class="bo-section-title"><i class="ti ti-file-text"></i>{% trans "Nội dung phê duyệt" %}</h3>
+  </div>
+  <div class="card-body approval-content">
+    {{ content_html|safe }}
+  </div>
+</div>
+
+<div class="card bo-table-card mb-3">
+  <div class="card-header">
+    <h3 class="bo-section-title"><i class="ti ti-route"></i>{% trans "Quy trình" %}</h3>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle bo-table bo-table-compact mb-0">
       <thead>
         <tr>
           <th>{% trans "Bước" %}</th>
           <th>{% trans "Trạng thái" %}</th>
           <th>{% trans "Người ký" %}</th>
-          <th>{% trans "Ghi chú" %}</th>
         </tr>
       </thead>
       <tbody>
         {% for st in steps %}
-          {% for s in st.signers %}
-            <tr>
-              <td>{{ st.order_index }} - {{ st.label }}</td>
-              <td>{{ st.status_display }}</td>
-              <td>{{ s.display_name }}</td>
-              <td>{{ s.comment }}</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td>{{ st.order_index }} - {{ st.label }}</td>
-              <td>{{ st.status_display }}</td>
-              <td class="text-muted">—</td>
-              <td class="text-muted">—</td>
-            </tr>
-          {% endfor %}
+          <tr>
+            <td class="bo-cell-main">{{ st.order_index }}. {{ st.label }}</td>
+            <td><span class="badge {{ st.status_class }}">{{ st.status_display }}</span></td>
+            <td>
+              {% for s in st.signers %}
+                <div class="approval-signer-line">
+                  <span class="fw-semibold">{{ s.display_name }}</span>
+                  <span class="badge {{ s.status_class }} ms-1">{{ s.status_display }}</span>
+                  {% if s.comment %}<span class="text-muted small ms-1">{{ s.comment }}</span>{% endif %}
+                </div>
+              {% empty %}
+                <span class="text-muted">{% trans "Chưa xác định người ký" %}</span>
+              {% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card bo-table-card">
+  <div class="card-header">
+    <h3 class="bo-section-title"><i class="ti ti-history"></i>{% trans "Lịch sử xử lý" %}</h3>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle bo-table bo-table-compact mb-0">
+      <thead>
+        <tr>
+          <th>{% trans "Thời gian" %}</th>
+          <th>{% trans "Người thực hiện" %}</th>
+          <th>{% trans "Hành động" %}</th>
+          <th>{% trans "Bước" %}</th>
+          <th>{% trans "Ghi chú" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in actions %}
+          <tr>
+            <td class="bo-text-nowrap">{{ a.created_at|date:"d/m/Y H:i" }}</td>
+            <td>{{ a.actor }}</td>
+            <td>{{ a.action_display }}</td>
+            <td>{{ a.step_label }}</td>
+            <td>{{ a.comment|default:"—" }}</td>
+          </tr>
         {% empty %}
-          <tr><td colspan="4" class="text-muted">—</td></tr>
+          <tr><td colspan="5" class="bo-empty-cell">{% trans "Chưa có lịch sử." %}</td></tr>
         {% endfor %}
       </tbody>
     </table>

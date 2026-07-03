@@ -2,13 +2,16 @@
 {% load i18n %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-<div class="page-title-block">
-  <div class="page-pretitle">{% trans "Import dữ liệu" %}</div>
-  <h2 class="mb-1">{{ title }}</h2>
-  <div class="text-muted">{{ note }}</div>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Import dữ liệu" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-file-import"></i>{{ title }}</h2>
+    <div class="bo-page-subtitle">{{ note }}</div>
+  </div>
 </div>
 
-<div class="card card-body">
+<div class="card bo-form-card">
+  <div class="card-body">
   <form method="post" enctype="multipart/form-data" action="{% url post_url %}">
     {% csrf_token %}
     <div class="mb-3">
@@ -19,8 +22,9 @@
     <a href="javascript:history.back()" class="btn btn-secondary">{% trans "Hủy" %}</a>
   </form>
 </div>
+</div>
 
-<div class="alert alert-info mt-3">
+<div class="bo-alert bo-alert-info mt-3">
   <strong>{% trans "Khuyến nghị:" %}</strong>
   {% trans "Nên xuất file Excel hiện tại làm mẫu trước, chỉnh sửa trên file đó rồi nhập lại để tránh sai header." %}
 </div>

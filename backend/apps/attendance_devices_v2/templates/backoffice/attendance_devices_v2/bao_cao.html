@@ -2,35 +2,23 @@
 {% load i18n %}
 {% load static %}
 
-{% block title %}Báo cáo{% endblock %}
-
-{% block extra_head %}
-<style>
-  .sticky-filter { position: sticky; top: 0; z-index: 1020; background: #fff; }
-
-  .kpi-card { border: 1px solid rgba(0,0,0,.08); border-radius: 10px; padding: 12px 14px; background: #fff; height: 100%; }
-  .kpi-label { color: #6c757d; font-size: 12px; }
-  .kpi-value { font-size: 22px; font-weight: 700; line-height: 1.1; }
-  .kpi-sub { color: #6c757d; font-size: 12px; }
-  .kpi-link { text-decoration: none; color: inherit; display:block; }
-  .kpi-link:hover .kpi-card { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-
-  /* Row charts: make equal height */
-  .chart-card { height: 100%; display: flex; flex-direction: column; }
-  .chart-card .card-body { flex: 1 1 auto; }
-</style>
-{% endblock %}
+{% block title %}Báo cáo chấm công{% endblock %}
 
 {% block content %}
-<h2 class="mb-3">Báo cáo</h2>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Quản lý chấm công</div>
+    <h2 class="bo-page-title"><i class="ti ti-chart-donut"></i>Báo cáo chấm công</h2>
+    <div class="bo-page-subtitle">Theo dõi hiện diện, vắng, thiếu mốc, vi phạm muộn/sớm và yêu cầu sửa theo ngày/đơn vị.</div>
+  </div>
+</div>
 
-{# Link thống kê chuẩn #}
 {% url 'attendance_devices_v2:thong_ke' as thong_ke_url %}
 
-<form class="card card-body mb-3 sticky-filter" method="get">
-  <div class="row g-2 align-items-end">
-    <div class="col-12 col-md-3">
-      <label class="form-label">Đơn vị</label>
+<form class="card card-body bo-filter-card bo-attdev-report-filter mb-3" method="get">
+  <div class="bo-filter-grid bo-filter-grid-attdev-report">
+    <div>
+      <label class="form-label bo-filter-label">Đơn vị</label>
       <select class="form-select form-select-sm" name="unit">
         <option value="">Toàn nhà máy</option>
         {% for u in units %}
@@ -39,92 +27,95 @@
       </select>
     </div>
 
-    <div class="col-6 col-md-2">
-      <label class="form-label">Từ ngày</label>
+    <div>
+      <label class="form-label bo-filter-label">Từ ngày</label>
       <input class="form-control form-control-sm" type="date" name="from" value="{{ from_date }}">
     </div>
 
-    <div class="col-6 col-md-2">
-      <label class="form-label">Đến ngày</label>
+    <div>
+      <label class="form-label bo-filter-label">Đến ngày</label>
       <input class="form-control form-control-sm" type="date" name="to" value="{{ to_date }}">
     </div>
 
-    <div class="col-12 col-md-2">
-      <label class="form-label">Nguồn dữ liệu</label>
+    <div>
+      <label class="form-label bo-filter-label">
+        Nguồn dữ liệu
+        <span class="bo-help" role="button" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Dữ liệu thực tế lấy theo mốc chấm công gốc; dữ liệu đã sửa dùng mốc đã được duyệt/chỉnh sửa để phục vụ đối chiếu vận hành.">?</span>
+      </label>
       <select class="form-select form-select-sm" name="chon_du_lieu">
         <option value="THUC_TE"{% if chon_du_lieu == "THUC_TE" %} selected{% endif %}>Dữ liệu thực tế</option>
         <option value="DA_SUA"{% if chon_du_lieu == "DA_SUA" %} selected{% endif %}>Dữ liệu đã sửa</option>
       </select>
     </div>
 
-    <div class="col-6 col-md-1">
-      <label class="form-label">Ngưỡng (phút)</label>
+    <div>
+      <label class="form-label bo-filter-label">
+        Ngưỡng
+        <span class="bo-help" role="button" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Số phút dùng để tính vi phạm muộn/sớm. Các lượt dưới ngưỡng có thể không đưa vào tổng vi phạm tùy logic báo cáo.">?</span>
+      </label>
       <select class="form-select form-select-sm" name="nguong">
-        <option value="5"{% if nguong == 5 %} selected{% endif %}>5</option>
-        <option value="10"{% if nguong == 10 %} selected{% endif %}>10</option>
-        <option value="15"{% if nguong == 15 %} selected{% endif %}>15</option>
+        <option value="5"{% if nguong == 5 %} selected{% endif %}>5 phút</option>
+        <option value="10"{% if nguong == 10 %} selected{% endif %}>10 phút</option>
+        <option value="15"{% if nguong == 15 %} selected{% endif %}>15 phút</option>
       </select>
     </div>
 
-    <div class="col-6 col-md-2">
-      <label class="form-label">&nbsp;</label>
-      <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm w-100" type="submit">Xem</button>
-        <a class="btn btn-outline-secondary btn-sm w-100" href="?">Reset</a>
-      </div>
+    <div class="bo-filter-actions bo-filter-actions-end">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="ti ti-filter"></i> Xem</button>
+      <a class="btn btn-outline-secondary btn-sm" href="?"><i class="ti ti-rotate-clockwise"></i> Xóa lọc</a>
     </div>
   </div>
 
-  <div class="text-muted small mt-2">
+  <div class="bo-filter-note mt-2">
     {% if is_daily_mode %}
-      Chế độ: <strong>Vận hành (Ngày {{ to_date }})</strong>
+      Chế độ: <strong>Vận hành ngày {{ to_date }}</strong>
     {% else %}
-      Chế độ: <strong>Tổng kết (Từ {{ from_date }} đến {{ to_date }})</strong>
+      Chế độ: <strong>Tổng kết từ {{ from_date }} đến {{ to_date }}</strong>
     {% endif %}
   </div>
 </form>
 
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3">
-    <div class="kpi-card">
-      <div class="kpi-label">{% if is_daily_mode %}Quân số đăng ký{% else %}Tổng lượt đăng ký{% endif %}</div>
-      <div class="kpi-value">{{ kpi.tong_luot_dang_ky }}</div>
-      <div class="kpi-sub">
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">{% if is_daily_mode %}Quân số đăng ký{% else %}Tổng lượt đăng ký{% endif %}</div>
+      <div class="bo-kpi-value">{{ kpi.tong_luot_dang_ky }}</div>
+      <div class="bo-kpi-sub">
         {% if is_daily_mode %}
-          expected_marks &gt; 0
+          Có mốc đăng ký cần đối chiếu
         {% else %}
-          {{ kpi.so_ngay }} ngày • TB {{ kpi.trung_binh_luot_moi_ngay }} lượt/ngày
+          {{ kpi.so_ngay }} ngày · TB {{ kpi.trung_binh_luot_moi_ngay }} lượt/ngày
         {% endif %}
       </div>
     </div>
   </div>
 
   <div class="col-6 col-lg-3">
-    <a class="kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=CO_MAT">
-      <div class="kpi-card">
-        <div class="kpi-label">{% if is_daily_mode %}Có mặt{% else %}Tổng lượt có mặt{% endif %}</div>
-        <div class="kpi-value">{{ kpi.so_luot_co_mat }}</div>
-        <div class="kpi-sub">{{ kpi.pct_co_mat|floatformat:1 }}% trên tổng lượt</div>
+    <a class="bo-kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=CO_MAT">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">{% if is_daily_mode %}Có mặt{% else %}Tổng lượt có mặt{% endif %}</div>
+        <div class="bo-kpi-value text-success">{{ kpi.so_luot_co_mat }}</div>
+        <div class="bo-kpi-sub">{{ kpi.pct_co_mat|floatformat:1 }}% trên tổng lượt</div>
       </div>
     </a>
   </div>
 
   <div class="col-6 col-lg-3">
-    <a class="kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VANG">
-      <div class="kpi-card">
-        <div class="kpi-label">{% if is_daily_mode %}Vắng{% else %}Tổng lượt vắng{% endif %}</div>
-        <div class="kpi-value">{{ kpi.so_luot_vang }}</div>
-        <div class="kpi-sub">{{ kpi.pct_vang|floatformat:1 }}% trên tổng lượt</div>
+    <a class="bo-kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VANG">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">{% if is_daily_mode %}Vắng{% else %}Tổng lượt vắng{% endif %}</div>
+        <div class="bo-kpi-value text-secondary">{{ kpi.so_luot_vang }}</div>
+        <div class="bo-kpi-sub">{{ kpi.pct_vang|floatformat:1 }}% trên tổng lượt</div>
       </div>
     </a>
   </div>
 
   <div class="col-6 col-lg-3">
-    <a class="kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=THIEU_MOC">
-      <div class="kpi-card">
-        <div class="kpi-label">{% if is_daily_mode %}Thiếu mốc (cần xử lý){% else %}Tổng lượt thiếu mốc{% endif %}</div>
-        <div class="kpi-value">{{ kpi.so_luot_thieu_moc }}</div>
-        <div class="kpi-sub">{{ kpi.pct_thieu_moc|floatformat:1 }}% trên tổng lượt</div>
+    <a class="bo-kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=THIEU_MOC">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">{% if is_daily_mode %}Thiếu mốc{% else %}Tổng lượt thiếu mốc{% endif %}</div>
+        <div class="bo-kpi-value text-danger">{{ kpi.so_luot_thieu_moc }}</div>
+        <div class="bo-kpi-sub">{{ kpi.pct_thieu_moc|floatformat:1 }}% trên tổng lượt</div>
       </div>
     </a>
   </div>
@@ -132,45 +123,46 @@
 
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3">
-    <a class="kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VI_PHAM">
-      <div class="kpi-card">
-        <div class="kpi-label">Vi phạm (muộn/sớm)</div>
-        <div class="kpi-value">{{ kpi.so_luot_vi_pham }}</div>
-        <div class="kpi-sub">{{ kpi.pct_vi_pham|floatformat:1 }}% trên tổng lượt</div>
+    <a class="bo-kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=VI_PHAM">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">Vi phạm muộn/sớm</div>
+        <div class="bo-kpi-value text-warning">{{ kpi.so_luot_vi_pham }}</div>
+        <div class="bo-kpi-sub">{{ kpi.pct_vi_pham|floatformat:1 }}% trên tổng lượt</div>
       </div>
     </a>
   </div>
 
   <div class="col-6 col-lg-3">
-    <div class="kpi-card">
-      <div class="kpi-label">Tổng phút vi phạm</div>
-      <div class="kpi-value">{{ kpi.tong_phut_vi_pham }}</div>
-      <div class="kpi-sub">Muộn + Sớm (lượt đủ mốc)</div>
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">Tổng phút vi phạm</div>
+      <div class="bo-kpi-value">{{ kpi.tong_phut_vi_pham }}</div>
+      <div class="bo-kpi-sub">Muộn + Sớm trên lượt đủ mốc</div>
     </div>
   </div>
 
   <div class="col-6 col-lg-3">
-    <div class="kpi-card">
-      <div class="kpi-label">Tổng phút đi muộn</div>
-      <div class="kpi-value">{{ kpi.tong_phut_di_muon }}</div>
-      <div class="kpi-sub">Theo nguồn dữ liệu</div>
+    <div class="bo-kpi-card card card-body">
+      <div class="bo-kpi-label">Tổng phút đi muộn</div>
+      <div class="bo-kpi-value">{{ kpi.tong_phut_di_muon }}</div>
+      <div class="bo-kpi-sub">Theo nguồn dữ liệu đang chọn</div>
     </div>
   </div>
 
   <div class="col-6 col-lg-3">
-    <div class="kpi-card">
-      <div class="kpi-label">Yêu cầu sửa đang mở</div>
-      <div class="kpi-value">{{ kpi.yeu_cau_sua_dang_mo }}</div>
-      <div class="kpi-sub">Từ trước đến nay</div>
-    </div>
+    <a class="bo-kpi-link" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=YEU_CAU_SUA">
+      <div class="bo-kpi-card card card-body">
+        <div class="bo-kpi-label">Yêu cầu sửa đang mở</div>
+        <div class="bo-kpi-value text-danger">{{ kpi.yeu_cau_sua_dang_mo }}</div>
+        <div class="bo-kpi-sub">Theo bộ lọc ngày/đơn vị</div>
+      </div>
+    </a>
   </div>
 </div>
 
-{# ===== Charts + incidents ===== #}
 <div class="row g-3 mb-3 align-items-stretch">
   <div class="col-12 col-lg-4 d-flex">
-    <div class="card chart-card w-100">
-      <div class="card-header"><strong>Cơ cấu trạng thái</strong></div>
+    <div class="card bo-chart-card w-100">
+      <div class="card-header"><strong><i class="ti ti-chart-pie me-1"></i>Cơ cấu trạng thái</strong></div>
       <div class="card-body">
         <canvas id="chartDonutStatus" height="220"></canvas>
       </div>
@@ -178,29 +170,28 @@
   </div>
 
   <div class="col-12 col-lg-8 d-flex">
-    <div class="card chart-card w-100">
-      <div class="card-header">
+    <div class="card bo-chart-card w-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
         <strong>
           {% if is_daily_mode %}
-            Danh sách sự cố trong ngày
+            <i class="ti ti-alert-triangle me-1"></i>Danh sách sự cố trong ngày
           {% else %}
-            Biến động theo ngày (% trên quân số mỗi ngày)
+            <i class="ti ti-chart-bar me-1"></i>Biến động theo ngày
           {% endif %}
         </strong>
+        {% if is_daily_mode and inc_total != 0 %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=ALL"><i class="ti ti-external-link"></i> Mở thống kê</a>
+        {% endif %}
       </div>
 
       <div class="card-body">
         {% if is_daily_mode %}
           {% if inc_total == 0 %}
-            <div class="text-muted">Không có sự cố.</div>
+            <div class="bo-empty-state">Không có sự cố.</div>
           {% else %}
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div class="text-muted small">Tổng {{ inc_total }} dòng • Trang {{ inc_page }}/{{ inc_pages }}</div>
-              <a class="btn btn-sm btn-outline-primary" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=ALL">Mở thống kê</a>
-            </div>
-
+            <div class="bo-list-meta">Tổng {{ inc_total }} dòng · Trang {{ inc_page }}/{{ inc_pages }}</div>
             <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
+              <table class="table table-sm align-middle bo-table-compact bo-attdev-report-table mb-0">
                 <thead>
                   <tr>
                     <th>Nhân sự</th>
@@ -209,23 +200,20 @@
                     <th class="text-end">Muộn</th>
                     <th class="text-end">Sớm</th>
                     <th class="text-end">Tổng</th>
-                    <th></th>
+                    <th class="text-end">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for it in incidents %}
                   <tr>
-                    <td class="text-nowrap"><strong>{{ it.employee_code }}</strong> — {{ it.employee_name }}</td>
-                    <td class="text-nowrap"><strong>{{ it.unit_symbol }}</strong> — {{ it.unit_name }}</td>
+                    <td class="bo-cell-truncate"><strong>{{ it.employee_code }}</strong> — {{ it.employee_name }}</td>
+                    <td class="bo-cell-truncate"><strong>{{ it.unit_symbol }}</strong> — {{ it.unit_name }}</td>
                     <td class="text-end">{{ it.missing_marks }}</td>
                     <td class="text-end">{{ it.late_min }}</td>
                     <td class="text-end">{{ it.early_min }}</td>
                     <td class="text-end"><strong>{{ it.violation_min }}</strong></td>
                     <td class="text-end">
-                      <a class="btn btn-sm btn-outline-danger"
-                         href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status={{ it.suggest_status }}">
-                        Xử lý
-                      </a>
+                      <a class="btn btn-sm btn-outline-danger" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status={{ it.suggest_status }}"><i class="ti ti-tool"></i> Xử lý</a>
                     </td>
                   </tr>
                   {% endfor %}
@@ -233,22 +221,16 @@
               </table>
             </div>
 
-            <nav class="mt-2">
+            <nav class="bo-pagination mt-2">
               <ul class="pagination pagination-sm mb-0">
                 {% if inc_page > 1 %}
-                  <li class="page-item">
-                    <a class="page-link" href="?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&chon_du_lieu={{ chon_du_lieu }}&nguong={{ nguong }}&inc_page={{ inc_page|add:"-1" }}">Trước</a>
-                  </li>
+                  <li class="page-item"><a class="page-link" href="?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&chon_du_lieu={{ chon_du_lieu }}&nguong={{ nguong }}&inc_page={{ inc_page|add:"-1" }}">Trước</a></li>
                 {% else %}
                   <li class="page-item disabled"><span class="page-link">Trước</span></li>
                 {% endif %}
-
                 <li class="page-item disabled"><span class="page-link">Trang {{ inc_page }}/{{ inc_pages }}</span></li>
-
                 {% if inc_page < inc_pages %}
-                  <li class="page-item">
-                    <a class="page-link" href="?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&chon_du_lieu={{ chon_du_lieu }}&nguong={{ nguong }}&inc_page={{ inc_page|add:"1" }}">Sau</a>
-                  </li>
+                  <li class="page-item"><a class="page-link" href="?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&chon_du_lieu={{ chon_du_lieu }}&nguong={{ nguong }}&inc_page={{ inc_page|add:"1" }}">Sau</a></li>
                 {% else %}
                   <li class="page-item disabled"><span class="page-link">Sau</span></li>
                 {% endif %}
@@ -263,108 +245,71 @@
   </div>
 </div>
 
-{# ===== 3 columns TOP 5 under charts ===== #}
 <div class="row g-3 mb-3">
   <div class="col-12 col-lg-4">
-    <div class="card">
-      <div class="card-header"><strong>Top 5 đơn vị muộn/sớm nhiều nhất</strong></div>
+    <div class="card bo-table-card h-100">
+      <div class="card-header"><strong><i class="ti ti-building me-1"></i>Top 5 đơn vị muộn/sớm nhiều nhất</strong></div>
       <div class="card-body">
         {% if not top_units_vio %}
-          <div class="text-muted">Chưa có dữ liệu.</div>
+          <div class="bo-empty-state">Chưa có dữ liệu.</div>
         {% else %}
           <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Đơn vị</th>
-                  <th class="text-end">Rate</th>
-                  <th class="text-end">Phút</th>
-                  <th class="text-end">Lượt</th>
-                </tr>
-              </thead>
+            <table class="table table-sm align-middle bo-table-compact bo-attdev-report-table mb-0">
+              <thead><tr><th>Đơn vị</th><th class="text-end">Rate</th><th class="text-end">Phút</th><th class="text-end">Lượt</th></tr></thead>
               <tbody>
                 {% for r in top_units_vio %}
-                <tr>
-                  <td class="text-nowrap"><strong>{{ r.unit_symbol }}</strong> — {{ r.unit_name }}</td>
-                  <td class="text-end"><strong>{{ r.rate }}</strong></td>
-                  <td class="text-end">{{ r.violation_minutes }}</td>
-                  <td class="text-end">{{ r.total_rows }}</td>
-                </tr>
+                <tr><td class="bo-cell-truncate"><strong>{{ r.unit_symbol }}</strong> — {{ r.unit_name }}</td><td class="text-end"><strong>{{ r.rate }}</strong></td><td class="text-end">{{ r.violation_minutes }}</td><td class="text-end">{{ r.total_rows }}</td></tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
-          <div class="text-muted small mt-2">Rate = phút vi phạm / 100 lượt đăng ký.</div>
+          <div class="bo-filter-note mt-2">Rate = phút vi phạm / 100 lượt đăng ký.</div>
         {% endif %}
       </div>
     </div>
   </div>
 
   <div class="col-12 col-lg-4">
-    <div class="card">
-      <div class="card-header"><strong>Top 5 cá nhân muộn/sớm nhiều nhất</strong></div>
+    <div class="card bo-table-card h-100">
+      <div class="card-header"><strong><i class="ti ti-users me-1"></i>Top 5 cá nhân muộn/sớm nhiều nhất</strong></div>
       <div class="card-body">
         {% if not top_employees_vio %}
-          <div class="text-muted">Chưa có dữ liệu.</div>
+          <div class="bo-empty-state">Chưa có dữ liệu.</div>
         {% else %}
           <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Nhân sự</th>
-                  <th class="text-end">Rate</th>
-                  <th class="text-end">Phút</th>
-                  <th class="text-end">Lượt</th>
-                </tr>
-              </thead>
+            <table class="table table-sm align-middle bo-table-compact bo-attdev-report-table mb-0">
+              <thead><tr><th>Nhân sự</th><th class="text-end">Rate</th><th class="text-end">Phút</th><th class="text-end">Lượt</th></tr></thead>
               <tbody>
                 {% for r in top_employees_vio %}
-                <tr>
-                  <td class="text-nowrap"><strong>{{ r.employee_code }}</strong> — {{ r.employee_name }}</td>
-                  <td class="text-end"><strong>{{ r.rate }}</strong></td>
-                  <td class="text-end">{{ r.violation_minutes }}</td>
-                  <td class="text-end">{{ r.total_rows }}</td>
-                </tr>
+                <tr><td class="bo-cell-truncate"><strong>{{ r.employee_code }}</strong> — {{ r.employee_name }}</td><td class="text-end"><strong>{{ r.rate }}</strong></td><td class="text-end">{{ r.violation_minutes }}</td><td class="text-end">{{ r.total_rows }}</td></tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
-          <div class="text-muted small mt-2">Rate = phút vi phạm / 100 lượt đăng ký.</div>
+          <div class="bo-filter-note mt-2">Rate = phút vi phạm / 100 lượt đăng ký.</div>
         {% endif %}
       </div>
     </div>
   </div>
 
   <div class="col-12 col-lg-4">
-    <div class="card">
-      <div class="card-header"><strong>Top 5 đơn vị thiếu mốc nhiều nhất</strong></div>
+    <div class="card bo-table-card h-100">
+      <div class="card-header"><strong><i class="ti ti-clock-exclamation me-1"></i>Top 5 đơn vị thiếu mốc nhiều nhất</strong></div>
       <div class="card-body">
         {% if not top_units_missing %}
-          <div class="text-muted">Chưa có dữ liệu.</div>
+          <div class="bo-empty-state">Chưa có dữ liệu.</div>
         {% else %}
           <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Đơn vị</th>
-                  <th class="text-end">Rate</th>
-                  <th class="text-end">Thiếu</th>
-                  <th class="text-end">Lượt</th>
-                </tr>
-              </thead>
+            <table class="table table-sm align-middle bo-table-compact bo-attdev-report-table mb-0">
+              <thead><tr><th>Đơn vị</th><th class="text-end">Rate</th><th class="text-end">Thiếu</th><th class="text-end">Lượt</th></tr></thead>
               <tbody>
                 {% for r in top_units_missing %}
-                <tr>
-                  <td class="text-nowrap"><strong>{{ r.unit_symbol }}</strong> — {{ r.unit_name }}</td>
-                  <td class="text-end"><strong>{{ r.rate }}</strong>%</td>
-                  <td class="text-end">{{ r.missing_rows }}</td>
-                  <td class="text-end">{{ r.total_rows }}</td>
-                </tr>
+                <tr><td class="bo-cell-truncate"><strong>{{ r.unit_symbol }}</strong> — {{ r.unit_name }}</td><td class="text-end"><strong>{{ r.rate }}</strong>%</td><td class="text-end">{{ r.missing_rows }}</td><td class="text-end">{{ r.total_rows }}</td></tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
-          <div class="text-muted small mt-2">Rate = % lượt thiếu mốc trên tổng lượt đăng ký.</div>
+          <div class="bo-filter-note mt-2">Rate = % lượt thiếu mốc trên tổng lượt đăng ký.</div>
         {% endif %}
       </div>
     </div>
@@ -373,26 +318,22 @@
 
 <div class="row g-3 mb-3">
   <div class="col-12">
-    <div class="card">
-      <div class="card-header"><strong>Việc cần HR xử lý (từ trước đến nay)</strong></div>
+    <div class="card bo-table-card">
+      <div class="card-header"><strong><i class="ti ti-list-check me-1"></i>Việc cần xử lý theo bộ lọc hiện tại</strong></div>
       <div class="card-body">
         {% if not viec_can_lam %}
-          <div class="text-muted">Không có yêu cầu sửa đang mở.</div>
+          <div class="bo-empty-state">Không có yêu cầu sửa đang mở trong khoảng ngày/đơn vị đang chọn.</div>
         {% else %}
           <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
+            <table class="table table-sm align-middle bo-table-compact bo-attdev-report-table mb-0">
               <thead>
-                <tr>
-                  <th>Đơn vị</th>
-                  <th>Trạng thái</th>
-                  <th class="text-end">Số lượng</th>
-                </tr>
+                <tr><th>Đơn vị</th><th>Trạng thái</th><th class="text-end">Số lượng</th></tr>
               </thead>
               <tbody>
                 {% for r in viec_can_lam %}
                 <tr>
-                  <td class="text-nowrap"><strong>{{ r.unit__symbol }}</strong> — {{ r.unit__name }}</td>
-                  <td class="text-nowrap">{{ r.yeu_cau_sua_trang_thai }}</td>
+                  <td class="bo-cell-truncate"><strong>{{ r.unit__symbol }}</strong> — {{ r.unit__name }}</td>
+                  <td><span class="bo-badge bo-badge-warning">{{ r.yeu_cau_sua_trang_thai }}</span></td>
                   <td class="text-end">{{ r.cnt }}</td>
                 </tr>
                 {% endfor %}
@@ -402,10 +343,7 @@
         {% endif %}
       </div>
       <div class="card-footer">
-        <a class="btn btn-sm btn-outline-danger"
-           href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=YEU_CAU_SUA">
-          Mở thống kê để xử lý
-        </a>
+        <a class="btn btn-sm btn-outline-danger" href="{{ thong_ke_url }}?from={{ from_date }}&to={{ to_date }}&unit={{ unit }}&nguong={{ nguong }}&source={{ chon_du_lieu }}&status=YEU_CAU_SUA"><i class="ti ti-tool"></i> Mở thống kê để xử lý</a>
       </div>
     </div>
   </div>
@@ -414,17 +352,24 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'vendor/chart.umd.min.js' %}"></script>
+<script src="{% static 'vendor/chartjs-4.5.0/chart.umd.min.js' %}"></script>
 {{ chart_payload|json_script:"chart-payload" }}
 
 <script>
 (function () {
   if (typeof Chart === 'undefined') {
-    console.warn('Chart.js chưa được load. Kiểm tra /static/vendor/chart.umd.min.js');
+    console.warn('Chart.js chưa được load. Kiểm tra /static/vendor/chartjs-4.5.0/chart.umd.min.js');
     return;
   }
 
-  const payload = JSON.parse(document.getElementById('chart-payload').textContent);
+  const payloadEl = document.getElementById('chart-payload');
+  if (!payloadEl) return;
+  const payload = JSON.parse(payloadEl.textContent);
+  const css = getComputedStyle(document.documentElement);
+  const cSuccess = css.getPropertyValue('--tblr-success').trim() || '#2fb344';
+  const cWarning = css.getPropertyValue('--tblr-warning').trim() || '#f59f00';
+  const cDanger = css.getPropertyValue('--tblr-danger').trim() || '#d63939';
+  const cSecondary = css.getPropertyValue('--tblr-secondary').trim() || '#6b7280';
 
   const donutEl = document.getElementById('chartDonutStatus');
   if (donutEl) {
@@ -433,13 +378,9 @@
       type: 'doughnut',
       data: {
         labels: ['Vắng', 'Thiếu mốc', 'Vi phạm', 'Bình thường'],
-        datasets: [{
-          data: [d.absent, d.missing, d.violation, d.normal],
-          backgroundColor: ['#adb5bd', '#dc3545', '#ffc107', '#198754'],
-          borderWidth: 1
-        }]
+        datasets: [{ data: [d.absent, d.missing, d.violation, d.normal], backgroundColor: [cSecondary, cDanger, cWarning, cSuccess], borderWidth: 1 }]
       },
-      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
   }
 
@@ -457,14 +398,15 @@
       data: {
         labels,
         datasets: [
-          { label: 'Bình thường (%)', data: normal, backgroundColor: '#198754' },
-          { label: 'Vi phạm (%)', data: violation, backgroundColor: '#ffc107' },
-          { label: 'Thiếu mốc (%)', data: missing, backgroundColor: '#dc3545' },
-          { label: 'Vắng (%)', data: absent, backgroundColor: '#adb5bd' },
+          { label: 'Bình thường (%)', data: normal, backgroundColor: cSuccess },
+          { label: 'Vi phạm (%)', data: violation, backgroundColor: cWarning },
+          { label: 'Thiếu mốc (%)', data: missing, backgroundColor: cDanger },
+          { label: 'Vắng (%)', data: absent, backgroundColor: cSecondary },
         ]
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         scales: {
           x: { stacked: true, ticks: { autoSkip: true, maxTicksLimit: 15, maxRotation: 0 } },
           y: { stacked: true, beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%' } }

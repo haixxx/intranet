@@ -2,11 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Kích hoạt tài khoản" %}{% endblock %}
 {% block content %}
-<h2 class="mb-3">{% trans "Kích hoạt tài khoản" %}: {{ target.username }}</h2>
-<form method="post" class="card card-body">
-  {% csrf_token %}
-  <p class="text-muted">{% trans "Tài khoản sẽ được kích hoạt lại." %}</p>
-  <button class="btn btn-success">{% trans "Kích hoạt" %}</button>
-  <a href="{% url 'backoffice:user_list' %}" class="btn btn-secondary">{% trans "Hủy" %}</a>
-</form>
+<div class="bo-page-header"><div class="bo-page-heading"><div class="bo-page-pretitle">{% trans "Quản trị hệ thống" %}</div><h2 class="bo-page-title"><i class="ti ti-user-check"></i> {% trans "Kích hoạt tài khoản" %}</h2><div class="bo-page-subtitle">{{ target.username }}</div></div><div class="bo-page-actions"><a href="{% url 'backoffice:user_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> {% trans "Quay lại" %}</a></div></div>
+<div class="bo-alert bo-alert-info"><i class="ti ti-info-circle"></i> {% trans "Tài khoản sẽ được kích hoạt lại." %}</div>
+<form method="post" class="card card-body bo-confirm-card">{% csrf_token %}<div class="bo-form-actions mt-0 pt-0 border-0"><button class="btn btn-success btn-sm"><i class="ti ti-check"></i> {% trans "Kích hoạt" %}</button><a href="{% url 'backoffice:user_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-x"></i> {% trans "Hủy" %}</a></div></form>
 {% endblock %}

@@ -1,28 +1,34 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Xoá mã chế độ{% endblock %}
+{% block title %}Xóa mã chế độ{% endblock %}
 {% block content %}
-<h2 class="mb-3">Xoá mã chế độ</h2>
-<div class="card card-body">
-  <p>Bạn đang thao tác với mã: <strong>{{ obj.code }}</strong> - {{ obj.label_vi }}.</p>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Quản lý công</div>
+    <h2 class="bo-page-title"><i class="ti ti-trash"></i>Xóa mã chế độ</h2>
+    <div class="bo-page-subtitle">Xác nhận xóa hoặc ngừng kích hoạt mã chế độ.</div>
+  </div>
+</div>
+<div class="card card-body bo-confirm-card">
+  <h3 class="bo-confirm-title">{{ obj.code }} - {{ obj.label_vi }}</h3>
 
   {% if deactivate_only %}
-    <div class="alert alert-warning py-2">
+    <div class="bo-alert bo-alert-warning">
       Mã này là mã hệ thống hoặc đã phát sinh dữ liệu
       ({{ usage.batch_items }} dòng nháp, {{ usage.commit_items }} dòng đã chốt), nên không xóa vật lý.
       Khi xác nhận, hệ thống sẽ chuyển mã sang <strong>ngừng kích hoạt</strong> để dữ liệu cũ vẫn hiển thị đúng.
     </div>
   {% else %}
-    <p>Bạn có chắc muốn xoá mã này?</p>
+    <div class="bo-alert bo-alert-danger">Bạn có chắc muốn xóa mã này?</div>
   {% endif %}
 
-  <form method="post">
+  <form method="post" class="bo-form-actions">
     {% csrf_token %}
     {% if deactivate_only %}
-      <button class="btn btn-warning btn-sm">Ngừng kích hoạt</button>
+      <button class="btn btn-warning btn-sm"><i class="ti ti-player-pause"></i> Ngừng kích hoạt</button>
     {% else %}
-      <button class="btn btn-danger btn-sm">Xác nhận xoá</button>
+      <button class="btn btn-danger btn-sm"><i class="ti ti-trash"></i> Xác nhận xóa</button>
     {% endif %}
-    <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-secondary btn-sm">Quay lại</a>
+    <a href="{% url 'backoffice:attendance_code_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-arrow-left"></i> Quay lại</a>
   </form>
 </div>
 {% endblock %}

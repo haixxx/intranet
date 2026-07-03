@@ -2,15 +2,21 @@
 {% load i18n %}
 {% block title %}Đăng ký / Chốt công{% endblock %}
 {% block content %}
-<div class="page-title-block"><div class="page-pretitle">Chấm công</div><h2 class="mb-1">Đăng ký / Chốt công</h2></div>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">Quản lý công</div>
+    <h2 class="bo-page-title"><i class="ti ti-clipboard-list"></i>Đăng ký / Chốt công</h2>
+    <div class="bo-page-subtitle">Lập danh sách công, áp dụng mã chế độ, lưu nháp và chốt công theo ngày/đơn vị.</div>
+  </div>
+</div>
 
-<form method="get" class="card card-body mb-3">
-  <div class="row g-2 align-items-end">
-    <div class="col-md-2">
+<form method="get" class="card card-body bo-filter-card mb-3 bo-attendance-batch-top-filter">
+  <div class="bo-filter-grid bo-filter-grid-attendance-batch-top">
+    <div>
       <label class="form-label">Ngày</label>
       <input type="text" name="date" value="{{ work_date }}" class="form-control form-control-sm" placeholder="dd/mm/yyyy" inputmode="numeric">
     </div>
-    <div class="col-md-4">
+    <div>
       <label class="form-label">Đơn vị</label>
       <select name="unit" class="form-select form-select-sm">
         {% for u in units_qs %}
@@ -20,22 +26,22 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-6 d-flex align-items-end gap-2 flex-wrap">
-      <button class="btn btn-primary btn-sm">Xem</button>
-      <a class="btn btn-success btn-sm" href="?date={{ work_date }}&unit={{ unit_id }}&init=1">Lập danh sách chấm công</a>
+    <div class="bo-filter-actions bo-filter-actions-end">
+      <button class="btn btn-primary btn-sm"><i class="ti ti-eye"></i> Xem</button>
+      <a class="btn btn-success btn-sm" href="?date={{ work_date }}&unit={{ unit_id }}&init=1"><i class="ti ti-plus"></i> Lập danh sách chấm công</a>
     </div>
   </div>
 </form>
 
 {% if batch %}
 {% if bs_in_list %}
-  <div class="alert alert-info">
+  <div class="bo-alert bo-alert-info">
     Người bổ sung đến theo ngày {{ work_date }}: {{ bs_in_list|join:", " }}
   </div>
 {% endif %}
 
 {% if roster_has_diff %}
-  <div class="alert alert-warning d-flex justify-content-between align-items-center">
+  <div class="bo-alert bo-alert-warning d-flex justify-content-between align-items-center">
     <div>Danh sách chấm công nháp <strong>khác</strong> với danh sách dự kiến ngày {{ work_date }}.</div>
     <form method="post" action="{% url 'backoffice:attendance_batch_refresh' batch.id %}">
       {% csrf_token %}
@@ -45,26 +51,26 @@
     </form>
   </div>
 {% else %}
-  <div class="alert alert-success">Danh sách chấm công nháp <strong>trùng</strong> với danh sách dự kiến ngày {{ work_date }}.</div>
+  <div class="bo-alert bo-alert-success">Danh sách chấm công nháp <strong>trùng</strong> với danh sách dự kiến ngày {{ work_date }}.</div>
 {% endif %}
 
 {% if pending_locked %}
-  <div class="alert alert-warning">
+  <div class="bo-alert bo-alert-warning">
     Đang có Phiếu đề nghị sửa chấm công <strong>chờ duyệt</strong> cho ngày {{ work_date }} ({{ pending_acr_count }} phiếu).
     Danh sách chấm công nháp tạm <strong>bị khóa</strong>: không thể Lưu nháp hay Cập nhật lại danh sách chấm công cho tới khi phiếu được xử lý.
   </div>
 {% endif %}
 
-<form method="get" class="card card-body mb-3">
+<form method="get" class="card card-body bo-filter-card mb-3">
   <input type="hidden" name="date" value="{{ work_date }}">
   <input type="hidden" name="unit" value="{{ unit_id }}">
-  <div class="row g-2">
-    <div class="col-md-3">
-      <label class="form-label">Lọc nhanh</label>
+  <div class="bo-filter-grid bo-filter-grid-attendance-batch">
+    <div>
+      <label class="form-label bo-filter-label">Lọc nhanh</label>
       <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm mã / tên NV">
     </div>
-    <div class="col-md-2">
-      <label class="form-label">Tổ</label>
+    <div>
+      <label class="form-label bo-filter-label">Tổ</label>
       <select name="team" class="form-select form-select-sm">
         <option value="">— Tất cả —</option>
         {% for t in teams %}
@@ -72,17 +78,17 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2">
-      <label class="form-label">Số dòng</label>
+    <div>
+      <label class="form-label bo-filter-label">Số dòng</label>
       <select name="page_size" class="form-select form-select-sm">
         {% for size in page_size_options %}
           <option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}/trang</option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-5 d-flex align-items-end gap-2">
-      <button class="btn btn-outline-secondary btn-sm">Lọc</button>
-      <a href="?date={{ work_date }}&unit={{ unit_id }}" class="btn btn-outline-secondary btn-sm">Xóa lọc</a>
+    <div class="bo-filter-actions">
+      <button class="btn btn-primary btn-sm"><i class="ti ti-filter"></i> Lọc</button>
+      <a href="?date={{ work_date }}&unit={{ unit_id }}" class="btn btn-outline-secondary btn-sm"><i class="ti ti-rotate-clockwise"></i> Xóa lọc</a>
     </div>
   </div>
 </form>
@@ -92,7 +98,7 @@
 <input type="hidden" id="currentUnitId" value="{{ unit_id }}">
 <input type="hidden" id="currentWorkDate" value="{{ work_date_iso|default:work_date }}">
 
-<form method="post" action="{% url 'backoffice:attendance_batch_bulk_apply' batch.id %}" class="card card-body mb-3" id="bulkApplyForm">
+<form method="post" action="{% url 'backoffice:attendance_batch_bulk_apply' batch.id %}" class="card card-body bo-form-card mb-3" id="bulkApplyForm">
   {% csrf_token %}
   <input type="hidden" name="date" value="{{ work_date }}">
   <input type="hidden" name="unit" value="{{ unit_id }}">
@@ -100,8 +106,8 @@
   <input type="hidden" name="team" value="{{ team_id }}">
   <input type="hidden" name="page" value="{{ current_page }}">
   <input type="hidden" name="page_size" value="{{ page_size }}">
-  <div class="row g-2 align-items-end">
-    <div class="col-md-2">
+  <div class="bo-batch-bulk-grid">
+    <div class="bulk-code-field">
       <label class="form-label mb-1">Áp dụng mã chế độ</label>
       <select class="form-select form-select-sm" id="bulkCode" name="bulk_code">
         <option value="">-- giữ nguyên --</option>
@@ -119,27 +125,25 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-7">
-      <div class="row g-2">
-        <div class="col-3">
-          <label class="form-label mb-1">Giờ vào 1</label>
-          <input type="time" class="form-control form-control-sm" id="bulkIn1" name="bulk_in1" step="60">
-        </div>
-        <div class="col-3">
-          <label class="form-label mb-1">Giờ ra 1</label>
-          <input type="time" class="form-control form-control-sm" id="bulkOut1" name="bulk_out1" step="60">
-        </div>
-        <div class="col-3">
-          <label class="form-label mb-1">Giờ vào 2</label>
-          <input type="time" class="form-control form-control-sm" id="bulkIn2" name="bulk_in2" step="60">
-        </div>
-        <div class="col-3">
-          <label class="form-label mb-1">Giờ ra 2</label>
-          <input type="time" class="form-control form-control-sm" id="bulkOut2" name="bulk_out2" step="60">
-        </div>
+    <div class="bo-batch-time-grid">
+      <div>
+        <label class="form-label mb-1">Giờ vào 1</label>
+        <input type="time" class="form-control form-control-sm" id="bulkIn1" name="bulk_in1" step="60">
+      </div>
+      <div>
+        <label class="form-label mb-1">Giờ ra 1</label>
+        <input type="time" class="form-control form-control-sm" id="bulkOut1" name="bulk_out1" step="60">
+      </div>
+      <div>
+        <label class="form-label mb-1">Giờ vào 2</label>
+        <input type="time" class="form-control form-control-sm" id="bulkIn2" name="bulk_in2" step="60">
+      </div>
+      <div>
+        <label class="form-label mb-1">Giờ ra 2</label>
+        <input type="time" class="form-control form-control-sm" id="bulkOut2" name="bulk_out2" step="60">
       </div>
     </div>
-    <div class="col-md-1">
+    <div class="bulk-overtime-field">
       <label class="form-label mb-1">Thêm giờ</label>
       <select class="form-select form-select-sm" name="bulk_overtime_hours">
         <option value="">—</option>
@@ -150,9 +154,9 @@
         <option value="4">4</option>
       </select>
     </div>
-    <div class="col-md-2 d-flex align-items-end justify-content-end gap-2">
+    <div class="bulk-actions-field bo-filter-actions bo-filter-actions-end">
       <span
-        class="badge rounded-pill bg-light text-dark border"
+        class="bo-help"
         role="button"
         tabindex="0"
         data-bs-toggle="tooltip"
@@ -166,7 +170,7 @@
 {% endif %}
 
 {% if batch %}
-<div class="table-responsive">
+<div class="card bo-table-card"><div class="table-responsive">
   <form method="post" action="{% url 'backoffice:attendance_batch_save' batch.id %}" id="listForm">
     {% csrf_token %}
     <input type="hidden" name="date" value="{{ work_date }}">
@@ -176,17 +180,17 @@
     <input type="hidden" name="page" value="{{ current_page }}">
     <input type="hidden" name="page_size" value="{{ page_size }}">
 
-    <table class="table table-sm table-striped align-middle">
+    <table class="table table-sm table-striped align-middle bo-table-compact bo-attendance-batch-table mb-0">
       <thead>
         <tr>
-          <th style="width:8%">Mã NV</th>
-          <th style="width:12%">Họ tên</th>
-          <th style="width:8%">Tổ</th>
-          <th style="width:8%">BS</th>
-          <th style="width:14%">Mã chế độ</th>
-          <th style="width:36%">Mốc thời gian</th>
-          <th style="width:7%">Thêm giờ</th>
-          <th style="width:7%">Ghi chú</th>
+          <th class="bo-col-code">Mã NV</th>
+          <th class="bo-col-name">Họ tên</th>
+          <th class="bo-col-team">Tổ</th>
+          <th class="bo-col-bs">BS</th>
+          <th class="bo-col-work-code">Mã chế độ</th>
+          <th class="bo-col-times">Mốc thời gian</th>
+          <th class="bo-col-overtime">Thêm giờ</th>
+          <th class="bo-col-note">Ghi chú</th>
         </tr>
       </thead>
       <tbody>
@@ -194,10 +198,10 @@
           {% with work=it.code.is_work am_req=it.code.requires_am_work pm_req=it.code.requires_pm_work %}
           <tr>
             <td>{{ it.employee.employee_code }}</td>
-            <td class="text-truncate" style="max-width:160px">{{ it.employee.full_name }}</td>
+            <td class="text-truncate bo-cell-truncate">{{ it.employee.full_name }}</td>
             <td>{% if it.employee.team %}{{ it.employee.team.name }}{% else %}—{% endif %}</td>
             <td>
-              {% if it.bs_direction == 'IN' %}<span class="badge bg-primary text-white">BS đến</span>{% elif it.bs_direction == 'OUT' %}<span class="badge" style="background:#fff3cd;color:#664d03;">BS đi</span>{% else %}<span class="text-muted">—</span>{% endif %}
+              {% if it.bs_direction == 'IN' %}<span class="bo-badge bo-badge-info">BS đến</span>{% elif it.bs_direction == 'OUT' %}<span class="bo-badge bo-badge-warning">BS đi</span>{% else %}<span class="text-muted">—</span>{% endif %}
               {% if it.bs_peer_unit %} ({{ it.bs_peer_unit.code }}){% endif %}
             </td>
             <td>
@@ -316,7 +320,7 @@
       </div>
     </div>
   </form>
-</div>
+</div></div>
 
 {% if has_committed and can_request %}
 <div class="d-flex justify-content-between align-items-center mt-3">
@@ -331,7 +335,7 @@
     <button id="btnViewDiff" class="btn btn-outline-primary btn-sm" {% if diff_count == 0 %}disabled{% endif %}>
       Xem khác biệt
     </button>
-    <form id="formRequestCorrection" method="post" action="{% url 'backoffice:attendance_correction_request_create' batch.id %}" class="d-flex gap-2 align-items-center">
+    <form id="formRequestCorrection" method="post" action="{% url 'backoffice:attendance_correction_request_create' batch.id %}" class="bo-correction-request-grid">
       {% csrf_token %}
       <input type="hidden" name="date" value="{{ work_date }}">
       <input type="hidden" name="unit" value="{{ unit_id }}">
@@ -340,7 +344,7 @@
       <input type="hidden" name="page" value="{{ current_page }}">
       <input type="hidden" name="page_size" value="{{ page_size }}">
 
-      <select name="flow_key" class="form-select form-select-sm" required style="width: 260px;">
+      <select name="flow_key" class="form-select form-select-sm" required>
         <option value="">— Chọn luồng phê duyệt —</option>
         {% for f in flows %}
           <option value="{{ f.flow_key }}">{{ f.name }} ({{ f.flow_key }})</option>
@@ -349,7 +353,7 @@
         {% endfor %}
       </select>
 
-      <input type="text" name="reason" class="form-control form-control-sm" style="width: 320px;" placeholder="Lý do (tuỳ chọn)">
+      <input type="text" name="reason" class="form-control form-control-sm" placeholder="Lý do (tuỳ chọn)">
 
       <button class="btn btn-primary btn-sm" type="submit" {% if not can_request_now or flows|length == 0 %}disabled{% endif %}>
         Đề nghị sửa chấm công
@@ -535,9 +539,9 @@
           const resp = await fetch(`/backoffice/attendance/batch/diff?date=${encodeURIComponent(workDate)}&unit=${encodeURIComponent(unit)}`);
           const data = await resp.json();
           if (!data.ok) {
-            diffContainer.innerHTML = `<div class="alert alert-warning">Không thể tính khác biệt: ${data.error || 'Lỗi không xác định'}.</div>`;
+            diffContainer.innerHTML = `<div class="bo-alert bo-alert-warning">Không thể tính khác biệt: ${data.error || 'Lỗi không xác định'}.</div>`;
           } else if ((data.items || []).length === 0) {
-            diffContainer.innerHTML = '<div class="alert alert-info">Không có khác biệt nào.</div>';
+            diffContainer.innerHTML = '<div class="bo-alert bo-alert-info">Không có khác biệt nào.</div>';
           } else {
             let html = `
               <table class="table table-sm table-bordered">
@@ -564,7 +568,7 @@
           const bsModal = new bootstrap.Modal(diffModalEl);
           bsModal.show();
         } catch (e) {
-          diffContainer.innerHTML = `<div class="alert alert-danger">Lỗi khi tải khác biệt: ${e}</div>`;
+          diffContainer.innerHTML = `<div class="bo-alert bo-alert-danger">Lỗi khi tải khác biệt: ${e}</div>`;
           const bsModal = new bootstrap.Modal(diffModalEl);
           bsModal.show();
         }

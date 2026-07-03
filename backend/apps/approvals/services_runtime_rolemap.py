@@ -9,5 +9,9 @@ def get_role_title_map() -> Dict[str, Set[str]]:
     res: Dict[str, Set[str]] = {}
     qs = RoleTitleMapping.objects.filter(is_active=True)
     for m in qs:
-        res.setdefault(m.role_key, set()).add(m.title_code)
+        role_key = (m.role_key or "").strip()
+        title_code = (m.title_code or "").strip()
+        if not role_key or not title_code:
+            continue
+        res.setdefault(role_key, set()).add(title_code)
     return res

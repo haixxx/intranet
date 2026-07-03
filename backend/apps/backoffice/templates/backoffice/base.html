@@ -1,70 +1,58 @@
 {% load i18n %}
 {% load static %}
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-bs-theme="light">
   <head>
     <meta charset="utf-8">
-    <title>{% block title %}Backoffice{% endblock %}</title>
+    <title>{% block title %}Z115 Backoffice{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="{% static 'backoffice/img/favicon.ico' %}">
 
     <!-- Offline assets -->
-    <link href="{% static 'vendor/tabler.min.css' %}" rel="stylesheet">
-    <link href="{% static 'vendor/tabler-icons.min.css' %}" rel="stylesheet">
+    <link href="{% static 'vendor/tabler-1.4.0/css/tabler.min.css' %}" rel="stylesheet">
+    <link href="{% static 'vendor/tabler-icons-3.35.0/css/tabler-icons.min.css' %}" rel="stylesheet">
+    <link href="{% static 'backoffice/css/app-ui.css' %}" rel="stylesheet">
 
     {% block extra_head %}{% endblock %}
-
-    <style>
-      .app-sidebar {
-        min-height: calc(100vh - 60px);
-      }
-      .sidebar-heading {
-        letter-spacing: .04em;
-        font-size: .72rem;
-        font-weight: 700;
-      }
-      .list-group-item {
-        border: 0;
-        border-radius: .375rem;
-        margin-bottom: .125rem;
-      }
-      .list-group-item.active {
-        background-color: #0d6efd;
-        color: #fff;
-        font-weight: 600;
-      }
-      .list-group-item.active .ti {
-        color: #fff;
-      }
-      .list-group-item .ti {
-        width: 1.25rem;
-        text-align: center;
-      }
-      .page-title-block {
-        margin-bottom: 1rem;
-      }
-      .page-title-block .page-pretitle {
-        color: #6c757d;
-        text-transform: uppercase;
-        letter-spacing: .04em;
-        font-size: .72rem;
-        font-weight: 700;
-      }
-    </style>
   </head>
 
-  <body class="layout-fluid">
-    <div class="page">
-      <header class="navbar navbar-expand-md navbar-light bg-white border-bottom">
-        <div class="container-xl">
-          <a class="navbar-brand" href="{% url 'backoffice:dashboard' %}">
-            <span class="navbar-brand-text">{% trans "Intranet Backoffice" %}</span>
-          </a>
+  <body class="layout-fluid bo-body bo-shell-body">
+    <div class="page bo-page">
+      <header class="navbar navbar-light bg-white border-bottom bo-navbar bo-topbar">
+        <div class="container-fluid bo-topbar-container">
+          <div class="bo-topbar-start">
+            <button class="btn btn-outline-secondary btn-icon d-xl-none bo-mobile-menu-toggle"
+                    type="button"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#bo-mobile-sidebar"
+                    aria-controls="bo-mobile-sidebar"
+                    aria-label="{% trans 'Mở menu' %}">
+              <i class="ti ti-menu-2"></i>
+            </button>
 
-          <div class="navbar-nav flex-row order-md-last align-items-center">
-            <form method="post" action="{% url 'set_language' %}" class="me-3">
+            <a class="navbar-brand bo-brand bo-topbar-brand" href="{% url 'backoffice:dashboard' %}" aria-label="Z115 Backoffice">
+              <img src="{% static 'backoffice/img/logo-mark.png' %}" class="bo-brand-logo" alt="">
+              <span class="bo-brand-copy">
+                <span class="bo-brand-title"><span class="bo-brand-title-z">Z115</span> <span class="bo-brand-title-main">Backoffice</span></span>
+                <span class="bo-brand-subtitle d-none d-sm-block">{% trans "Hệ thống quản trị nội bộ" %}</span>
+              </span>
+            </a>
+
+            <button class="btn btn-outline-secondary btn-icon d-none d-xl-inline-flex bo-sidebar-collapse-toggle"
+                    type="button"
+                    data-bo-sidebar-toggle
+                    aria-label="{% trans 'Thu gọn menu' %}"
+                    aria-expanded="true"
+                    title="{% trans 'Thu gọn / mở rộng menu' %}">
+              <i class="ti ti-layout-sidebar-left-collapse bo-sidebar-collapse-icon"></i>
+            </button>
+          </div>
+
+          <div class="navbar-nav flex-row order-md-last align-items-center bo-topbar-actions">
+            <form method="post" action="{% url 'set_language' %}" class="bo-language-form d-none d-md-block">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ request.get_full_path }}">
-              <select name="language" class="form-select form-select-sm" onchange="this.form.submit()">
+              <select name="language" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="{% trans 'Ngôn ngữ' %}">
                 {% get_current_language as LANGUAGE_CODE %}
                 {% get_available_languages as LANGUAGES %}
                 {% for code, name in LANGUAGES %}
@@ -73,230 +61,97 @@
               </select>
             </form>
 
-            <a href="{% url 'backoffice:profile' %}" class="btn btn-outline-secondary btn-sm me-2">
-              <i class="ti ti-user me-1"></i>{% trans "Hồ sơ" %}
+            <a href="{% url 'backoffice:profile' %}" class="btn btn-outline-secondary btn-sm bo-topbar-btn" title="{% trans 'Hồ sơ' %}">
+              <i class="ti ti-user"></i><span class="d-none d-sm-inline ms-1">{% trans "Hồ sơ" %}</span>
             </a>
 
             {% if request.user.is_authenticated %}
-              <span class="nav-item px-2 d-none d-md-inline">{{ request.user.username }}</span>
-              <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:logout' %}">
-                <i class="ti ti-logout me-1"></i>{% trans "Đăng xuất" %}
+              <span class="nav-item px-1 d-none d-lg-inline bo-username">{{ request.user.username }}</span>
+              <a class="btn btn-outline-secondary btn-sm bo-topbar-btn" href="{% url 'core:logout' %}" title="{% trans 'Đăng xuất' %}">
+                <i class="ti ti-logout"></i><span class="d-none d-sm-inline ms-1">{% trans "Đăng xuất" %}</span>
               </a>
             {% endif %}
           </div>
         </div>
       </header>
 
-      <div class="page-wrapper">
-        <div class="container-fluid">
-
-          {% if messages %}
-            <div class="p-3 pb-0">
-              {% for message in messages %}
-                <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags %}{{ message.tags }}{% else %}secondary{% endif %} alert-dismissible" role="alert">
-                  {{ message }}
-                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'Đóng' %}"></button>
-                </div>
-              {% endfor %}
+      <div class="offcanvas offcanvas-start bo-sidebar-offcanvas d-xl-none" tabindex="-1" id="bo-mobile-sidebar" aria-labelledby="bo-mobile-sidebar-label">
+        <div class="offcanvas-header bo-sidebar-offcanvas-header">
+          <a class="bo-brand bo-sidebar-mobile-brand" href="{% url 'backoffice:dashboard' %}">
+            <img src="{% static 'backoffice/img/logo-mark.png' %}" class="bo-brand-logo" alt="">
+            <span class="bo-brand-copy">
+              <span class="bo-brand-title" id="bo-mobile-sidebar-label"><span class="bo-brand-title-z">Z115</span> <span class="bo-brand-title-main">Backoffice</span></span>
+              <span class="bo-brand-subtitle">{% trans "Hệ thống quản trị nội bộ" %}</span>
+            </span>
+          </a>
+          <button type="button" class="btn btn-outline-secondary btn-sm bo-offcanvas-close" data-bs-dismiss="offcanvas" aria-label="{% trans 'Đóng menu' %}">
+            <i class="ti ti-x me-1"></i>{% trans "Đóng" %}
+          </button>
+        </div>
+        <div class="offcanvas-body bo-sidebar-offcanvas-body">
+          <nav class="bo-sidebar-scroll" aria-label="{% trans 'Menu chính' %}">
+            <div class="list-group list-group-transparent">
+              {% include "backoffice/includes/sidebar_nav.html" %}
             </div>
-          {% endif %}
-
-          <div class="row g-0">
-            <aside class="col-12 col-md-3 col-xl-2 border-end bg-white app-sidebar">
-              <div class="p-3">
-                <div class="list-group list-group-transparent">
-
-                  <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-                     href="{% url 'backoffice:dashboard' %}">
-                    <i class="ti ti-home me-2"></i>{% trans "Tổng quan" %}
-                  </a>
-
-                  {% if perms.organization.view_orgunit or perms.organization.view_jobtitle or perms.organization.view_shifttemplate or perms.hr.view_employee %}
-                    <div class="text-uppercase text-muted sidebar-heading mt-3 mb-1">{% trans "Tổ chức - Nhân sự" %}</div>
-
-                    {% if perms.organization.view_orgunit %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'orgunit_list' or request.resolver_match.url_name == 'orgunit_create' or request.resolver_match.url_name == 'orgunit_edit' or request.resolver_match.url_name == 'orgunit_delete' or request.resolver_match.url_name == 'import_orgunits' or request.resolver_match.url_name == 'export_orgunits' %}active{% endif %}"
-                         href="{% url 'backoffice:orgunit_list' %}">
-                        <i class="ti ti-hierarchy-3 me-2"></i>{% trans "Cơ cấu tổ chức" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.organization.view_jobtitle %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'jobtitle_list' or request.resolver_match.url_name == 'jobtitle_create' or request.resolver_match.url_name == 'jobtitle_edit' or request.resolver_match.url_name == 'jobtitle_delete' or request.resolver_match.url_name == 'import_jobtitles' or request.resolver_match.url_name == 'export_jobtitles' %}active{% endif %}"
-                         href="{% url 'backoffice:jobtitle_list' %}">
-                        <i class="ti ti-id-badge me-2"></i>{% trans "Chức danh" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.organization.view_shifttemplate %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'shift_list' or request.resolver_match.url_name == 'shift_create' or request.resolver_match.url_name == 'shift_edit' or request.resolver_match.url_name == 'shift_delete' or request.resolver_match.url_name == 'import_shifts' or request.resolver_match.url_name == 'export_shifts' %}active{% endif %}"
-                         href="{% url 'backoffice:shift_list' %}">
-                        <i class="ti ti-clock me-2"></i>{% trans "Ca làm việc" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.hr.view_employee %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'employee_list' or request.resolver_match.url_name == 'employee_create' or request.resolver_match.url_name == 'employee_edit' or request.resolver_match.url_name == 'employee_detail' or request.resolver_match.url_name == 'employee_create_user' or request.resolver_match.url_name == 'export_employees' or request.resolver_match.url_name == 'import_employees' %}active{% endif %}"
-                         href="{% url 'backoffice:employee_list' %}">
-                        <i class="ti ti-address-book me-2"></i>{% trans "Nhân sự" %}
-                      </a>
-
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'temp_assignment_list' or request.resolver_match.url_name == 'temp_assignment_create' or request.resolver_match.url_name == 'temp_assignment_edit' or request.resolver_match.url_name == 'temp_assignment_cancel' %}active{% endif %}"
-                         href="{% url 'backoffice:temp_assignment_list' %}">
-                        <i class="ti ti-arrows-left-right me-2"></i>{% trans "Điều động tạm thời" %}
-                      </a>
-                    {% endif %}
-                  {% endif %}
-
-                  {% if perms.attendance.view_attendancebatch or perms.attendance.view_attendancecommit or perms.attendance.view_attendancecode or perms.attendance.change_attendancesettings %}
-                    <div class="text-uppercase text-muted sidebar-heading mt-3 mb-1">{% trans "Chấm công" %}</div>
-
-                    {% if perms.attendance.view_attendancebatch %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_batch_create_or_load' or request.resolver_match.url_name == 'attendance_batch_save' or request.resolver_match.url_name == 'attendance_batch_commit' or request.resolver_match.url_name == 'attendance_batch_refresh' or request.resolver_match.url_name == 'attendance_correction_request_create' %}active{% endif %}"
-                         href="{% url 'backoffice:attendance_batch_create_or_load' %}">
-                        <i class="ti ti-clipboard-text me-2"></i>{% trans "Đăng ký / chốt công" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.attendance.view_attendancecommit %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_committed_view' %}active{% endif %}"
-                         href="{% url 'backoffice:attendance_committed_view' %}">
-                        <i class="ti ti-eye me-2"></i>{% trans "Xem công chốt" %}
-                      </a>
-
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_monthly_view' or request.resolver_match.url_name == 'attendance_monthly_export' %}active{% endif %}"
-                         href="{% url 'backoffice:attendance_monthly_view' %}">
-                        <i class="ti ti-calendar-stats me-2"></i>{% trans "Công theo tháng" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.attendance.view_attendancecode %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_code_list' or request.resolver_match.url_name == 'attendance_code_create' or request.resolver_match.url_name == 'attendance_code_edit' or request.resolver_match.url_name == 'attendance_code_delete' %}active{% endif %}"
-                         href="{% url 'backoffice:attendance_code_list' %}">
-                        <i class="ti ti-badge me-2"></i>{% trans "Mã chế độ" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.attendance.change_attendancesettings %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'attendance_settings' %}active{% endif %}"
-                         href="{% url 'backoffice:attendance_settings' %}">
-                        <i class="ti ti-adjustments-alt me-2"></i>{% trans "Cấu hình đối chiếu" %}
-                      </a>
-                    {% endif %}
-                  {% endif %}
-
-                  {% if perms.attendance_devices_v2.view_attendancedevicev2 or perms.attendance_devices_v2.view_attendancedeviceagentv2 or perms.attendance_devices_v2.add_attendancemanualpunch or perms.attendance_devices_v2.view_attendancepunchmatchv2 %}
-                    <div class="text-uppercase text-muted sidebar-heading mt-3 mb-1">{% trans "Thiết bị chấm công" %}</div>
-
-                    {% if perms.attendance.view_attendancecommit %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'bao_cao' %}active{% endif %}"
-                         href="{% url 'attendance_devices_v2:bao_cao' %}">
-                        <i class="ti ti-report-analytics me-2"></i>{% trans "Báo cáo" %}
-                      </a>
-
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'thong_ke' %}active{% endif %}"
-                         href="{% url 'attendance_devices_v2:thong_ke' %}">
-                        <i class="ti ti-list-details me-2"></i>{% trans "Thống kê" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.attendance_devices_v2.add_attendancemanualpunch %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'them_du_lieu' %}active{% endif %}"
-                         href="{% url 'attendance_devices_v2:them_du_lieu' %}">
-                        <i class="ti ti-pencil-plus me-2"></i>{% trans "Thêm dữ liệu chấm công" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.attendance_devices_v2.view_attendancedevicev2 %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'giam_sat_thiet_bi' %}active{% endif %}"
-                         href="{% url 'attendance_devices_v2:giam_sat_thiet_bi' %}">
-                        <i class="ti ti-activity-heartbeat me-2"></i>{% trans "Giám sát thiết bị" %}
-                      </a>
-
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'device_list' or request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'device_create' or request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'device_edit' %}active{% endif %}"
-                         href="{% url 'attendance_devices_v2:device_list' %}">
-                        <i class="ti ti-devices me-2"></i>{% trans "Thiết bị" %}
-                      </a>
-                    {% endif %}
-
-                    {% if perms.attendance_devices_v2.view_attendancedeviceagentv2 %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'agent_list' or request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'agent_create' or request.resolver_match.namespace == 'attendance_devices_v2' and request.resolver_match.url_name == 'agent_edit' %}active{% endif %}"
-                         href="{% url 'attendance_devices_v2:agent_list' %}">
-                        <i class="ti ti-server me-2"></i>{% trans "Agent" %}
-                      </a>
-                    {% endif %}
-                  {% endif %}
-
-                  {% if request.user.is_superuser or perms.approvals.view_approvalrequest %}
-                    <div class="text-uppercase text-muted sidebar-heading mt-3 mb-1">{% trans "Phê duyệt" %}</div>
-
-                    <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'approvals_inbox' or request.resolver_match.url_name == 'approval_step_action' %}active{% endif %}"
-                       href="{% url 'backoffice:approvals_inbox' %}">
-                      <i class="ti ti-checkup-list me-2"></i>{% trans "Tôi cần duyệt" %}
-                    </a>
-
-                    <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'approvals_my_requests' or request.resolver_match.url_name == 'approvals_request_detail' or request.resolver_match.url_name == 'approvals_request_cancel' %}active{% endif %}"
-                       href="{% url 'backoffice:approvals_my_requests' %}">
-                      <i class="ti ti-file-description me-2"></i>{% trans "Yêu cầu của tôi" %}
-                    </a>
-
-                    {% if request.user.is_superuser %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'approval_flow_list' or request.resolver_match.url_name == 'approval_flow_create' or request.resolver_match.url_name == 'approval_flow_edit' or request.resolver_match.url_name == 'approval_flow_delete' or request.resolver_match.url_name == 'approval_flow_version_list' or request.resolver_match.url_name == 'approval_flow_version_create_builder' or request.resolver_match.url_name == 'approval_flow_version_edit_builder' or request.resolver_match.url_name == 'approval_flow_version_publish' or request.resolver_match.url_name == 'approval_flow_version_delete' %}active{% endif %}"
-                         href="{% url 'backoffice:approval_flow_list' %}">
-                        <i class="ti ti-route-alt-left me-2"></i>{% trans "Quản trị luồng duyệt" %}
-                      </a>
-
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'role_title_mapping_list' or request.resolver_match.url_name == 'role_title_mapping_create' or request.resolver_match.url_name == 'role_title_mapping_edit' or request.resolver_match.url_name == 'approval_role_title_mapping_delete' %}active{% endif %}"
-                         href="{% url 'backoffice:role_title_mapping_list' %}">
-                        <i class="ti ti-adjustments-alt me-2"></i>{% trans "Cấu hình Role Mapping" %}
-                      </a>
-                    {% endif %}
-                  {% endif %}
-
-                  {% if request.user.is_superuser or perms.core.view_user or perms.auth.view_user or perms.auth.view_group or perms.audit.view_auditlog %}
-                    <div class="text-uppercase text-muted sidebar-heading mt-3 mb-1">{% trans "Quản trị hệ thống" %}</div>
-
-                    {% if request.user.is_superuser or perms.core.view_user or perms.auth.view_user %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'user_create' or request.resolver_match.url_name == 'user_edit' or request.resolver_match.url_name == 'user_roles' %}active{% endif %}"
-                         href="{% url 'backoffice:user_list' %}">
-                        <i class="ti ti-users me-2"></i>{% trans "Người dùng" %}
-                      </a>
-                    {% endif %}
-
-                    {% if request.user.is_superuser or perms.auth.view_group %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'role_list' or request.resolver_match.url_name == 'role_edit' or request.resolver_match.url_name == 'role_delete' %}active{% endif %}"
-                         href="{% url 'backoffice:role_list' %}">
-                        <i class="ti ti-shield-lock me-2"></i>{% trans "Vai trò" %}
-                      </a>
-
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'permission_matrix' %}active{% endif %}"
-                         href="{% url 'backoffice:permission_matrix' %}">
-                        <i class="ti ti-table me-2"></i>{% trans "Ma trận quyền" %}
-                      </a>
-                    {% endif %}
-
-                    {% if request.user.is_superuser or perms.audit.view_auditlog %}
-                      <a class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'audit_list' %}active{% endif %}"
-                         href="{% url 'backoffice:audit_list' %}">
-                        <i class="ti ti-history me-2"></i>{% trans "Nhật ký" %}
-                      </a>
-                    {% endif %}
-                  {% endif %}
-
-                </div>
-              </div>
-            </aside>
-
-            <main class="col-12 col-md-9 col-xl-10 p-4">
-              {% block content %}{% endblock %}
-            </main>
-          </div>
+          </nav>
         </div>
       </div>
 
-      <!-- Offline JS: Bootstrap bundle để modal hoạt động + Tabler -->
-      <script src="{% static 'vendor/bootstrap.bundle.min.js' %}"></script>
-      <script src="{% static 'vendor/tabler.min.js' %}"></script>
+      <div class="page-wrapper bo-page-wrapper">
+        <div class="bo-layout">
+          <aside class="bo-sidebar bo-sidebar-desktop d-none d-xl-flex" aria-label="{% trans 'Menu chính' %}">
+            <nav class="bo-sidebar-scroll" aria-label="{% trans 'Menu chính' %}">
+              <div class="list-group list-group-transparent">
+                {% include "backoffice/includes/sidebar_nav.html" %}
+              </div>
+            </nav>
+          </aside>
+
+          <main class="bo-main">
+            {% if messages %}
+              <div class="bo-messages">
+                {% for message in messages %}
+                  <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags %}{{ message.tags }}{% else %}secondary{% endif %} alert-dismissible" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'Đóng' %}"></button>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <div class="bo-main-content">
+              {% block content %}{% endblock %}
+            </div>
+
+            <footer class="bo-footer">
+              <div class="bo-footer-inner">
+                <div class="bo-footer-brand">
+                  <img src="{% static 'backoffice/img/logo-full.png' %}" class="bo-footer-logo" alt="EMC15">
+                  <div class="bo-footer-copy">
+                    <div class="bo-footer-title"><span class="bo-brand-title-z">Z115</span> <span class="bo-brand-title-main">Backoffice</span></div>
+                    <div class="bo-footer-subtitle">{% trans "Hệ thống quản trị nội bộ" %} · {% trans "Mạng LAN/Intranet" %}</div>
+                  </div>
+                </div>
+                <div class="bo-footer-meta">
+                  <span>© 2026 {% trans "Nhà máy Z115" %}</span>
+                  <span class="bo-footer-separator">·</span>
+                  <a href="{% url 'backoffice:dashboard' %}">{% trans "Dashboard" %}</a>
+                  {% if request.user.is_superuser %}
+                    <span class="bo-footer-separator">·</span>
+                    <a href="{% url 'admin:index' %}">{% trans "Django Admin" %}</a>
+                  {% endif %}
+                  <span class="bo-footer-separator">·</span>
+                  <a href="{% url 'backoffice:profile' %}">{% trans "Hồ sơ" %}</a>
+                </div>
+              </div>
+            </footer>
+          </main>
+        </div>
+      </div>
+
+      <!-- Offline JS: Tabler 1.4.0 đã bundle Bootstrap 5.3.7, không load bootstrap.bundle riêng. -->
+      <script src="{% static 'vendor/tabler-1.4.0/js/tabler.min.js' %}"></script>
+      <script src="{% static 'backoffice/js/app-ui.js' %}"></script>
       {% block extra_js %}{% endblock %}
     </div>
   </body>

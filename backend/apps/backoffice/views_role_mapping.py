@@ -2,16 +2,28 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db import IntegrityError
+from django.db.models import Q
 from apps.approvals.models_config import RoleTitleMapping
 from .forms_role_mapping import RoleTitleMappingForm
 from apps.audit.utils import audit_log
+from apps.approvals.rolemap_health import build_role_mapping_diagnostics
+from .utils.pagination import paginate_queryset
 
 @login_required
 @permission_required("approvals.view_roletitlemapping", raise_exception=True)
 def role_title_mapping_list(request):
-    # Lấy tất cả bản ghi, sắp xếp rõ ràng
-    items = RoleTitleMapping.objects.all().order_by("role_key", "title_code", "id")
-    return render(request, "backoffice/approvals/role_mapping/list.html", {"items": items})
+    q = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "").strip()
+    qs = RoleTitleMapping.objects.all().order_by("role_key", "title_code", "id")
+    if q:
+        qs = qs.filter(Q(role_key__icontains=q) | Q(title_code__icontains=q))
+    if status == "active":
+        qs = qs.filter(is_active=True)
+    elif status == "inactive":
+        qs = qs.filter(is_active=False)
+    context = paginate_queryset(request, qs, default_page_size=50, allowed_page_sizes=(25, 50, 100, 200))
+    context.update({"query": q, "status_selected": status, "rolemap_diagnostics": build_role_mapping_diagnostics()})
+    return render(request, "backoffice/approvals/role_mapping/list.html", context)
 
 @login_required
 @permission_required("approvals.add_roletitlemapping", raise_exception=True)

@@ -1,31 +1,39 @@
 {% extends "backoffice/base.html" %}
 {% load i18n %}
 
-{% block title %}{% trans "Agents máy chấm công (v2)" %}{% endblock %}
+{% block title %}{% trans "Agent chấm công" %}{% endblock %}
 
 {% block content %}
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h2 class="mb-0">{% trans "Agents máy chấm công (v2)" %}</h2>
-    <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices_v2:agent_create' %}">
-      {% trans "Thêm agent" %}
-    </a>
+  <div class="bo-page-header">
+    <div class="bo-page-heading">
+      <div class="bo-page-pretitle">{% trans "Quản lý chấm công" %}</div>
+      <h2 class="bo-page-title"><i class="ti ti-server-2"></i>{% trans "Agent chấm công" %}</h2>
+      <div class="bo-page-subtitle">{% trans "Quản lý máy tính/trạm trung gian nhận log từ thiết bị và đẩy dữ liệu về server." %}</div>
+    </div>
+    <div class="bo-page-actions">
+      <a class="btn btn-primary btn-sm" href="{% url 'attendance_devices_v2:agent_create' %}">
+        <i class="ti ti-plus me-1"></i>{% trans "Thêm agent" %}
+      </a>
+    </div>
   </div>
 
-  <form class="card card-body mb-3" method="get">
-    <div class="row g-2 align-items-end">
-      <div class="col-md-6">
+  <form class="card card-body bo-filter-card mb-3" method="get">
+    <div class="bo-filter-grid bo-filter-grid-3">
+      <div>
         <label class="form-label">{% trans "Tìm kiếm" %}</label>
-        <input name="q" value="{{ q }}" class="form-control" placeholder="{% trans 'Tên/hostname/IP' %}">
+        <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="{% trans 'Tên/hostname/IP' %}">
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-outline-secondary w-100" type="submit">{% trans "Lọc" %}</button>
+      <div class="bo-filter-actions">
+        <button class="btn btn-primary btn-sm" type="submit">
+          <i class="ti ti-filter me-1"></i>{% trans "Lọc" %}
+        </button>
       </div>
     </div>
   </form>
 
-  <div class="card">
+  <div class="card bo-table-card">
     <div class="table-responsive">
-      <table class="table table-vcenter table-striped">
+      <table class="table table-striped table-sm align-middle bo-table mb-0">
         <thead>
           <tr>
             <th>{% trans "Tên" %}</th>
@@ -33,25 +41,25 @@
             <th>{% trans "IP" %}</th>
             <th>{% trans "Trạng thái" %}</th>
             <th>{% trans "Đơn vị" %}</th>
-            <th class="text-end">{% trans "Hành động" %}</th>
+            <th class="bo-col-actions">{% trans "Hành động" %}</th>
           </tr>
         </thead>
         <tbody>
           {% for x in items %}
             <tr>
-              <td>{{ x.name }}</td>
-              <td>{{ x.hostname }}</td>
-              <td>{{ x.ip_address }}</td>
-              <td>{{ x.get_status_display }}</td>
-              <td>{% if x.org_unit %}{{ x.org_unit }}{% else %}-{% endif %}</td>
-              <td class="text-end">
+              <td class="bo-cell-main">{{ x.name }}</td>
+              <td class="text-nowrap">{{ x.hostname }}</td>
+              <td class="text-nowrap">{{ x.ip_address }}</td>
+              <td><span class="bo-badge bo-badge-info">{{ x.get_status_display }}</span></td>
+              <td>{% if x.org_unit %}{{ x.org_unit }}{% else %}<span class="bo-muted-dash">—</span>{% endif %}</td>
+              <td class="bo-actions-cell">
                 <a class="btn btn-outline-primary btn-sm" href="{% url 'attendance_devices_v2:agent_edit' x.id %}">
-                  {% trans "Sửa" %}
+                  <i class="ti ti-edit me-1"></i>{% trans "Sửa" %}
                 </a>
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="6" class="text-muted">{% trans "Chưa có agent." %}</td></tr>
+            <tr><td colspan="6" class="bo-empty-cell">{% trans "Chưa có agent." %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

@@ -1,11 +1,30 @@
 {% extends "backoffice/base.html" %}
-{% block title %}Xóa mapping{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Xóa Role Mapping" %}{% endblock %}
 {% block content %}
-<h5>Xóa Role Title Mapping</h5>
-<p>Bạn chắc chắn muốn xóa mapping: <strong>{{ obj.role_key }}</strong> ↔ <code>{{ obj.title_code }}</code>?</p>
-<form method="post">
-  {% csrf_token %}
-  <button class="btn btn-danger btn-sm" type="submit">Xóa</button>
-  <a class="btn btn-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_list' %}">Hủy</a>
-</form>
+<div class="bo-page-header">
+  <div class="bo-page-heading">
+    <div class="bo-page-pretitle">{% trans "Phê duyệt" %}</div>
+    <h2 class="bo-page-title"><i class="ti ti-trash"></i>{% trans "Xóa Role Mapping" %}</h2>
+    <div class="bo-page-subtitle">{% trans "Thao tác này ảnh hưởng trực tiếp tới việc xác định người ký lãnh đạo đơn vị." %}</div>
+  </div>
+</div>
+
+<div class="card bo-confirm-card">
+  <div class="card-body">
+    <h3 class="bo-confirm-title">{% trans "Bạn chắc chắn muốn xóa mapping này?" %}</h3>
+    <dl class="bo-confirm-summary">
+      <dt>Role key</dt><dd><span class="bo-badge bo-badge-primary">{{ obj.role_key }}</span></dd>
+      <dt>{% trans "Mã chức danh" %}</dt><dd><code class="bo-inline-code">{{ obj.title_code }}</code></dd>
+    </dl>
+    <div class="bo-alert bo-alert-warning mt-3 mb-0">{% trans "Nếu đây là mapping lãnh đạo duy nhất của một đơn vị, các phiếu mới có thể không xác định được người ký." %}</div>
+  </div>
+  <div class="card-footer bo-form-actions">
+    <form method="post" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-danger btn-sm" type="submit"><i class="ti ti-trash"></i> {% trans "Xóa" %}</button>
+    </form>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'backoffice:role_title_mapping_list' %}">{% trans "Hủy" %}</a>
+  </div>
+</div>
 {% endblock %}
