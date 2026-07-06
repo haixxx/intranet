@@ -1,57 +1,45 @@
 # =========================================================
-# Python
+# Git / local env
 # =========================================================
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.so
-.Python
+.git/
+.gitignore
+.gitattributes
 
-# =========================================================
-# Virtual environments
-# =========================================================
 .venv/
 .venvs/
 venv/
 ENV/
 env/
 
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 # =========================================================
-# Django local/runtime data
+# Local database / runtime data
 # =========================================================
-*.log
-local_settings.py
 db.sqlite3
 *.sqlite3
 backend/db.sqlite3
 backend/*.sqlite3
-media/
-staticfiles/
 backend/media/
 backend/staticfiles/
 
 # =========================================================
-# Environment / secrets
+# Secrets / environment
 # =========================================================
 .env
 .env.*
-!.env.example
-!.env.*.example
+!*.example
 !deploy/docker/.env.production.example
 
 # =========================================================
-# Test/cache
+# Backups / releases / dumps / archives
 # =========================================================
-.pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
-.ruff_cache/
-
-# =========================================================
-# Backup / archive / database dump / Docker image export
-# =========================================================
+backups/
+backup/
+releases/
 *.bak
 *.backup
 *.zip
@@ -62,24 +50,14 @@ htmlcov/
 *.tgz
 *.sql
 *.dump
-*.img
-*.iso
-
-backups/
-backup/
-releases/
-*.tar
 
 # =========================================================
-# IDE / editor
+# OS / IDE / test cache
 # =========================================================
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# =========================================================
-# OS
-# =========================================================
 .DS_Store
 Thumbs.db
+.pytest_cache/
+.coverage
+htmlcov/
