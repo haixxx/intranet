@@ -312,7 +312,15 @@ def _filtered_device_ids(*, q: str = "", agent_raw: str = "", unit_raw: str = ""
     qs = AttendanceDeviceV2.objects.all()
     if user is not None:
         allowed_ids = get_allowed_attendance_unit_ids(user)
-        qs = qs.filter(org_unit_id__in=allowed_ids) if allowed_ids else qs.none()
+        # Màn giám sát thiết bị là màn hạ tầng, không nên phụ thuộc cứng vào Employee/AccessControl.
+        # Trên server mới triển khai có thể chưa có nhân sự/AccessControl hoặc thiết bị chưa gán org_unit;
+        # vẫn cần hiển thị các thiết bị chưa gán đơn vị để IT cấu hình và kiểm thử Agent.
+        if allowed_ids:
+            qs = qs.filter(Q(org_unit_id__in=allowed_ids) | Q(org_unit__isnull=True))
+        elif user.has_perm("attendance_devices_v2.view_attendancedevicev2"):
+            qs = qs.filter(org_unit__isnull=True)
+        else:
+            qs = qs.none()
         if unit_raw.isdigit() and int(unit_raw) not in allowed_ids:
             qs = qs.none()
     if q:
@@ -597,7 +605,14 @@ def giam_sat_thiet_bi_view(request):
     invalid_unit_filter = requested_unit_id is not None and requested_unit_id not in allowed_unit_ids
 
     devices_qs = AttendanceDeviceV2.objects.select_related("assigned_agent", "org_unit").order_by("name")
-    devices_qs = devices_qs.filter(org_unit_id__in=allowed_unit_ids) if allowed_unit_ids else devices_qs.none()
+    # Màn giám sát thiết bị là màn hạ tầng. Không lọc mất thiết bị chưa gán đơn vị,
+    # đặc biệt ở server mới triển khai khi chưa có Employee/AccessControl dữ liệu nền.
+    if allowed_unit_ids:
+        devices_qs = devices_qs.filter(Q(org_unit_id__in=allowed_unit_ids) | Q(org_unit__isnull=True))
+    elif request.user.has_perm("attendance_devices_v2.view_attendancedevicev2"):
+        devices_qs = devices_qs.filter(org_unit__isnull=True)
+    else:
+        devices_qs = devices_qs.none()
 
     if q:
         devices_qs = devices_qs.filter(
