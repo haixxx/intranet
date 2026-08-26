@@ -8,7 +8,6 @@ from django.contrib.auth.models import Group
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils.crypto import get_random_string
 
 from apps.audit.utils import audit_log
 from apps.backoffice.utils.permissions import permission_or_message
@@ -18,6 +17,10 @@ from apps.hr.services import allowed_org_ids_for_user
 from apps.organization.models import JobTitle, OrgUnit
 
 User = get_user_model()
+
+# Mật khẩu mặc định khi tạo tài khoản từ danh sách nhân sự.
+# Lưu ý: Django vẫn lưu dạng hash, không lưu plain-text trong DB.
+DEFAULT_EMPLOYEE_USER_PASSWORD = "123456"
 
 VN_MAP = {
     ord("á"): "a", ord("à"): "a", ord("ả"): "a", ord("ã"): "a", ord("ạ"): "a",
@@ -279,7 +282,7 @@ def employee_create_user(request, pk):
             is_staff=False,
             is_superuser=False,
         )
-        temporary_password = f"Z115@{emp.employee_code}@{get_random_string(4, allowed_chars='0123456789')}"
+        temporary_password = DEFAULT_EMPLOYEE_USER_PASSWORD
         user.set_password(temporary_password)
         user.save()
 
@@ -318,7 +321,7 @@ def employee_create_user(request, pk):
 
         messages.success(
             request,
-            f"Đã tạo tài khoản: {username}. Mật khẩu tạm thời: {temporary_password}. "
+            f"Đã tạo tài khoản: {username}. Mật khẩu mặc định: {temporary_password}. "
             "Cần yêu cầu người dùng đổi mật khẩu sau khi đăng nhập.",
         )
         return redirect("backoffice:employee_detail", pk=pk)
@@ -329,6 +332,7 @@ def employee_create_user(request, pk):
         {
             "emp": emp,
             "proposed_username": base_username,
+            "default_password": DEFAULT_EMPLOYEE_USER_PASSWORD,
         },
     )
 

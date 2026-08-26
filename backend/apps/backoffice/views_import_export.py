@@ -566,7 +566,8 @@ def import_employees(request):
     if request.method == "POST" and request.FILES.get("file"):
         match_by = request.POST.get("match_by", "employee_code").strip() or "employee_code"
         mode = request.POST.get("mode", "upsert").strip() or "upsert"
-        dry_run = request.POST.get("dry_run", "true").lower() in ("1", "true", "yes", "on")
+        # Checkbox không được tick sẽ không gửi field; template có hidden=false để backend nhận đúng ý người dùng.
+        dry_run = str(request.POST.get("dry_run", "true")).lower() in ("1", "true", "yes", "on")
 
         wb = load_workbook(request.FILES["file"])
         ws = wb.active
@@ -611,7 +612,12 @@ def import_employees(request):
         jt_cache_by_name = {j.name: j for j in JobTitle.objects.all()}
         jt_cache_by_code = {j.code: j for j in JobTitle.objects.exclude(code__isnull=True).exclude(code="")}
         unit_cache = {u.symbol: u for u in OrgUnit.objects.all()}
-        allowed_unit_ids = set(allowed_org_ids_for_user(request.user))
+        # Superuser phải thấy ngay cả đơn vị vừa tạo trong request/tiến trình hiện tại.
+        # allowed_org_ids_for_user() có cache để tối ưu cho user thường, nên không dùng cache cho superuser tại màn import.
+        if request.user.is_superuser:
+            allowed_unit_ids = {u.id for u in unit_cache.values()}
+        else:
+            allowed_unit_ids = set(allowed_org_ids_for_user(request.user))
 
         def cell(row, key):
             c = col_index.get(key)

@@ -19,7 +19,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
-    image: z115-backoffice-web:20260714_150712-migration
+    image: z115-backoffice-web:20260703-dev01
     container_name: z115_web
     env_file:
       - .env.production

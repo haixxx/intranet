@@ -111,6 +111,9 @@
     <div class="bo-kpi-card bo-monitor-kpi-card"><div class="bo-kpi-label">Raw UID chưa map</div><div class="bo-kpi-value {% if kpi.unresolved_raw_today %}text-danger{% endif %}">{{ kpi.unresolved_raw_today }}</div></div>
     <div class="bo-kpi-card bo-monitor-kpi-card"><div class="bo-kpi-label">Realtime lỗi</div><div class="bo-kpi-value {% if kpi.realtime_error %}text-danger{% endif %}">{{ kpi.realtime_error }}</div></div>
     <div class="bo-kpi-card bo-monitor-kpi-card"><div class="bo-kpi-label">Backfill lỗi/pending</div><div class="bo-kpi-value {% if kpi.backfill_failed %}text-warning{% endif %}">{{ kpi.backfill_failed }}</div></div>
+    <div class="bo-kpi-card bo-monitor-kpi-card"><div class="bo-kpi-label">Sync giờ cảnh báo</div><div class="bo-kpi-value {% if kpi.time_sync_warning %}text-warning{% endif %}">{{ kpi.time_sync_warning }}</div></div>
+    <div class="bo-kpi-card bo-monitor-kpi-card"><div class="bo-kpi-label">Sync giờ lỗi</div><div class="bo-kpi-value {% if kpi.time_sync_failed %}text-danger{% endif %}">{{ kpi.time_sync_failed }}</div></div>
+    <div class="bo-kpi-card bo-monitor-kpi-card"><div class="bo-kpi-label">Chưa check giờ</div><div class="bo-kpi-value {% if kpi.time_sync_unchecked %}text-muted{% endif %}">{{ kpi.time_sync_unchecked }}</div></div>
   </div>
 
   <div class="help-panel" id="helpGiamSatThietBi">
@@ -119,6 +122,7 @@
       <strong>Online</strong> nếu máy báo trong {{ online_minutes }} phút gần nhất; <strong>Chậm dữ liệu</strong> nếu quá {{ online_minutes }} đến {{ stale_minutes }} phút; <strong>Offline</strong> nếu quá {{ stale_minutes }} phút. Agent online nếu heartbeat trong {{ agent_online_minutes }} phút gần nhất.
       <br><strong>Raw ngày chọn</strong> tính theo thời điểm chấm công trên máy; <strong>Raw nhận 24h</strong> tính theo thời điểm server nhận dữ liệu. Khi backfill log cũ, hai chỉ số này có thể khác nhau.
       <br>UID chưa map là các mã thẻ máy gửi lên nhưng chưa khớp với <strong>Employee.card_id</strong>; sau khi cập nhật mã thẻ trong hồ sơ nhân sự, bấm <strong>Normalize lại</strong> để xử lý các raw cũ.
+      <br><strong>Đồng bộ giờ</strong> tách riêng việc Agent kiểm tra độ lệch và việc thực sự đặt lại thời gian. Trạng thái “Cảnh báo/Chờ cửa sổ” chưa có nghĩa là máy đã bị chỉnh giờ; chỉ “Thành công/Thất bại” mới là kết quả actual Time Sync.
       <br><strong>Tính lại MasterList</strong> dùng dữ liệu đã chuẩn hoá và dữ liệu nhập bổ sung để cập nhật báo cáo/thống kê. Nếu không chọn đơn vị, hệ thống sẽ tính tất cả đơn vị có công chốt trong ngày; đơn vị gắn trên thiết bị chỉ là vị trí/quản lý máy, không phải phạm vi nhân sự chấm trên máy.
     </div>
   </div>
@@ -134,6 +138,7 @@
             <th>Trạng thái</th>
             <th>Realtime</th>
             <th>Backfill</th>
+            <th>Đồng bộ giờ</th>
             <th>Drift</th>
             <th>Lần báo/pull</th>
             <th class="text-end">Raw ngày chọn</th>
@@ -185,6 +190,13 @@
                   <div class="small-muted">đọc {{ r.latest_backfill.read_total }} · lọc {{ r.latest_backfill.filtered }} · ghi {{ r.latest_backfill.processed }} · trùng {{ r.latest_backfill.duplicates }}</div>
                 {% endif %}
               </td>
+              <td class="text-nowrap">
+                <span class="bo-badge bo-status-badge bo-status-dynamic-{{ r.time_sync_class }}">{{ r.time_sync_label }}</span>
+                {% if r.latest_status %}
+                  <div class="small-muted" title="{{ r.time_sync_detail }}">{{ r.time_sync_detail|truncatechars:80 }}</div>
+                  {% if r.latest_status.last_time_sync_success_at %}<div class="small-muted">Sync OK: {{ r.latest_status.last_time_sync_success_at|date:"Y-m-d H:i" }}</div>{% endif %}
+                {% endif %}
+              </td>
               <td class="text-nowrap {% if r.latest_status and r.latest_status.drift_seconds and r.latest_status.drift_seconds > 120 %}text-warning fw-bold{% endif %}">{{ r.drift_text }}</td>
               <td class="text-nowrap">
                 {% if r.device.last_pull_at %}
@@ -225,7 +237,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="16" class="bo-empty-cell">Không có thiết bị phù hợp bộ lọc.</td></tr>
+            <tr><td colspan="17" class="bo-empty-cell">Không có thiết bị phù hợp bộ lọc.</td></tr>
           {% endfor %}
         </tbody>
       </table>

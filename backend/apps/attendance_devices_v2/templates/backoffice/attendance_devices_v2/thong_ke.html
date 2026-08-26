@@ -3,6 +3,18 @@
 
 {% block title %}Thống kê chấm công{% endblock %}
 
+{% block extra_head %}
+<style>
+  /* Phòng trường hợp Bootstrap/Tabler còn sót backdrop từ lần mở modal trước. */
+  #modalYeuCauSua {
+    z-index: 1095;
+  }
+  .modal-backdrop {
+    z-index: 1090;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="thong-ke-page bo-page">
   <div class="bo-page-header">
@@ -334,7 +346,7 @@
   </ul>
 </nav>
 
-<div class="modal fade" id="modalYeuCauSua" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="modalYeuCauSua" tabindex="-1" aria-hidden="true" data-bs-backdrop="false" data-bs-keyboard="true">
   <div class="modal-dialog">
     <form method="post" action="{% url 'attendance_devices_v2:tao_yeu_cau_sua' %}" class="modal-content">
       {% csrf_token %}
@@ -362,17 +374,42 @@
 {% block extra_js %}
 <script>
   const modal = document.getElementById('modalYeuCauSua');
+
+  function cleanupYeuCauSuaModalState() {
+    document.querySelectorAll('.modal-backdrop').forEach(function (el) { el.remove(); });
+    if (!document.querySelector('.modal.show')) {
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+    }
+  }
+
   if (modal) {
+    // Đưa modal ra trực tiếp dưới <body> để tránh bị layout/table tạo stacking-context làm backdrop phủ lên modal.
+    if (modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
+
     modal.addEventListener('show.bs.modal', function (event) {
+      cleanupYeuCauSuaModalState();
+
       const button = event.relatedTarget;
+      if (!button) return;
       const rowId = button.getAttribute('data-row-id');
       const emp = button.getAttribute('data-emp');
       const unit = button.getAttribute('data-unit');
       const date = button.getAttribute('data-date');
 
-      document.getElementById('modal_row_id').value = rowId;
-      document.getElementById('modal_title').innerText = emp + " | " + unit + " | " + date;
+      document.getElementById('modal_row_id').value = rowId || '';
+      document.getElementById('modal_title').innerText = [emp, unit, date].filter(Boolean).join(' | ');
     });
+
+    modal.addEventListener('hidden.bs.modal', cleanupYeuCauSuaModalState);
+
+    const form = modal.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', cleanupYeuCauSuaModalState);
+    }
   }
 </script>
 {% endblock %}

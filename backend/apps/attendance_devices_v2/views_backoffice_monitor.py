@@ -64,6 +64,9 @@ class DeviceMonitorRow:
     realtime_class: str
     backfill_label: str
     backfill_class: str
+    time_sync_label: str
+    time_sync_class: str
+    time_sync_detail: str
     drift_text: str
     last_error_text: str
     cursor_text: str
@@ -241,6 +244,58 @@ def _drift_text(report: AttendanceDeviceStatusReportV2 | None) -> str:
     sec = int(report.drift_seconds)
     sign = "+" if sec > 0 else ""
     return f"{sign}{sec}s"
+
+def _time_sync_badge(report: AttendanceDeviceStatusReportV2 | None) -> tuple[str, str, str]:
+    if not report:
+        return "Chưa báo", "secondary", "Chưa nhận trạng thái kiểm tra giờ từ Agent."
+
+    state = report.time_sync_state or AttendanceDeviceStatusReportV2.TimeSyncState.NOT_CHECKED
+    labels = {
+        "DISABLED": "Đã tắt",
+        "NOT_CHECKED": "Chưa kiểm tra",
+        "CHECKING": "Đang kiểm tra",
+        "NORMAL": "Bình thường",
+        "WARNING": "Cảnh báo",
+        "SYNC_REQUIRED": "Cần đồng bộ",
+        "WAITING_WINDOW": "Chờ cửa sổ",
+        "SYNCING": "Đang đồng bộ",
+        "SUCCESS": "Thành công",
+        "FAILED": "Thất bại",
+        "FAILED_VERIFY": "Xác minh lỗi",
+        "DEVICE_UNREACHABLE": "Không đọc được giờ",
+        "SKIPPED_ALREADY_SUCCESS": "Đã sync",
+        "SKIPPED_CANNOT_PAUSE": "Không pause được",
+    }
+    css = {
+        "DISABLED": "secondary",
+        "NOT_CHECKED": "secondary",
+        "CHECKING": "info",
+        "NORMAL": "success",
+        "WARNING": "warning",
+        "SYNC_REQUIRED": "danger",
+        "WAITING_WINDOW": "warning",
+        "SYNCING": "info",
+        "SUCCESS": "success",
+        "FAILED": "danger",
+        "FAILED_VERIFY": "danger",
+        "DEVICE_UNREACHABLE": "danger",
+        "SKIPPED_ALREADY_SUCCESS": "success",
+        "SKIPPED_CANNOT_PAUSE": "warning",
+    }
+
+    detail_parts = []
+    if report.last_time_check_at:
+        detail_parts.append(f"Check {_ago(report.last_time_check_at)}")
+    if report.drift_seconds is not None:
+        detail_parts.append(f"lệch {int(report.drift_seconds)}s")
+    if report.last_time_sync_before_drift_seconds is not None:
+        before = int(report.last_time_sync_before_drift_seconds)
+        after = report.last_time_sync_after_drift_seconds
+        detail_parts.append(f"sync {before}s → {int(after)}s" if after is not None else f"trước sync {before}s")
+    if report.last_time_sync_error:
+        detail_parts.append(report.last_time_sync_error)
+
+    return labels.get(state, state), css.get(state, "secondary"), " · ".join(detail_parts) or "-"
 
 
 def _dict_counts(qs, key_name: str) -> dict[int, int]:
@@ -679,6 +734,7 @@ def giam_sat_thiet_bi_view(request):
                 "total": 0, "online": 0, "stale": 0, "offline": 0, "unknown": 0, "disabled": 0,
                 "raw_today": 0, "raw_24h": 0, "raw_pending": 0, "unresolved_today": 0, "unresolved_raw_today": 0,
                 "normalized_today": 0, "agent_offline": 0, "realtime_error": 0, "backfill_failed": 0,
+                "time_sync_warning": 0, "time_sync_failed": 0, "time_sync_unchecked": 0,
             },
             "status_links": [],
             "unmapped_uid_details": [],
@@ -803,6 +859,9 @@ def giam_sat_thiet_bi_view(request):
         "agent_offline": 0,
         "realtime_error": 0,
         "backfill_failed": 0,
+        "time_sync_warning": 0,
+        "time_sync_failed": 0,
+        "time_sync_unchecked": 0,
     }
 
     for d in devices:
@@ -811,6 +870,7 @@ def giam_sat_thiet_bi_view(request):
         dyn_status, dyn_label, dyn_class = _device_status_from_report(d, latest_status, now)
         realtime_label, realtime_class = _realtime_badge(latest_status, now)
         backfill_label, backfill_class = _backfill_badge(latest_backfill)
+        time_sync_label, time_sync_class, time_sync_detail = _time_sync_badge(latest_status)
         agent_status, agent_label = _agent_status(d.assigned_agent, now)
 
         if status_filter and dyn_status != status_filter:
@@ -876,6 +936,9 @@ def giam_sat_thiet_bi_view(request):
             realtime_class=realtime_class,
             backfill_label=backfill_label,
             backfill_class=backfill_class,
+            time_sync_label=time_sync_label,
+            time_sync_class=time_sync_class,
+            time_sync_detail=time_sync_detail,
             drift_text=_drift_text(latest_status),
             last_error_text=(latest_status.last_error if latest_status and latest_status.last_error else (latest_backfill.error_message if latest_backfill and latest_backfill.error_message else "")),
             cursor_text=cursor_text,
@@ -898,6 +961,12 @@ def giam_sat_thiet_bi_view(request):
             kpi["realtime_error"] += 1
         if latest_backfill and latest_backfill.status in {"FAILED", "PARTIAL_PENDING"}:
             kpi["backfill_failed"] += 1
+        if not latest_status or latest_status.time_sync_state in {"NOT_CHECKED", "CHECKING"}:
+            kpi["time_sync_unchecked"] += 1
+        elif latest_status.time_sync_state in {"WARNING", "SYNC_REQUIRED", "WAITING_WINDOW", "SKIPPED_CANNOT_PAUSE"}:
+            kpi["time_sync_warning"] += 1
+        elif latest_status.time_sync_state in {"FAILED", "FAILED_VERIFY", "DEVICE_UNREACHABLE"}:
+            kpi["time_sync_failed"] += 1
         kpi["raw_today"] += raw_today
         kpi["raw_24h"] += raw_24h
         kpi["raw_pending"] += raw_pending

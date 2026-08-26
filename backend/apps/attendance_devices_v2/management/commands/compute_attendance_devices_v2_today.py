@@ -40,6 +40,11 @@ class Command(BaseCommand):
         parser.add_argument("--run-prefix", default="cron", help="Prefix cho compute_run_id.")
         parser.add_argument("--compute-version", type=int, default=1, help="Phiên bản compute.")
         parser.add_argument("--dry-run", action="store_true", help="Chỉ liệt kê unit/date sẽ tính, không ghi DB.")
+        parser.add_argument(
+            "--with-audit",
+            action="store_true",
+            help="Lưu AttendancePunchMatchV2 chi tiết từng mốc. Mặc định tắt để tránh phình bảng log khi chạy cron.",
+        )
         parser.add_argument("--fail-fast", action="store_true", help="Dừng ngay nếu một unit/date bị lỗi.")
 
     def handle(self, *args, **options):
@@ -68,6 +73,7 @@ class Command(BaseCommand):
         run_prefix = (options.get("run_prefix") or "cron").strip() or "cron"
         compute_version = int(options.get("compute_version") or 1)
         dry_run = bool(options.get("dry_run"))
+        with_audit = bool(options.get("with_audit"))
         fail_fast = bool(options.get("fail_fast"))
 
         commits_qs = AttendanceCommit.objects.filter(work_date__gte=from_date, work_date__lte=to_date)
@@ -110,13 +116,14 @@ class Command(BaseCommand):
                     source="commit",
                     compute_run_id=run_id,
                     compute_version=compute_version,
+                    create_audit_matches=with_audit,
                 )
                 ok += 1
                 total_rows += int(res.master_rows_upserted or 0)
                 total_matches += int(res.matches_created or 0)
                 self.stdout.write(
                     f"OK date={res.work_date}, unit_id={res.unit_id}, commit_id={res.commit_id}, "
-                    f"master_rows={res.master_rows_upserted}, matches={res.matches_created}. {res.notes}"
+                    f"master_rows={res.master_rows_upserted}, audit_matches_saved={res.matches_created}. {res.notes}"
                 )
             except Exception as exc:
                 failed += 1
@@ -128,7 +135,8 @@ class Command(BaseCommand):
 
         summary = (
             f"DONE compute MasterList v2: commits={len(pairs)}, ok={ok}, failed={failed}, "
-            f"master_rows={total_rows}, matches={total_matches}, range={from_date:%Y-%m-%d}->{to_date:%Y-%m-%d}"
+            f"master_rows={total_rows}, audit_matches_saved={total_matches}, "
+            f"audit={'on' if with_audit else 'off'}, range={from_date:%Y-%m-%d}->{to_date:%Y-%m-%d}"
         )
         if failed:
             self.stdout.write(self.style.WARNING(summary))

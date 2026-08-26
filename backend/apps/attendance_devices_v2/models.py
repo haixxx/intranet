@@ -450,6 +450,22 @@ class AttendanceDeviceStatusReportV2(models.Model):
         REALTIME_UNAVAILABLE = "REALTIME_UNAVAILABLE", _("Không hỗ trợ realtime")
         ERROR = "ERROR", _("Lỗi")
 
+    class TimeSyncState(models.TextChoices):
+        DISABLED = "DISABLED", _("Đã tắt")
+        NOT_CHECKED = "NOT_CHECKED", _("Chưa kiểm tra")
+        CHECKING = "CHECKING", _("Đang kiểm tra")
+        NORMAL = "NORMAL", _("Bình thường")
+        WARNING = "WARNING", _("Cảnh báo")
+        SYNC_REQUIRED = "SYNC_REQUIRED", _("Cần đồng bộ")
+        WAITING_WINDOW = "WAITING_WINDOW", _("Chờ cửa sổ")
+        SYNCING = "SYNCING", _("Đang đồng bộ")
+        SUCCESS = "SUCCESS", _("Thành công")
+        FAILED = "FAILED", _("Thất bại")
+        FAILED_VERIFY = "FAILED_VERIFY", _("Xác minh thất bại")
+        DEVICE_UNREACHABLE = "DEVICE_UNREACHABLE", _("Không đọc được giờ")
+        SKIPPED_ALREADY_SUCCESS = "SKIPPED_ALREADY_SUCCESS", _("Đã đồng bộ trong cửa sổ")
+        SKIPPED_CANNOT_PAUSE = "SKIPPED_CANNOT_PAUSE", _("Không dừng được realtime")
+
     device = models.ForeignKey(
         AttendanceDeviceV2,
         on_delete=models.CASCADE,
@@ -477,6 +493,23 @@ class AttendanceDeviceStatusReportV2(models.Model):
     last_device_seen_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name=_("Lần thấy máy"))
     pending_backfill_required = models.BooleanField(default=False, db_index=True, verbose_name=_("Cần backfill"))
     drift_seconds = models.IntegerField(null=True, blank=True, verbose_name=_("Lệch giờ máy (giây)"))
+    time_sync_enabled = models.BooleanField(default=False, verbose_name=_("Bật đồng bộ giờ"))
+    time_sync_state = models.CharField(
+        max_length=32,
+        choices=TimeSyncState.choices,
+        default=TimeSyncState.NOT_CHECKED,
+        db_index=True,
+        verbose_name=_("Trạng thái đồng bộ giờ"),
+    )
+    last_time_check_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name=_("Kiểm tra giờ gần nhất"))
+    device_time_at_check = models.DateTimeField(null=True, blank=True, verbose_name=_("Giờ thiết bị khi kiểm tra"))
+    last_time_sync_attempt_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Lần thử đồng bộ giờ gần nhất"))
+    last_time_sync_success_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name=_("Đồng bộ giờ thành công gần nhất"))
+    last_time_sync_status = models.CharField(max_length=32, blank=True, default="", verbose_name=_("Kết quả đồng bộ giờ gần nhất"))
+    last_time_sync_before_drift_seconds = models.IntegerField(null=True, blank=True, verbose_name=_("Độ lệch trước đồng bộ (giây)"))
+    last_time_sync_after_drift_seconds = models.IntegerField(null=True, blank=True, verbose_name=_("Độ lệch sau đồng bộ (giây)"))
+    last_time_sync_error = models.TextField(blank=True, default="", verbose_name=_("Lỗi đồng bộ giờ gần nhất"))
+    agent_config_version = models.CharField(max_length=128, blank=True, default="", verbose_name=_("Phiên bản cấu hình Agent đã nhận"))
     last_error = models.TextField(blank=True, default="", verbose_name=_("Lỗi cuối"))
 
     payload_json = models.JSONField(blank=True, null=True, verbose_name=_("Payload gốc"))
@@ -489,6 +522,7 @@ class AttendanceDeviceStatusReportV2(models.Model):
             models.Index(fields=["device", "-reported_at", "-id"], name="adv2_st_dev_latest_idx"),
             models.Index(fields=["agent", "-reported_at"], name="adv2_st_agent_time_idx"),
             models.Index(fields=["realtime_status", "reported_at"], name="adv2_st_status_time_idx"),
+            models.Index(fields=["time_sync_state", "reported_at"], name="adv2_st_tsync_time_idx"),
         ]
 
     def __str__(self) -> str:
@@ -561,4 +595,56 @@ class AttendanceDeviceBackfillReportV2(models.Model):
 
     def __str__(self) -> str:
         return f"BackfillReport#{self.pk} dev={self.device_id} {self.status}"
+
+class AttendanceDeviceTimeSyncReportV2(models.Model):
+    """Lưu lịch sử các lần Agent thực sự thử đồng bộ thời gian thiết bị."""
+
+    class Status(models.TextChoices):
+        SUCCESS = "SUCCESS", _("Thành công")
+        FAILED = "FAILED", _("Thất bại")
+        FAILED_VERIFY = "FAILED_VERIFY", _("Xác minh thất bại")
+        SKIPPED_CANNOT_PAUSE = "SKIPPED_CANNOT_PAUSE", _("Không dừng được realtime")
+
+    device = models.ForeignKey(
+        AttendanceDeviceV2,
+        on_delete=models.CASCADE,
+        related_name="time_sync_reports_v2",
+        verbose_name=_("Thiết bị"),
+    )
+    agent = models.ForeignKey(
+        AttendanceDeviceAgentV2,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="time_sync_reports_v2",
+        verbose_name=_("Agent"),
+    )
+    run_id = models.CharField(max_length=160, blank=True, default="", db_index=True, verbose_name=_("Run ID"))
+    window_key = models.CharField(max_length=64, blank=True, default="", db_index=True, verbose_name=_("Cửa sổ"))
+    attempt_no = models.PositiveIntegerField(default=1, verbose_name=_("Lần thử"))
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.FAILED, db_index=True, verbose_name=_("Trạng thái"))
+    started_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Bắt đầu"))
+    finished_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name=_("Kết thúc"))
+    agent_time_before = models.DateTimeField(null=True, blank=True, verbose_name=_("Giờ Agent trước sync"))
+    device_time_before = models.DateTimeField(null=True, blank=True, verbose_name=_("Giờ thiết bị trước sync"))
+    agent_time_after = models.DateTimeField(null=True, blank=True, verbose_name=_("Giờ Agent sau sync"))
+    device_time_after = models.DateTimeField(null=True, blank=True, verbose_name=_("Giờ thiết bị sau sync"))
+    before_drift_seconds = models.IntegerField(null=True, blank=True, verbose_name=_("Độ lệch trước sync (giây)"))
+    after_drift_seconds = models.IntegerField(null=True, blank=True, verbose_name=_("Độ lệch sau sync (giây)"))
+    error_code = models.CharField(max_length=64, blank=True, default="", db_index=True, verbose_name=_("Mã lỗi"))
+    error_message = models.TextField(blank=True, default="", verbose_name=_("Thông báo lỗi"))
+    payload_json = models.JSONField(blank=True, null=True, verbose_name=_("Payload gốc"))
+    reported_at = models.DateTimeField(default=dj_timezone.now, db_index=True, verbose_name=_("Server nhận lúc"))
+
+    class Meta:
+        verbose_name = _("Báo cáo đồng bộ giờ thiết bị (v2)")
+        verbose_name_plural = _("Báo cáo đồng bộ giờ thiết bị (v2)")
+        indexes = [
+            models.Index(fields=["device", "-reported_at", "-id"], name="adv2_ts_dev_latest_idx"),
+            models.Index(fields=["agent", "-reported_at"], name="adv2_ts_agent_time_idx"),
+            models.Index(fields=["status", "reported_at"], name="adv2_ts_status_time_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"TimeSyncReport#{self.pk} dev={self.device_id} {self.status}"
 

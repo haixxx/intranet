@@ -15,12 +15,14 @@ from .models import (
 )
 from .models_master_list import AttendanceDeviceMasterListV2
 from .models_manual_punch import AttendanceManualPunch
+from .sync_policy import get_device_sync_policy
 
 try:
-    from .models import AttendanceDeviceStatusReportV2, AttendanceDeviceBackfillReportV2
+    from .models import AttendanceDeviceStatusReportV2, AttendanceDeviceBackfillReportV2, AttendanceDeviceTimeSyncReportV2
 except Exception:  # pragma: no cover - Phase 2 chưa migrate/model chưa có
     AttendanceDeviceStatusReportV2 = None
     AttendanceDeviceBackfillReportV2 = None
+    AttendanceDeviceTimeSyncReportV2 = None
 
 
 def _bool_badge(value, true_text="Có", false_text="Không"):
@@ -131,18 +133,17 @@ class AttendanceDeviceV2Admin(admin.ModelAdmin):
 
     @admin.display(description=_("Policy"))
     def sync_policy_summary(self, obj):
-        profile = obj.sdk_profile or {}
-        policy = profile.get("sync_policy") if isinstance(profile, dict) else {}
-        if not isinstance(policy, dict):
-            policy = {}
+        policy = get_device_sync_policy(obj)
         realtime = policy.get("realtime_enabled", True)
         backfill = policy.get("backfill_enabled", True)
-        windows = policy.get("backfill_windows") or []
-        first_window = windows[0] if windows and isinstance(windows[0], dict) else {}
-        time_text = first_window.get("time", "22:00")
-        days = first_window.get("days", 15)
+        windows = [
+            f"{window.get('time')}/{window.get('days')}d/{window.get('run_mode')}"
+            for window in policy.get("backfill_windows", [])
+            if window.get("enabled", True)
+        ]
+        backfill_text = ", ".join(windows) if windows else "No BF window"
         time_sync = policy.get("time_sync_enabled", False)
-        return f"{'RT' if realtime else 'No RT'} / {f'BF {time_text}/{days}d' if backfill else 'No BF'} / {'Sync giờ' if time_sync else 'Không sync giờ'}"
+        return f"{'RT' if realtime else 'No RT'} / {backfill_text if backfill else 'No BF'} / {'Sync giờ' if time_sync else 'Không sync giờ'}"
 
 
 @admin.register(AttendanceIngestLogV2)
@@ -363,3 +364,23 @@ if AttendanceDeviceBackfillReportV2 is not None:
 
         def has_add_permission(self, request):
             return False
+
+if AttendanceDeviceTimeSyncReportV2 is not None:
+    @admin.register(AttendanceDeviceTimeSyncReportV2)
+    class AttendanceDeviceTimeSyncReportV2Admin(admin.ModelAdmin):
+        list_display = ("id", "device", "agent", "window_key", "attempt_no", "status_colored", "before_drift_seconds", "after_drift_seconds", "started_at", "finished_at", "error_code", "reported_at")
+        list_filter = ("status", "window_key", "device", "agent")
+        search_fields = ("device__name", "device__host", "agent__name", "run_id", "window_key", "error_code", "error_message")
+        readonly_fields = [f.name for f in AttendanceDeviceTimeSyncReportV2._meta.fields]
+        list_select_related = ("device", "agent")
+        date_hierarchy = "reported_at"
+        ordering = ("-reported_at", "-id")
+        list_per_page = 100
+
+        @admin.display(description=_("Time Sync"), ordering="status")
+        def status_colored(self, obj):
+            return _status_badge(obj.status)
+
+        def has_add_permission(self, request):
+            return False
+

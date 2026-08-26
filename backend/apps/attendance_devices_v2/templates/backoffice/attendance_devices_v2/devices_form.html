@@ -127,12 +127,21 @@
     </div>
 
     <div class="card bo-card mb-3">
-      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center gap-2">
         <h3 class="bo-section-title"><i class="ti ti-arrows-sync"></i>{% trans "Sync Policy cho Agent" %}</h3>
-        <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Agent nhận policy khi gọi API GET devices, vì vậy thay đổi ở đây sẽ được áp dụng ở lần Agent đồng bộ cấu hình tiếp theo.' %}">?</button>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" id="sync-policy-reset" class="btn btn-outline-secondary btn-sm">
+            <i class="ti ti-restore me-1"></i>{% trans "Khôi phục mặc định" %}
+          </button>
+          <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Agent nhận policy khi gọi API GET devices. Khôi phục mặc định chỉ điền lại form; cần bấm Lưu để áp dụng.' %}">?</button>
+        </div>
       </div>
       <div class="card-body">
-        <div class="row g-3">
+        <div id="sync-policy-reset-notice" class="bo-alert bo-alert-info py-2 mb-3 d-none">
+          <i class="ti ti-info-circle me-1"></i>{% trans "Đã điền lại cấu hình mặc định. Các thay đổi chưa được lưu." %}
+        </div>
+
+        <div class="row g-3 mb-3">
           <div class="col-md-3">
             <div class="form-check mt-2">
               {{ form.realtime_enabled }} <label class="form-check-label">{{ form.realtime_enabled.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Luồng chính, nên bật để nhận dữ liệu gần thời gian thực.' %}">?</button></label>
@@ -140,20 +149,9 @@
           </div>
           <div class="col-md-3">
             <div class="form-check mt-2">
-              {{ form.backfill_enabled }} <label class="form-check-label">{{ form.backfill_enabled.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Luồng bù/đối soát, nên bật để đọc lại dữ liệu cũ theo cửa sổ backfill.' %}">?</button></label>
+              {{ form.backfill_enabled }} <label class="form-check-label">{{ form.backfill_enabled.label }} <button type="button" class="bo-help" data-bs-toggle="tooltip" title="{% trans 'Công tắc tổng. Tắt mục này thì Agent không chạy bất kỳ cửa sổ backfill nào.' %}">?</button></label>
             </div>
           </div>
-          <div class="col-md-3">
-            <label class="form-label">{{ form.backfill_time.label }}</label>
-            {{ form.backfill_time }}
-            {% if form.backfill_time.errors %}<div class="text-danger small">{{ form.backfill_time.errors }}</div>{% endif %}
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">{{ form.backfill_days.label }}</label>
-            {{ form.backfill_days }}
-            {% if form.backfill_days.errors %}<div class="text-danger small">{{ form.backfill_days.errors }}</div>{% endif %}
-          </div>
-
           <div class="col-md-3">
             <label class="form-label">{{ form.health_check_seconds.label }}</label>
             {{ form.health_check_seconds }}
@@ -164,6 +162,55 @@
             {{ form.reconnect_seconds }}
             {% if form.reconnect_seconds.errors %}<div class="text-danger small">{{ form.reconnect_seconds.errors }}</div>{% endif %}
           </div>
+        </div>
+
+        <div class="table-responsive mb-3">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>{% trans "Cửa sổ" %}</th>
+                <th style="width: 110px;">{% trans "Bật" %}</th>
+                <th style="width: 150px;">{% trans "Giờ" %}</th>
+                <th style="width: 130px;">{% trans "Số ngày" %}</th>
+                <th>{% trans "Cách chạy" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="fw-semibold">{% trans "Kiểm tra buổi sáng" %}</div>
+                  <div class="text-muted small">morning-check · {% trans "mặc định 07:30" %}</div>
+                </td>
+                <td><div class="form-check">{{ form.morning_backfill_enabled }}</div></td>
+                <td>{{ form.morning_backfill_time }}{% if form.morning_backfill_time.errors %}<div class="text-danger small">{{ form.morning_backfill_time.errors }}</div>{% endif %}</td>
+                <td>{{ form.morning_backfill_days }}{% if form.morning_backfill_days.errors %}<div class="text-danger small">{{ form.morning_backfill_days.errors }}</div>{% endif %}</td>
+                <td>{{ form.morning_backfill_run_mode }}{% if form.morning_backfill_run_mode.errors %}<div class="text-danger small">{{ form.morning_backfill_run_mode.errors }}</div>{% endif %}</td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="fw-semibold">{% trans "Kiểm tra buổi trưa" %}</div>
+                  <div class="text-muted small">midday-check · {% trans "mặc định 13:20" %}</div>
+                </td>
+                <td><div class="form-check">{{ form.midday_backfill_enabled }}</div></td>
+                <td>{{ form.midday_backfill_time }}{% if form.midday_backfill_time.errors %}<div class="text-danger small">{{ form.midday_backfill_time.errors }}</div>{% endif %}</td>
+                <td>{{ form.midday_backfill_days }}{% if form.midday_backfill_days.errors %}<div class="text-danger small">{{ form.midday_backfill_days.errors }}</div>{% endif %}</td>
+                <td>{{ form.midday_backfill_run_mode }}{% if form.midday_backfill_run_mode.errors %}<div class="text-danger small">{{ form.midday_backfill_run_mode.errors }}</div>{% endif %}</td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="fw-semibold">{% trans "Đối soát ban đêm" %}</div>
+                  <div class="text-muted small">nightly · {% trans "mặc định 22:00" %}</div>
+                </td>
+                <td><div class="form-check">{{ form.nightly_backfill_enabled }}</div></td>
+                <td>{{ form.nightly_backfill_time }}{% if form.nightly_backfill_time.errors %}<div class="text-danger small">{{ form.nightly_backfill_time.errors }}</div>{% endif %}</td>
+                <td>{{ form.nightly_backfill_days }}{% if form.nightly_backfill_days.errors %}<div class="text-danger small">{{ form.nightly_backfill_days.errors }}</div>{% endif %}</td>
+                <td>{{ form.nightly_backfill_run_mode }}{% if form.nightly_backfill_run_mode.errors %}<div class="text-danger small">{{ form.nightly_backfill_run_mode.errors }}</div>{% endif %}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="row g-3">
           <div class="col-md-3">
             <label class="form-label">{{ form.backfill_retry_delay_minutes.label }}</label>
             {{ form.backfill_retry_delay_minutes }}
@@ -174,10 +221,9 @@
             {{ form.backfill_max_retries_per_window }}
             {% if form.backfill_max_retries_per_window.errors %}<div class="text-danger small">{{ form.backfill_max_retries_per_window.errors }}</div>{% endif %}
           </div>
-
-          <div class="col-12">
+          <div class="col-md-6">
             <div class="bo-alert bo-alert-warning mb-0 py-2">
-              <i class="ti ti-alert-triangle me-1"></i>{% trans "Backfill mặc định chạy tuần tự lúc 22:00, lấy 15 ngày. Duplicate do backfill gửi lại là bình thường và server sẽ dedupe." %}
+              <i class="ti ti-alert-triangle me-1"></i>{% trans "IF_NEEDED chỉ đọc full log khi Agent phát hiện realtime từng gián đoạn/reconnect hoặc vừa khởi động. Nightly dùng ALWAYS để đối soát cuối ngày." %}
             </div>
           </div>
         </div>
@@ -231,4 +277,55 @@
       <a class="btn btn-outline-secondary btn-sm" href="{% url 'attendance_devices_v2:device_list' %}"><i class="ti ti-x me-1"></i>{% trans "Hủy" %}</a>
     </div>
   </form>
+
+  {{ sync_policy_defaults|json_script:"sync-policy-defaults" }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const resetButton = document.getElementById("sync-policy-reset");
+      const defaultsNode = document.getElementById("sync-policy-defaults");
+      if (!resetButton || !defaultsNode) return;
+
+      const defaults = JSON.parse(defaultsNode.textContent);
+      const windows = Object.fromEntries((defaults.backfill_windows || []).map(item => [item.name, item]));
+      const field = name => document.getElementById(`id_${name}`);
+      const setValue = (name, value) => {
+        const element = field(name);
+        if (!element) return;
+        if (element.type === "checkbox") element.checked = Boolean(value);
+        else element.value = value ?? "";
+        element.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+
+      resetButton.addEventListener("click", function () {
+        setValue("realtime_enabled", defaults.realtime_enabled);
+        setValue("backfill_enabled", defaults.backfill_enabled);
+        setValue("health_check_seconds", defaults.health_check_seconds);
+        setValue("reconnect_seconds", defaults.reconnect_seconds);
+        setValue("backfill_retry_delay_minutes", defaults.backfill_retry_delay_minutes);
+        setValue("backfill_max_retries_per_window", defaults.backfill_max_retries_per_window);
+
+        [
+          ["morning", "morning-check"],
+          ["midday", "midday-check"],
+          ["nightly", "nightly"],
+        ].forEach(([prefix, name]) => {
+          const windowPolicy = windows[name];
+          if (!windowPolicy) return;
+          setValue(`${prefix}_backfill_enabled`, windowPolicy.enabled);
+          setValue(`${prefix}_backfill_time`, windowPolicy.time);
+          setValue(`${prefix}_backfill_days`, windowPolicy.days);
+          setValue(`${prefix}_backfill_run_mode`, windowPolicy.run_mode);
+        });
+
+        setValue("time_sync_enabled", defaults.time_sync_enabled);
+        setValue("time_sync_warn_seconds", defaults.time_sync_warn_seconds);
+        setValue("time_sync_auto_seconds", defaults.time_sync_auto_seconds);
+        const timeWindow = (defaults.time_sync_allowed_windows || [])[0] || {};
+        setValue("time_sync_from", timeWindow.from);
+        setValue("time_sync_to", timeWindow.to);
+
+        document.getElementById("sync-policy-reset-notice")?.classList.remove("d-none");
+      });
+    });
+  </script>
 {% endblock %}

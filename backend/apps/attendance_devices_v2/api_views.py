@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -13,6 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from .sync_policy import get_device_sync_policy
 from .models import (
     AttendanceDeviceAPIKeyV2,
     AttendanceDeviceAgentV2,
@@ -21,6 +23,7 @@ from .models import (
     AttendanceRawPunchV2,
     AttendanceDeviceStatusReportV2,
     AttendanceDeviceBackfillReportV2,
+    AttendanceDeviceTimeSyncReportV2,
 )
 
 
@@ -158,6 +161,17 @@ def _normalize_backfill_status(value: Any) -> str:
     valid = {choice[0] for choice in AttendanceDeviceBackfillReportV2.Status.choices}
     return status if status in valid else AttendanceDeviceBackfillReportV2.Status.FAILED
 
+def _normalize_time_sync_state(value: Any) -> str:
+    status = str(value or "NOT_CHECKED").strip().upper()
+    valid = {choice[0] for choice in AttendanceDeviceStatusReportV2.TimeSyncState.choices}
+    return status if status in valid else AttendanceDeviceStatusReportV2.TimeSyncState.FAILED
+
+
+def _normalize_time_sync_report_status(value: Any) -> str:
+    status = str(value or "FAILED").strip().upper()
+    valid = {choice[0] for choice in AttendanceDeviceTimeSyncReportV2.Status.choices}
+    return status if status in valid else AttendanceDeviceTimeSyncReportV2.Status.FAILED
+
 
 def _merge_device_cursor(device: AttendanceDeviceV2, patch: dict[str, Any]) -> dict[str, Any]:
     base = device.last_cursor_json if isinstance(device.last_cursor_json, dict) else {}
@@ -189,52 +203,24 @@ def _add_rejected_sample(samples: list[dict[str, Any]], *, index: int, error: st
         samples.append({"index": index, "error": str(error)[:500]})
 
 
-def _default_sync_policy() -> dict[str, Any]:
+def _device_config_version(devices: list[AttendanceDeviceV2]) -> str:
     """
-    Policy mặc định theo Agent V2:
-    - realtime là luồng chính;
-    - backfill nightly là luồng bù/đối soát;
-    - time sync tắt mặc định.
+    Tạo phiên bản ổn định cho snapshot cấu hình Agent.
+
+    Chỉ dùng các trường cấu hình; không dùng status/cursor/last_pull_at để tránh
+    config_version thay đổi theo mỗi lượt chấm công hoặc status report.
     """
-    return {
-        "realtime_enabled": True,
-        "backfill_enabled": True,
-        "backfill_mode": "SEQUENTIAL",
-        "backfill_windows": [
-            {"name": "nightly", "time": "22:00", "days": 15, "enabled": True},
-        ],
-        "backfill_retry_enabled": True,
-        "backfill_retry_delay_minutes": 15,
-        "backfill_max_retries_per_window": 3,
-        "backfill_retry_on_device_offline": True,
-        "backfill_retry_on_server_error": False,
-        "time_sync_enabled": False,
-        "time_sync_warn_seconds": 120,
-        "time_sync_auto_seconds": 300,
-        "time_sync_allowed_windows": [
-            {"from": "22:00", "to": "23:30"},
-        ],
-        "health_check_seconds": 10,
-        "reconnect_seconds": 30,
-        "missed_schedule_grace_minutes": 60,
-    }
-
-
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Merge dict đơn giản để sdk_profile.sync_policy có thể override default policy."""
-    result = dict(base)
-    for key, value in (override or {}).items():
-        if isinstance(value, dict) and isinstance(result.get(key), dict):
-            result[key] = _deep_merge(result[key], value)
-        else:
-            result[key] = value
-    return result
-
-
-def _device_sync_policy(device: AttendanceDeviceV2) -> dict[str, Any]:
-    profile = device.sdk_profile if isinstance(device.sdk_profile, dict) else {}
-    override = profile.get("sync_policy") if isinstance(profile.get("sync_policy"), dict) else {}
-    return _deep_merge(_default_sync_policy(), override)
+    rows = [
+        {
+            "id": d.id,
+            "updated_at": d.updated_at.isoformat() if d.updated_at else None,
+            "is_active": d.is_active,
+            "assigned_agent_id": d.assigned_agent_id,
+        }
+        for d in devices
+    ]
+    raw = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
 
 
 def _device_json(device: AttendanceDeviceV2) -> dict[str, Any]:
@@ -254,7 +240,7 @@ def _device_json(device: AttendanceDeviceV2) -> dict[str, Any]:
         "last_cursor_json": device.last_cursor_json or {},
         "last_pull_at": device.last_pull_at.isoformat() if device.last_pull_at else None,
         "sdk_profile": profile,
-        "sync_policy": _device_sync_policy(device),
+        "sync_policy": get_device_sync_policy(device),
     }
 
 
@@ -303,13 +289,20 @@ def agent_devices(request: HttpRequest, agent_id: int) -> JsonResponse:
     if err:
         return err
 
-    devices = (
+    # Trả cả thiết bị inactive đang được gán. Agent cần thấy is_active=false
+    # để dừng listener/health-check/reconnect mà không phải restart Service.
+    devices = list(
         AttendanceDeviceV2.objects
-        .filter(assigned_agent_id=agent.id, is_active=True)
-        .order_by("name")
+        .filter(assigned_agent_id=agent.id)
+        .order_by("name", "id")
     )
+    now = dj_timezone.now()
 
-    return _json_ok(devices=[_device_json(d) for d in devices])
+    return _json_ok(
+        server_time=now.isoformat(),
+        config_version=_device_config_version(devices),
+        devices=[_device_json(d) for d in devices],
+    )
 
 
 # =========================
@@ -630,6 +623,19 @@ def agent_device_status(request: HttpRequest, agent_id: int) -> JsonResponse:
         drift_seconds = None if drift_seconds in (None, "") else _safe_int(drift_seconds, 0)
         pending_backfill_required = _safe_bool(item.get("pending_backfill_required"), False)
         last_error = str(item.get("last_error") or "")[:4000]
+        time_sync_enabled = _safe_bool(item.get("time_sync_enabled"), False)
+        time_sync_state = _normalize_time_sync_state(item.get("time_sync_state"))
+        last_time_check_at = _parse_dt_or_none(item.get("last_time_check_at"))
+        device_time_at_check = _parse_dt_or_none(item.get("device_time_at_check"))
+        last_time_sync_attempt_at = _parse_dt_or_none(item.get("last_time_sync_attempt_at"))
+        last_time_sync_success_at = _parse_dt_or_none(item.get("last_time_sync_success_at"))
+        last_time_sync_status = str(item.get("last_time_sync_status") or "")[:32]
+        last_time_sync_before_drift_seconds = item.get("last_time_sync_before_drift_seconds")
+        last_time_sync_before_drift_seconds = None if last_time_sync_before_drift_seconds in (None, "") else _safe_int(last_time_sync_before_drift_seconds, 0)
+        last_time_sync_after_drift_seconds = item.get("last_time_sync_after_drift_seconds")
+        last_time_sync_after_drift_seconds = None if last_time_sync_after_drift_seconds in (None, "") else _safe_int(last_time_sync_after_drift_seconds, 0)
+        last_time_sync_error = str(item.get("last_time_sync_error") or "")[:4000]
+        agent_config_version = str(item.get("agent_config_version") or "")[:128]
 
         reports.append(AttendanceDeviceStatusReportV2(
             device=device,
@@ -640,6 +646,17 @@ def agent_device_status(request: HttpRequest, agent_id: int) -> JsonResponse:
             last_device_seen_at=last_device_seen_at,
             pending_backfill_required=pending_backfill_required,
             drift_seconds=drift_seconds,
+            time_sync_enabled=time_sync_enabled,
+            time_sync_state=time_sync_state,
+            last_time_check_at=last_time_check_at,
+            device_time_at_check=device_time_at_check,
+            last_time_sync_attempt_at=last_time_sync_attempt_at,
+            last_time_sync_success_at=last_time_sync_success_at,
+            last_time_sync_status=last_time_sync_status,
+            last_time_sync_before_drift_seconds=last_time_sync_before_drift_seconds,
+            last_time_sync_after_drift_seconds=last_time_sync_after_drift_seconds,
+            last_time_sync_error=last_time_sync_error,
+            agent_config_version=agent_config_version,
             last_error=last_error,
             payload_json=item,
             reported_at=now,
@@ -655,6 +672,17 @@ def agent_device_status(request: HttpRequest, agent_id: int) -> JsonResponse:
             "last_device_seen_at": item.get("last_device_seen_at"),
             "pending_backfill_required": pending_backfill_required,
             "drift_seconds": drift_seconds,
+            "time_sync_enabled": time_sync_enabled,
+            "time_sync_state": time_sync_state,
+            "last_time_check_at": item.get("last_time_check_at"),
+            "device_time_at_check": item.get("device_time_at_check"),
+            "last_time_sync_attempt_at": item.get("last_time_sync_attempt_at"),
+            "last_time_sync_success_at": item.get("last_time_sync_success_at"),
+            "last_time_sync_status": last_time_sync_status,
+            "last_time_sync_before_drift_seconds": last_time_sync_before_drift_seconds,
+            "last_time_sync_after_drift_seconds": last_time_sync_after_drift_seconds,
+            "last_time_sync_error": last_time_sync_error,
+            "agent_config_version": agent_config_version,
             "last_realtime_error": last_error,
         }
         device_updates[device.id] = {
@@ -666,13 +694,12 @@ def agent_device_status(request: HttpRequest, agent_id: int) -> JsonResponse:
     if reports:
         AttendanceDeviceStatusReportV2.objects.bulk_create(reports, batch_size=500)
 
-    # Update device snapshot gọn để các màn cũ vẫn nhìn được trạng thái mới nhất.
+    # Update snapshot trạng thái gọn cho các màn cũ.
+    # Không ghi last_pull_at ở đây: last_pull_at chỉ dành cho lần thực sự ingest/pull raw.
     for did, upd in device_updates.items():
         AttendanceDeviceV2.objects.filter(id=did).update(
             last_cursor_json=upd["cursor"],
             status=upd["status"],
-            # last_pull_at trước đây dùng cho ingest; với Agent realtime, dùng thêm như lần thấy máy gần nhất.
-            last_pull_at=upd["last_seen"],
         )
 
     return _json_ok(received=received, rejected=rejected, rejected_samples=rejected_samples)
@@ -764,4 +791,69 @@ def agent_backfill_report(request: HttpRequest, agent_id: int) -> JsonResponse:
     device.save(update_fields=["last_cursor_json"])
 
     return _json_ok(backfill_report_id=report.id)
+
+# =========================
+# API: Time sync report
+# =========================
+
+@csrf_exempt
+@require_POST
+def agent_time_sync_report(request: HttpRequest, agent_id: int) -> JsonResponse:
+    """Agent gửi kết quả một lần thực sự thử đồng bộ thời gian thiết bị."""
+    agent = _auth_agent(request)
+    if isinstance(agent, JsonResponse):
+        return agent
+
+    err = _require_same_agent(agent, agent_id)
+    if err:
+        return err
+
+    payload = _parse_json_body(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+
+    device_id = _safe_int(payload.get("device_id"), 0)
+    if device_id <= 0:
+        return _json_error(str(_("Thiếu hoặc sai device_id.")), status=400)
+
+    device = AttendanceDeviceV2.objects.filter(id=device_id, assigned_agent_id=agent.id).first()
+    if not device:
+        return _json_error(str(_("Thiết bị không thuộc agent này.")), status=403)
+
+    now = dj_timezone.now()
+    status = _normalize_time_sync_report_status(payload.get("status"))
+    report = AttendanceDeviceTimeSyncReportV2.objects.create(
+        device=device,
+        agent=agent,
+        run_id=str(payload.get("run_id") or "")[:160],
+        window_key=str(payload.get("window_key") or "")[:64],
+        attempt_no=max(_safe_int(payload.get("attempt_no"), 1), 1),
+        status=status,
+        started_at=_parse_dt_or_none(payload.get("started_at")),
+        finished_at=_parse_dt_or_none(payload.get("finished_at")) or now,
+        agent_time_before=_parse_dt_or_none(payload.get("agent_time_before")),
+        device_time_before=_parse_dt_or_none(payload.get("device_time_before")),
+        agent_time_after=_parse_dt_or_none(payload.get("agent_time_after")),
+        device_time_after=_parse_dt_or_none(payload.get("device_time_after")),
+        before_drift_seconds=None if payload.get("before_drift_seconds") in (None, "") else _safe_int(payload.get("before_drift_seconds"), 0),
+        after_drift_seconds=None if payload.get("after_drift_seconds") in (None, "") else _safe_int(payload.get("after_drift_seconds"), 0),
+        error_code=str(payload.get("error_code") or "")[:64],
+        error_message=str(payload.get("error_message") or "")[:4000],
+        payload_json=payload,
+        reported_at=now,
+    )
+
+    cursor_patch = {
+        "last_time_sync_report_at": now.isoformat(),
+        "last_time_sync_status": status,
+        "last_time_sync_attempt_at": payload.get("started_at"),
+        "last_time_sync_success_at": payload.get("finished_at") if status == AttendanceDeviceTimeSyncReportV2.Status.SUCCESS else None,
+        "last_time_sync_before_drift_seconds": report.before_drift_seconds,
+        "last_time_sync_after_drift_seconds": report.after_drift_seconds,
+        "last_time_sync_error": report.error_message,
+    }
+    device.last_cursor_json = _merge_device_cursor(device, cursor_patch)
+    device.save(update_fields=["last_cursor_json"])
+
+    return _json_ok(time_sync_report_id=report.id, received=1, rejected=0)
 

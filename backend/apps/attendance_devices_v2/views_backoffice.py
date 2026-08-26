@@ -8,9 +8,9 @@ from .forms import (
     AgentAPIKeyCreateForm,
     AttendanceDeviceAgentV2Form,
     AttendanceDeviceV2Form,
-    get_device_sync_policy,
 )
 from .models import AttendanceDeviceAgentV2, AttendanceDeviceAPIKeyV2, AttendanceDeviceV2
+from .sync_policy import get_device_sync_policy
 
 
 # =========================
@@ -119,12 +119,19 @@ def device_list(request):
     items = list(qs)
     for item in items:
         policy = get_device_sync_policy(item)
-        window = (policy.get("backfill_windows") or [{}])[0]
         item.sync_policy_summary = {
             "realtime_enabled": bool(policy.get("realtime_enabled")),
             "backfill_enabled": bool(policy.get("backfill_enabled")),
-            "backfill_time": window.get("time") or "-",
-            "backfill_days": window.get("days") or "-",
+            "backfill_windows": [
+                {
+                    "name": window.get("name"),
+                    "time": window.get("time") or "-",
+                    "days": window.get("days") or "-",
+                    "run_mode": window.get("run_mode") or "ALWAYS",
+                    "enabled": bool(window.get("enabled", True)),
+                }
+                for window in policy.get("backfill_windows", [])
+            ],
             "time_sync_enabled": bool(policy.get("time_sync_enabled")),
         }
 
@@ -152,6 +159,7 @@ def device_create(request):
     return render(request, "backoffice/attendance_devices_v2/devices_form.html", {
         "form": form,
         "create": True,
+        "sync_policy_defaults": form.default_sync_policy,
     })
 
 
@@ -173,4 +181,5 @@ def device_edit(request, device_id: int):
         "form": form,
         "obj": obj,
         "create": False,
+        "sync_policy_defaults": form.default_sync_policy,
     })

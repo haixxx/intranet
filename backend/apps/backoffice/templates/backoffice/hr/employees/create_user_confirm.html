@@ -15,7 +15,7 @@
     <dt>{% trans "Nhân sự" %}</dt><dd>{{ emp.full_name }} ({{ emp.employee_code }})</dd>
     <dt>{% trans "Đơn vị" %}</dt><dd>{{ emp.unit.symbol }} - {{ emp.unit.name }}</dd>
     <dt>{% trans "Username sẽ tạo" %}</dt><dd><code class="bo-inline-code">{{ proposed_username }}</code> <span class="bo-help" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="{% trans 'Cách tạo: unit_symbol + họ tên đã bỏ dấu, chữ thường, bỏ khoảng trắng/ký tự đặc biệt. Nếu username đã tồn tại sẽ thêm số phía sau.' %}">?</span></dd>
-    <dt>{% trans "Mật khẩu" %}</dt><dd>{% trans "Hệ thống sẽ sinh mật khẩu tạm thời khi xác nhận tạo user. Mật khẩu chỉ hiển thị một lần trong thông báo sau khi tạo." %}</dd>
+    <dt>{% trans "Mật khẩu mặc định" %}</dt><dd><code class="bo-inline-code">{{ default_password }}</code> <span class="text-muted small">{% trans "Dùng cho tài khoản tạo từ danh sách nhân sự. Người dùng nên đổi mật khẩu sau khi đăng nhập lần đầu." %}</span></dd>
     <dt>{% trans "Quyền mặc định" %}</dt><dd>{% trans "Chỉ xem dữ liệu trong đơn vị (UNIT_SUBTREE) của nhân sự" %} – {% trans "nhóm" %} <code>EMPLOYEE</code>.</dd>
   </dl>
   <form method="post">

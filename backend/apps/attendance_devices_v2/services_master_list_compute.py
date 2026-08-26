@@ -330,7 +330,17 @@ def compute_master_list_for_unit_date(
     source: SourceMode = "commit",
     compute_run_id: str = "",
     compute_version: int = 1,
+    create_audit_matches: bool = False,
 ) -> ComputeMasterResult:
+    """
+    Tính/cập nhật MasterList V2 cho một đơn vị/ngày.
+
+    Mặc định KHÔNG lưu AttendancePunchMatchV2 để tránh phình bảng log khi cron
+    hoặc người dùng bấm tính lại nhiều lần. MasterList vẫn lưu đầy đủ actual/status/delta.
+
+    Khi cần điều tra chi tiết từng mốc, truyền create_audit_matches=True
+    hoặc dùng command compute_attendance_devices_v2_audit.
+    """
     window = timedelta(minutes=_get_window_minutes())
 
     commit = AttendanceCommit.objects.filter(unit_id=unit_id, work_date=work_date).select_related("unit").first()
@@ -428,21 +438,22 @@ def compute_master_list_for_unit_date(
             matched_local = None
             delta_seconds = None
 
-        AttendancePunchMatchV2.objects.create(
-            work_date=work_date,
-            employee=emp,
-            target_field=field,
-            target_time_local=target_local,
-            matched_punch=matched_punch_fk,
-            matched_time_local=matched_local,
-            delta_seconds=delta_seconds,
-            status=status,
-            notes=notes,
-            compute_run_id=compute_run_id,
-            compute_version=compute_version,
-            created_at=now,
-        )
-        res.matches_created += 1
+        if create_audit_matches:
+            AttendancePunchMatchV2.objects.create(
+                work_date=work_date,
+                employee=emp,
+                target_field=field,
+                target_time_local=target_local,
+                matched_punch=matched_punch_fk,
+                matched_time_local=matched_local,
+                delta_seconds=delta_seconds,
+                status=status,
+                notes=notes,
+                compute_run_id=compute_run_id,
+                compute_version=compute_version,
+                created_at=now,
+            )
+            res.matches_created += 1
         return matched_local, delta_seconds
 
     # Upsert master:

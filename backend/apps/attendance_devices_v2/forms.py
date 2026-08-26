@@ -7,59 +7,13 @@ from django.utils.translation import gettext_lazy as _
 
 from .models import AttendanceDeviceAgentV2, AttendanceDeviceAPIKeyV2, AttendanceDeviceV2
 
-
-DEFAULT_SYNC_POLICY = {
-    "realtime_enabled": True,
-    "backfill_enabled": True,
-    "backfill_mode": "SEQUENTIAL",
-    "backfill_windows": [
-        {
-            "name": "nightly",
-            "time": "22:00",
-            "days": 15,
-            "enabled": True,
-        }
-    ],
-    "backfill_retry_enabled": True,
-    "backfill_retry_delay_minutes": 15,
-    "backfill_max_retries_per_window": 3,
-    "backfill_retry_on_device_offline": True,
-    "backfill_retry_on_server_error": False,
-    "time_sync_enabled": False,
-    "time_sync_warn_seconds": 120,
-    "time_sync_auto_seconds": 300,
-    "time_sync_allowed_windows": [
-        {
-            "from": "22:00",
-            "to": "23:30",
-        }
-    ],
-    "health_check_seconds": 10,
-    "reconnect_seconds": 30,
-    "missed_schedule_grace_minutes": 60,
-}
-
-
-def _merge_dict(base: dict, override: dict) -> dict:
-    """
-    Merge nông + merge dict con để giữ default an toàn.
-    List như backfill_windows/time_sync_allowed_windows sẽ được thay bằng giá trị override nếu có.
-    """
-    data = deepcopy(base)
-    for key, value in (override or {}).items():
-        if isinstance(value, dict) and isinstance(data.get(key), dict):
-            data[key] = _merge_dict(data[key], value)
-        else:
-            data[key] = value
-    return data
-
-
-def get_device_sync_policy(device: AttendanceDeviceV2 | None) -> dict:
-    sdk_profile = getattr(device, "sdk_profile", None) if device else None
-    if not isinstance(sdk_profile, dict):
-        sdk_profile = {}
-    raw_policy = sdk_profile.get("sync_policy") if isinstance(sdk_profile.get("sync_policy"), dict) else {}
-    return _merge_dict(DEFAULT_SYNC_POLICY, raw_policy)
+from .sync_policy import (
+    BACKFILL_RUN_MODE_ALWAYS,
+    BACKFILL_RUN_MODE_IF_NEEDED,
+    get_default_sync_policy,
+    get_device_sync_policy,
+    normalize_sync_policy,
+)
 
 
 class AttendanceDeviceAgentV2Form(forms.ModelForm):
@@ -120,21 +74,95 @@ class AttendanceDeviceV2Form(forms.ModelForm):
         initial=True,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
-    backfill_time = forms.TimeField(
-        label=_("Giờ backfill hằng ngày"),
+    BACKFILL_RUN_MODE_CHOICES = (
+        (BACKFILL_RUN_MODE_IF_NEEDED, _("Chỉ chạy khi realtime có gián đoạn")),
+        (BACKFILL_RUN_MODE_ALWAYS, _("Luôn chạy theo lịch")),
+    )
+
+    morning_backfill_enabled = forms.BooleanField(
+        label=_("Bật backfill 07:30"),
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    morning_backfill_time = forms.TimeField(
+        label=_("Giờ sáng"),
+        required=True,
+        initial="07:30",
+        input_formats=["%H:%M"],
+        widget=forms.TimeInput(attrs={"class": "form-control", "type": "time"}),
+    )
+    morning_backfill_days = forms.IntegerField(
+        label=_("Số ngày"),
+        required=True,
+        initial=1,
+        min_value=1,
+        max_value=60,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 60}),
+    )
+    morning_backfill_run_mode = forms.ChoiceField(
+        label=_("Cách chạy"),
+        choices=BACKFILL_RUN_MODE_CHOICES,
+        initial=BACKFILL_RUN_MODE_IF_NEEDED,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    midday_backfill_enabled = forms.BooleanField(
+        label=_("Bật backfill 13:20"),
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    midday_backfill_time = forms.TimeField(
+        label=_("Giờ trưa"),
+        required=True,
+        initial="13:20",
+        input_formats=["%H:%M"],
+        widget=forms.TimeInput(attrs={"class": "form-control", "type": "time"}),
+    )
+    midday_backfill_days = forms.IntegerField(
+        label=_("Số ngày"),
+        required=True,
+        initial=1,
+        min_value=1,
+        max_value=60,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 60}),
+    )
+    midday_backfill_run_mode = forms.ChoiceField(
+        label=_("Cách chạy"),
+        choices=BACKFILL_RUN_MODE_CHOICES,
+        initial=BACKFILL_RUN_MODE_IF_NEEDED,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    nightly_backfill_enabled = forms.BooleanField(
+        label=_("Bật backfill 22:00"),
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    nightly_backfill_time = forms.TimeField(
+        label=_("Giờ ban đêm"),
         required=True,
         initial="22:00",
         input_formats=["%H:%M"],
         widget=forms.TimeInput(attrs={"class": "form-control", "type": "time"}),
     )
-    backfill_days = forms.IntegerField(
-        label=_("Số ngày backfill"),
+    nightly_backfill_days = forms.IntegerField(
+        label=_("Số ngày"),
         required=True,
         initial=15,
         min_value=1,
         max_value=60,
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 60}),
     )
+    nightly_backfill_run_mode = forms.ChoiceField(
+        label=_("Cách chạy"),
+        choices=BACKFILL_RUN_MODE_CHOICES,
+        initial=BACKFILL_RUN_MODE_ALWAYS,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
     backfill_retry_delay_minutes = forms.IntegerField(
         label=_("Phút chờ retry backfill"),
         required=True,
@@ -263,27 +291,40 @@ class AttendanceDeviceV2Form(forms.ModelForm):
         instance = getattr(self, "instance", None)
         sdk_profile = instance.sdk_profile if instance and isinstance(instance.sdk_profile, dict) else {}
         policy = get_device_sync_policy(instance if instance and instance.pk else None)
+        self.default_sync_policy = get_default_sync_policy()
 
-        if instance and instance.pk:
-            self.fields["machine_number"].initial = int(sdk_profile.get("machine_number") or 1)
-            self.fields["comm_password"].initial = int(sdk_profile.get("comm_password") or 0)
+        self.fields["machine_number"].initial = int(sdk_profile.get("machine_number") or 1)
+        self.fields["comm_password"].initial = int(sdk_profile.get("comm_password") or 0)
+        self.fields["realtime_enabled"].initial = bool(policy.get("realtime_enabled", True))
+        self.fields["backfill_enabled"].initial = bool(policy.get("backfill_enabled", True))
 
-            self.fields["realtime_enabled"].initial = bool(policy.get("realtime_enabled", True))
-            self.fields["backfill_enabled"].initial = bool(policy.get("backfill_enabled", True))
-            window = (policy.get("backfill_windows") or DEFAULT_SYNC_POLICY["backfill_windows"])[0]
-            self.fields["backfill_time"].initial = window.get("time") or "22:00"
-            self.fields["backfill_days"].initial = int(window.get("days") or 15)
-            self.fields["backfill_retry_delay_minutes"].initial = int(policy.get("backfill_retry_delay_minutes") or 15)
-            self.fields["backfill_max_retries_per_window"].initial = int(policy.get("backfill_max_retries_per_window") or 3)
-            self.fields["health_check_seconds"].initial = int(policy.get("health_check_seconds") or 10)
-            self.fields["reconnect_seconds"].initial = int(policy.get("reconnect_seconds") or 30)
+        windows = {
+            item.get("name"): item
+            for item in policy.get("backfill_windows", [])
+            if isinstance(item, dict)
+        }
+        for prefix, name in (
+            ("morning", "morning-check"),
+            ("midday", "midday-check"),
+            ("nightly", "nightly"),
+        ):
+            window = windows[name]
+            self.fields[f"{prefix}_backfill_enabled"].initial = bool(window.get("enabled", True))
+            self.fields[f"{prefix}_backfill_time"].initial = window.get("time")
+            self.fields[f"{prefix}_backfill_days"].initial = int(window.get("days") or 1)
+            self.fields[f"{prefix}_backfill_run_mode"].initial = window.get("run_mode")
 
-            self.fields["time_sync_enabled"].initial = bool(policy.get("time_sync_enabled", False))
-            self.fields["time_sync_warn_seconds"].initial = int(policy.get("time_sync_warn_seconds") or 120)
-            self.fields["time_sync_auto_seconds"].initial = int(policy.get("time_sync_auto_seconds") or 300)
-            allowed_window = (policy.get("time_sync_allowed_windows") or DEFAULT_SYNC_POLICY["time_sync_allowed_windows"])[0]
-            self.fields["time_sync_from"].initial = allowed_window.get("from") or "22:00"
-            self.fields["time_sync_to"].initial = allowed_window.get("to") or "23:30"
+        self.fields["backfill_retry_delay_minutes"].initial = int(policy.get("backfill_retry_delay_minutes") or 15)
+        self.fields["backfill_max_retries_per_window"].initial = int(policy.get("backfill_max_retries_per_window") or 3)
+        self.fields["health_check_seconds"].initial = int(policy.get("health_check_seconds") or 10)
+        self.fields["reconnect_seconds"].initial = int(policy.get("reconnect_seconds") or 30)
+
+        self.fields["time_sync_enabled"].initial = bool(policy.get("time_sync_enabled", False))
+        self.fields["time_sync_warn_seconds"].initial = int(policy.get("time_sync_warn_seconds") or 120)
+        self.fields["time_sync_auto_seconds"].initial = int(policy.get("time_sync_auto_seconds") or 300)
+        allowed_window = policy.get("time_sync_allowed_windows", [])[0]
+        self.fields["time_sync_from"].initial = allowed_window.get("from") or "22:00"
+        self.fields["time_sync_to"].initial = allowed_window.get("to") or "23:30"
 
     def clean(self):
         cleaned = super().clean()
@@ -308,9 +349,14 @@ class AttendanceDeviceV2Form(forms.ModelForm):
         if not timezone:
             cleaned["timezone"] = "Asia/Ho_Chi_Minh"
 
-        backfill_days = int(cleaned.get("backfill_days") or 0)
-        if backfill_days < 1 or backfill_days > 60:
-            raise forms.ValidationError(_("Số ngày backfill nên nằm trong khoảng 1–60."))
+        for field_name in (
+            "morning_backfill_days",
+            "midday_backfill_days",
+            "nightly_backfill_days",
+        ):
+            days = int(cleaned.get(field_name) or 0)
+            if days < 1 or days > 60:
+                raise forms.ValidationError(_("Số ngày backfill nên nằm trong khoảng 1–60."))
 
         warn = int(cleaned.get("time_sync_warn_seconds") or 0)
         auto = int(cleaned.get("time_sync_auto_seconds") or 0)
@@ -321,17 +367,25 @@ class AttendanceDeviceV2Form(forms.ModelForm):
 
     def _build_sync_policy(self) -> dict:
         cd = self.cleaned_data
-        return {
+
+        def build_window(prefix: str, name: str, grace_minutes: int) -> dict:
+            return {
+                "name": name,
+                "time": cd[f"{prefix}_backfill_time"].strftime("%H:%M"),
+                "days": int(cd.get(f"{prefix}_backfill_days") or 1),
+                "run_mode": cd.get(f"{prefix}_backfill_run_mode") or BACKFILL_RUN_MODE_IF_NEEDED,
+                "grace_minutes": grace_minutes,
+                "enabled": bool(cd.get(f"{prefix}_backfill_enabled")),
+            }
+
+        policy = {
             "realtime_enabled": bool(cd.get("realtime_enabled")),
             "backfill_enabled": bool(cd.get("backfill_enabled")),
             "backfill_mode": "SEQUENTIAL",
             "backfill_windows": [
-                {
-                    "name": "nightly",
-                    "time": cd["backfill_time"].strftime("%H:%M"),
-                    "days": int(cd.get("backfill_days") or 15),
-                    "enabled": bool(cd.get("backfill_enabled")),
-                }
+                build_window("morning", "morning-check", 60),
+                build_window("midday", "midday-check", 60),
+                build_window("nightly", "nightly", 120),
             ],
             "backfill_retry_enabled": True,
             "backfill_retry_delay_minutes": int(cd.get("backfill_retry_delay_minutes") or 15),
@@ -347,10 +401,15 @@ class AttendanceDeviceV2Form(forms.ModelForm):
                     "to": cd["time_sync_to"].strftime("%H:%M"),
                 }
             ],
+            "time_sync_check_seconds": 600,
+            "time_sync_max_retries_per_window": 2,
+            "time_sync_retry_delay_minutes": 15,
+            "time_sync_verify_tolerance_seconds": 30,
             "health_check_seconds": int(cd.get("health_check_seconds") or 10),
             "reconnect_seconds": int(cd.get("reconnect_seconds") or 30),
             "missed_schedule_grace_minutes": 60,
         }
+        return normalize_sync_policy(policy)
 
     def save(self, commit=True):
         obj = super().save(commit=False)

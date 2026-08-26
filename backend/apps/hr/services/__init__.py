@@ -88,6 +88,18 @@ def _subtree_ids(root_id: int) -> List[int]:
     return ids
 
 
+def clear_org_scope_cache():
+    """
+    Xóa cache phạm vi đơn vị sau khi cơ cấu tổ chức thay đổi.
+
+    Lý do: allowed_org_ids_for_user() dùng cache để giảm truy vấn. Nếu vừa tạo/sửa/xóa
+    OrgUnit trong cùng tiến trình web rồi import nhân sự ngay, cache cũ có thể chưa chứa
+    đơn vị mới, kể cả với superuser.
+    """
+    _all_orgunit_ids.cache_clear()
+    _subtree_ids.cache_clear()
+
+
 def allowed_org_ids_for_user(user) -> List[int]:
     """
     Tính danh sách OrgUnit IDs user được phép xem dựa vào AccessControl.

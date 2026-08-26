@@ -31,6 +31,7 @@ class Command(BaseCommand):
             source="commit",
             compute_run_id=run_id,
             compute_version=compute_version,
+            create_audit_matches=True,
         )
 
         self.stdout.write(self.style.SUCCESS(

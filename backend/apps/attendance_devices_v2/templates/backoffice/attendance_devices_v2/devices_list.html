@@ -93,7 +93,11 @@
                   {% endif %}
 
                   {% if x.sync_policy_summary.backfill_enabled %}
-                    <span class="bo-badge bo-badge-info"><i class="ti ti-history"></i>{% trans "Backfill" %} {{ x.sync_policy_summary.backfill_time }}/{{ x.sync_policy_summary.backfill_days }}d</span>
+                    {% for window in x.sync_policy_summary.backfill_windows %}
+                      {% if window.enabled %}
+                        <span class="bo-badge bo-badge-info"><i class="ti ti-history"></i>{{ window.time }}/{{ window.days }}d · {{ window.run_mode }}</span>
+                      {% endif %}
+                    {% endfor %}
                   {% else %}
                     <span class="bo-badge bo-badge-secondary">{% trans "Tắt backfill" %}</span>
                   {% endif %}
